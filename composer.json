@@ -1,0 +1,81 @@
+{
+    "name": "infocyph/reqshield",
+    "description": "Fast, modern PHP request validation and sanitization. Schema-based rules, fail-fast execution, typed input, PSR-7 friendly.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "validation",
+        "validator",
+        "request",
+        "input",
+        "sanitization",
+        "schema",
+        "rules",
+        "psr-7",
+        "http",
+        "security"
+    ],
+    "authors": [
+        {
+            "name": "abmmhasan",
+            "email": "abmmhasan@gmail.com"
+        }
+    ],
+    "autoload": {
+        "files": [
+            "src/functions.php"
+        ],
+        "psr-4": {
+            "Infocyph\\ReqShield\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Infocyph\\ReqShield\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": ">=8.4"
+    },
+    "require-dev": {
+        "captainhook/captainhook": "^5.25",
+        "laravel/pint": "^1.25",
+        "pestphp/pest": "^4.1",
+        "pestphp/pest-plugin-drift": "^4.0",
+        \
+        "rector/rector": "^2.2.3",
+        "symfony/var-dumper": "^7.3"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test:code": "pest --parallel --processes=10",
+        "test:refactor": "rector process --dry-run",
+        "test:lint": "pint --test",
+        "test:hook": [
+            "captainhook hook:post-checkout",
+            "captainhook hook:pre-commit",
+            "captainhook hook:post-commit",
+            "captainhook hook:post-merge",
+            "captainhook hook:post-rewrite",
+            "captainhook hook:pre-push"
+        ],
+        "tests": [
+            "@test:code",
+            "@test:lint",
+            "@test:refactor"
+        ],
+        "git:hook": "captainhook install --only-enabled -nf",
+        "test": "pest",
+        "refactor": "rector process",
+        "lint": "pint",
+        "post-autoload-dump": "captainhook install --only-enabled -nf"
+    }
+}
