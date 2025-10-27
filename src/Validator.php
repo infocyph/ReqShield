@@ -22,15 +22,10 @@ use Infocyph\ReqShield\Executors\BatchExecutor;
 class Validator
 {
     protected BatchExecutor $batchExecutor;
-
     protected SchemaCompiler $compiler;
-
     protected array $customMessages = [];
-
     protected bool $failFast = true;
-
     protected array $schema;
-
     protected bool $stopOnFirstError = false;
 
     public function __construct(array $rules, ?DatabaseProvider $db = null)
@@ -67,28 +62,24 @@ class Validator
     public function registerRule(string $name, string $class): self
     {
         $this->compiler->registerRule($name, $class);
-
         return $this;
     }
 
     public function setCustomMessages(array $messages): self
     {
         $this->customMessages = $messages;
-
         return $this;
     }
 
     public function setFailFast(bool $failFast): self
     {
         $this->failFast = $failFast;
-
         return $this;
     }
 
     public function setStopOnFirstError(bool $stop): self
     {
         $this->stopOnFirstError = $stop;
-
         return $this;
     }
 
@@ -103,7 +94,7 @@ class Validator
 
         // Single pass through data with all phases
         foreach ($data as $field => $value) {
-            if (! isset($this->schema[$field])) {
+            if (!isset($this->schema[$field])) {
                 continue;
             }
 
@@ -115,8 +106,10 @@ class Validator
             }
 
             // Process field through all validation phases
-            if ($this->stopOnFirstError && ! $this->processFieldValidation($field, $value, $node, $data, $context)) {
-                break;
+            if (!$this->processFieldValidation($field, $value, $node, $data, $context)) {
+                if ($this->stopOnFirstError) {
+                    break;
+                }
             }
         }
 
@@ -157,14 +150,14 @@ class Validator
     {
         // Skip if no expensive rules or validation already failed
         if (empty($context['expensiveBatch'])
-            || (! empty($context['errors']) && $this->stopOnFirstError)) {
+            || (!empty($context['errors']) && $this->stopOnFirstError)) {
             return;
         }
 
         $this->batchExecutor->executeBatch($context['expensiveBatch'], $context['errors']);
 
         // Remove validated data for fields with errors from expensive checks
-        if (! empty($context['errors'])) {
+        if (!empty($context['errors'])) {
             $context['validated'] = array_diff_key(
                 $context['validated'],
                 $context['errors']
@@ -208,12 +201,12 @@ class Validator
         array &$context
     ): bool {
         // Phase 1: Cheap rules (cost < 50)
-        if (! $this->validatePhase($node->cheapRules, $value, $field, $data, $context['errors'])) {
+        if (!$this->validatePhase($node->cheapRules, $value, $field, $data, $context['errors'])) {
             return false;
         }
 
         // Phase 2: Medium rules (cost 50-99)
-        if (! $this->validatePhase($node->mediumRules, $value, $field, $data, $context['errors'])) {
+        if (!$this->validatePhase($node->mediumRules, $value, $field, $data, $context['errors'])) {
             return false;
         }
 
@@ -221,7 +214,7 @@ class Validator
         $this->collectExpensiveRules($node->expensiveRules, $value, $field, $context['expensiveBatch']);
 
         // Mark field as validated if no errors
-        if (! isset($context['errors'][$field])) {
+        if (!isset($context['errors'][$field])) {
             $context['validated'][$field] = $value;
         }
 
@@ -234,7 +227,7 @@ class Validator
      */
     protected function shouldSkipOptionalField(ValidationNode $node, mixed $value): bool
     {
-        if (! $node->isOptional) {
+        if (!$node->isOptional) {
             return false;
         }
 
@@ -274,7 +267,7 @@ class Validator
         }
 
         // Return true if no errors were added for this field
-        return ! isset($errors[$field]);
+        return !isset($errors[$field]);
     }
 
     /**

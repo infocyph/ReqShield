@@ -117,7 +117,7 @@ class SchemaCompiler
         foreach ($parts as $index => $part) {
             $isLast = $index === count($parts) - 1;
 
-            if (! isset($current[$part])) {
+            if (!isset($current[$part])) {
                 $current[$part] = new ValidationNode();
             }
 
@@ -144,7 +144,6 @@ class SchemaCompiler
     {
         if (isset($this->ruleMap[$name])) {
             $class = $this->ruleMap[$name];
-
             return new $class();
         }
 
@@ -166,7 +165,7 @@ class SchemaCompiler
             return $this->parseStringRule($rule);
         }
 
-        throw new InvalidRuleException('Invalid rule format: '.gettype($rule));
+        throw new InvalidRuleException('Invalid rule format: ' . gettype($rule));
     }
 
     /**
