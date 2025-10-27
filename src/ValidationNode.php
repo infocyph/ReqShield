@@ -91,7 +91,7 @@ class ValidationNode
         return array_merge(
             $this->cheapRules,
             $this->mediumRules,
-            $this->expensiveRules,
+            $this->expensiveRules
         );
     }
 

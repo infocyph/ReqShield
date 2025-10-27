@@ -26,6 +26,7 @@ class BatchExecutor
      *
      * @param array $batch Array of ['rule' => Rule, 'value' => mixed, 'field' => string]
      * @param array $errors Reference to errors array
+     * @return void
      */
     public function executeBatch(array $batch, array &$errors): void
     {
@@ -59,6 +60,9 @@ class BatchExecutor
 
     /**
      * Set the database provider.
+     *
+     * @param DatabaseProvider $db
+     * @return void
      */
     public function setDatabaseProvider(DatabaseProvider $db): void
     {
@@ -67,6 +71,10 @@ class BatchExecutor
 
     /**
      * Batch execute exists validation rules.
+     *
+     * @param array $checks
+     * @param array $errors
+     * @return void
      */
     protected function batchExistsChecks(array $checks, array &$errors): void
     {
@@ -85,6 +93,10 @@ class BatchExecutor
 
     /**
      * Batch execute unique validation rules.
+     *
+     * @param array $checks
+     * @param array $errors
+     * @return void
      */
     protected function batchUniqueChecks(array $checks, array &$errors): void
     {
@@ -103,6 +115,11 @@ class BatchExecutor
 
     /**
      * Execute a single batched exists query for a table.
+     *
+     * @param string $table
+     * @param array $checks
+     * @param array $errors
+     * @return void
      */
     protected function executeBatchedExistsQuery(string $table, array $checks, array &$errors): void
     {
@@ -158,6 +175,11 @@ class BatchExecutor
 
     /**
      * Execute a single batched unique query for a table.
+     *
+     * @param string $table
+     * @param array $checks
+     * @param array $errors
+     * @return void
      */
     protected function executeBatchedUniqueQuery(string $table, array $checks, array &$errors): void
     {

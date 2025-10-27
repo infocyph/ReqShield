@@ -34,6 +34,6 @@ class Callback extends BaseRule
 
     public function passes($value, string $field, array $data): bool
     {
-        return (bool)call_user_func($this->callback, $value, $field, $data);
+        return (bool) call_user_func($this->callback, $value, $field, $data);
     }
 }

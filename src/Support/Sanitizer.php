@@ -66,7 +66,7 @@ class Sanitizer
             return in_array($value, ['1', 'true', 'yes', 'on'], true);
         }
 
-        return (bool)$value;
+        return (bool) $value;
     }
 
     /**
@@ -113,7 +113,7 @@ class Sanitizer
      */
     public static function float(mixed $value): float
     {
-        return (float)filter_var($value, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+        return (float) filter_var($value, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
     }
 
     /**
@@ -121,7 +121,7 @@ class Sanitizer
      */
     public static function integer(mixed $value): int
     {
-        return (int)filter_var($value, FILTER_SANITIZE_NUMBER_INT);
+        return (int) filter_var($value, FILTER_SANITIZE_NUMBER_INT);
     }
 
     /**
@@ -160,7 +160,6 @@ class Sanitizer
 
         return $value;
     }
-
     /**
      * Sanitize a string by removing HTML/PHP tags
      */

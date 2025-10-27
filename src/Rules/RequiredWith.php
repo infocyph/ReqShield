@@ -29,10 +29,7 @@ class RequiredWith extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $hasAnyField = array_any(
-            $this->fields,
-            fn ($otherField) => isset($data[$otherField]) && !$this->isEmpty($data[$otherField]),
-        );
+        $hasAnyField = array_any($this->fields, fn ($otherField) => isset($data[$otherField]) && !$this->isEmpty($data[$otherField]));
         if (!$hasAnyField) {
             return true;
         }

@@ -32,7 +32,6 @@ interface Rule
      * @return string
      */
     public function message(string $field): string;
-
     /**
      * Determine if the validation rule passes.
      *

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Infocyph\ReqShield;
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
@@ -19,41 +21,18 @@ use Infocyph\ReqShield\Executors\BatchExecutor;
  */
 class Validator
 {
-    /**
-     * Batch executor for expensive rules.
-     */
     protected BatchExecutor $batchExecutor;
 
-    /**
-     * Schema compiler instance.
-     */
     protected SchemaCompiler $compiler;
 
-    /**
-     * Custom error messages.
-     */
     protected array $customMessages = [];
 
-    /**
-     * Whether to fail fast (stop at first error per field).
-     */
     protected bool $failFast = true;
 
-    /**
-     * Compiled validation schema.
-     *
-     * @var array<string, ValidationNode>
-     */
     protected array $schema;
 
-    /**
-     * Whether to stop validation entirely on first error.
-     */
     protected bool $stopOnFirstError = false;
 
-    /**
-     * Create a new Validator instance.
-     */
     public function __construct(array $rules, ?DatabaseProvider $db = null)
     {
         $this->compiler = new SchemaCompiler();
@@ -61,27 +40,16 @@ class Validator
         $this->batchExecutor = new BatchExecutor($db);
     }
 
-    /**
-     * Static factory method.
-     *
-     * @return static
-     */
     public static function make(array $rules, ?DatabaseProvider $db = null): self
     {
         return new static($rules, $db);
     }
 
-    /**
-     * Get the compiled schema (for debugging).
-     */
     public function getSchema(): array
     {
         return $this->schema;
     }
 
-    /**
-     * Get schema statistics (for debugging/optimization).
-     */
     public function getSchemaStats(): array
     {
         $stats = [
@@ -96,11 +64,6 @@ class Validator
         return $stats;
     }
 
-    /**
-     * Register a custom rule with the compiler.
-     *
-     * @return $this
-     */
     public function registerRule(string $name, string $class): self
     {
         $this->compiler->registerRule($name, $class);
@@ -108,12 +71,6 @@ class Validator
         return $this;
     }
 
-    /**
-     * Set custom error messages.
-     *
-     * @param array $messages ['field' => 'message']
-     * @return $this
-     */
     public function setCustomMessages(array $messages): self
     {
         $this->customMessages = $messages;
@@ -121,11 +78,6 @@ class Validator
         return $this;
     }
 
-    /**
-     * Set whether to fail fast (stop at first error per field).
-     *
-     * @return $this
-     */
     public function setFailFast(bool $failFast): self
     {
         $this->failFast = $failFast;
@@ -133,11 +85,6 @@ class Validator
         return $this;
     }
 
-    /**
-     * Set whether to stop validation entirely on first error.
-     *
-     * @return $this
-     */
     public function setStopOnFirstError(bool $stop): self
     {
         $this->stopOnFirstError = $stop;
@@ -147,116 +94,200 @@ class Validator
 
     /**
      * Validate the given data.
+     *
+     * OPTIMIZED: Single-pass validation with minimal loops
      */
     public function validate(array $data): ValidationResult
     {
-        $errors = [];
-        $validated = [];
+        $context = $this->initializeValidationContext();
 
-        // Phase 1 & 2: Cheap and medium rules (with fail-fast)
-        $expensiveBatch = [];
-
+        // Single pass through data with all phases
         foreach ($data as $field => $value) {
-            if (!isset($this->schema[$field])) {
-                continue; // No validation rules for this field
+            if (! isset($this->schema[$field])) {
+                continue;
             }
 
             $node = $this->schema[$field];
 
-            // Skip validation for optional fields with null/empty values
-            if ($node->isOptional && $this->isEmpty($value)) {
+            // Quick skip for optional empty fields
+            if ($this->shouldSkipOptionalField($node, $value)) {
                 continue;
             }
 
-            // Phase 1: Cheap rules (cost < 50)
-            if (!$this->validateRuleSet($node->cheapRules, $value, $field, $data, $errors)) {
-                if ($this->stopOnFirstError) {
-                    break;
-                }
-
-                continue; // Skip remaining rules for this field
-            }
-
-            // Phase 2: Medium rules (cost 50-99)
-            if (!$this->validateRuleSet($node->mediumRules, $value, $field, $data, $errors)) {
-                if ($this->stopOnFirstError) {
-                    break;
-                }
-
-                continue; // Skip expensive rules for this field
-            }
-
-            // Collect expensive rules for batch processing
-            foreach ($node->expensiveRules as $rule) {
-                $expensiveBatch[] = [
-                    'rule' => $rule,
-                    'value' => $value,
-                    'field' => $field,
-                ];
-            }
-
-            // If no errors so far, add to validated data
-            if (!isset($errors[$field])) {
-                $validated[$field] = $value;
+            // Process field through all validation phases
+            if ($this->stopOnFirstError && ! $this->processFieldValidation($field, $value, $node, $data, $context)) {
+                break;
             }
         }
 
-        // Phase 3: Expensive rules (batched database queries)
-        // Only execute if no errors in cheap/medium rules
-        if (!empty($expensiveBatch) && (empty($errors) || !$this->stopOnFirstError)) {
-            $this->batchExecutor->executeBatch($expensiveBatch, $errors);
+        // Execute batched expensive rules if needed
+        $this->executeBatchedRules($context);
 
-            // Remove validated data for fields that failed expensive checks
-            foreach ($errors as $field => $fieldErrors) {
-                unset($validated[$field]);
-            }
-        }
-
-        return new ValidationResult($errors, $validated);
+        return new ValidationResult($context['errors'], $context['validated']);
     }
 
     /**
-     * Check if a value is considered empty.
-     *
-     * @param mixed $value
+     * Collect expensive rules for batch execution
+     * OPTIMIZED: Direct array append, no checks needed
      */
-    protected function isEmpty($value): bool
-    {
-        if (is_null($value)) {
-            return true;
+    protected function collectExpensiveRules(
+        array $rules,
+        mixed $value,
+        string $field,
+        array &$batch
+    ): void {
+        if (empty($rules)) {
+            return;
         }
 
-        if (is_string($value) && trim($value) === '') {
-            return true;
-        }
-
-        if ((is_array($value) || is_countable($value)) && count($value) === 0) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Validate a set of rules for a field.
-     *
-     * @param mixed $value
-     * @return bool True if all rules passed, false otherwise
-     */
-    protected function validateRuleSet(array $rules, $value, string $field, array $data, array &$errors): bool
-    {
         foreach ($rules as $rule) {
-            if (!$rule->passes($value, $field, $data)) {
-                // Get custom message if available
-                $message = $this->customMessages[$field] ?? $rule->message($field);
-                $errors[$field][] = $message;
+            $batch[] = [
+                'rule' => $rule,
+                'value' => $value,
+                'field' => $field,
+            ];
+        }
+    }
 
-                if ($this->failFast) {
-                    return false; // Stop validating this field
-                }
+    /**
+     * Execute batched expensive rules
+     * OPTIMIZED: Single condition check, cleaner logic
+     */
+    protected function executeBatchedRules(array &$context): void
+    {
+        // Skip if no expensive rules or validation already failed
+        if (empty($context['expensiveBatch'])
+            || (! empty($context['errors']) && $this->stopOnFirstError)) {
+            return;
+        }
+
+        $this->batchExecutor->executeBatch($context['expensiveBatch'], $context['errors']);
+
+        // Remove validated data for fields with errors from expensive checks
+        if (! empty($context['errors'])) {
+            $context['validated'] = array_diff_key(
+                $context['validated'],
+                $context['errors']
+            );
+        }
+    }
+
+    /**
+     * Initialize validation context to avoid recreating arrays
+     */
+    protected function initializeValidationContext(): array
+    {
+        return [
+            'errors' => [],
+            'validated' => [],
+            'expensiveBatch' => [],
+        ];
+    }
+
+    /**
+     * Check if a value is considered empty
+     * OPTIMIZED: Inline this where used for better performance
+     * Kept for BC compatibility
+     */
+    protected function isEmpty(mixed $value): bool
+    {
+        return $value === null
+            || ($value === '' || (is_string($value) && trim($value) === ''))
+            || (is_countable($value) && count($value) === 0);
+    }
+
+    /**
+     * Process all validation phases for a single field
+     * OPTIMIZED: Combined phase processing in one method
+     */
+    protected function processFieldValidation(
+        string $field,
+        mixed $value,
+        ValidationNode $node,
+        array $data,
+        array &$context
+    ): bool {
+        // Phase 1: Cheap rules (cost < 50)
+        if (! $this->validatePhase($node->cheapRules, $value, $field, $data, $context['errors'])) {
+            return false;
+        }
+
+        // Phase 2: Medium rules (cost 50-99)
+        if (! $this->validatePhase($node->mediumRules, $value, $field, $data, $context['errors'])) {
+            return false;
+        }
+
+        // Phase 3: Collect expensive rules for batching
+        $this->collectExpensiveRules($node->expensiveRules, $value, $field, $context['expensiveBatch']);
+
+        // Mark field as validated if no errors
+        if (! isset($context['errors'][$field])) {
+            $context['validated'][$field] = $value;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if optional field should be skipped
+     * OPTIMIZED: Inline isEmpty check for better performance
+     */
+    protected function shouldSkipOptionalField(ValidationNode $node, mixed $value): bool
+    {
+        if (! $node->isOptional) {
+            return false;
+        }
+
+        // Inline isEmpty for performance (avoid method call)
+        return $value === null
+            || ($value === '' || (is_string($value) && trim($value) === ''))
+            || (is_countable($value) && count($value) === 0);
+    }
+
+    /**
+     * Validate a single phase of rules
+     * OPTIMIZED: Early return on first error, reduced branching
+     */
+    protected function validatePhase(
+        array $rules,
+        mixed $value,
+        string $field,
+        array $data,
+        array &$errors
+    ): bool {
+        if (empty($rules)) {
+            return true;
+        }
+
+        foreach ($rules as $rule) {
+            if ($rule->passes($value, $field, $data)) {
+                continue;
+            }
+
+            // Rule failed - add error
+            $errors[$field][] = $this->customMessages[$field] ?? $rule->message($field);
+
+            // Fail fast if enabled
+            if ($this->failFast) {
+                return false;
             }
         }
 
-        return !isset($errors[$field]); // Return true if no errors
+        // Return true if no errors were added for this field
+        return ! isset($errors[$field]);
+    }
+
+    /**
+     * DEPRECATED: Use validatePhase() instead
+     * Kept for backward compatibility
+     */
+    protected function validateRuleSet(
+        array $rules,
+        mixed $value,
+        string $field,
+        array $data,
+        array &$errors
+    ): bool {
+        return $this->validatePhase($rules, $value, $field, $data, $errors);
     }
 }
