@@ -27,7 +27,7 @@ class After extends BaseRule
         return "The {$field} must be a date after {$this->date}.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         try {
             $valueDate = new \DateTime($value);

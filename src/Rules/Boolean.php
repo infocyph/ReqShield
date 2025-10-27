@@ -20,7 +20,7 @@ class Boolean extends BaseRule
         return "The {$field} must be true or false.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         $acceptable = [true, false, 0, 1, '0', '1'];
         return in_array($value, $acceptable, true);

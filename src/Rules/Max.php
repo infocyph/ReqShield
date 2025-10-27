@@ -27,7 +27,7 @@ class Max extends BaseRule
         return "The {$field} must not exceed {$this->max}.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         return $this->getSize($value) <= $this->max;
     }

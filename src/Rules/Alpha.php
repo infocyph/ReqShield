@@ -20,7 +20,7 @@ class Alpha extends BaseRule
         return "The {$field} may only contain letters.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         if (!is_string($value)) {
             return false;

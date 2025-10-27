@@ -20,7 +20,7 @@ class IntegerRule extends BaseRule
         return "The {$field} must be an integer.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         return filter_var($value, FILTER_VALIDATE_INT) !== false;
     }

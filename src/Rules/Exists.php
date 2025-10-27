@@ -47,7 +47,7 @@ class Exists extends BaseRule
         return "The selected {$field} is invalid.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         // This will be handled by the batch executor
         if (!$this->db) {

@@ -20,7 +20,7 @@ class Required extends BaseRule
         return "The {$field} field is required.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         if (is_null($value)) {
             return false;

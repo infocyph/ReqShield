@@ -32,7 +32,7 @@ class Callback extends BaseRule
         return str_replace(':field', $field, $this->errorMessage);
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         return (bool) call_user_func($this->callback, $value, $field, $data);
     }

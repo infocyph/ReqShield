@@ -27,7 +27,7 @@ class Same extends BaseRule
         return "The {$field} must match {$this->otherField}.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         return isset($data[$this->otherField]) && $value === $data[$this->otherField];
     }

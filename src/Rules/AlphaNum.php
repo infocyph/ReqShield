@@ -20,7 +20,7 @@ class AlphaNum extends BaseRule
         return "The {$field} may only contain letters and numbers.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         if (!is_string($value) && !is_numeric($value)) {
             return false;

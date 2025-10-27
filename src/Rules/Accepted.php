@@ -17,7 +17,7 @@ class Accepted extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be accepted.";
+        return "The $field must be accepted.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

@@ -27,7 +27,7 @@ class Min extends BaseRule
         return "The {$field} must be at least {$this->min}.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         return $this->getSize($value) >= $this->min;
     }

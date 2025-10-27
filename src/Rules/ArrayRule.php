@@ -20,7 +20,7 @@ class ArrayRule extends BaseRule
         return "The {$field} must be an array.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         return is_array($value);
     }

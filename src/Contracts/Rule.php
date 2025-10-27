@@ -35,5 +35,5 @@ interface Rule
      * @param  string  $field  The field name
      * @param  array  $data  All data being validated
      */
-    public function passes($value, string $field, array $data): bool;
+    public function passes(mixed $value, string $field, array $data): bool;
 }

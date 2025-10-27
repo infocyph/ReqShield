@@ -29,7 +29,7 @@ class Between extends BaseRule
         return "The {$field} must be between {$this->min} and {$this->max}.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         $size = $this->getSize($value);
         return $size >= $this->min && $size <= $this->max;

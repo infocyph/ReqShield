@@ -20,7 +20,7 @@ class Email extends BaseRule
         return "The {$field} must be a valid email address.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         if (!is_string($value)) {
             return false;

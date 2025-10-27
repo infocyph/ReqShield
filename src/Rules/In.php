@@ -27,7 +27,7 @@ class In extends BaseRule
         return "The selected {$field} is invalid.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         return in_array($value, $this->values, true);
     }

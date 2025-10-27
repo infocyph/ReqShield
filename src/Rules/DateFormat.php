@@ -27,7 +27,7 @@ class DateFormat extends BaseRule
         return "The {$field} does not match the format {$this->format}.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         if (!is_string($value)) {
             return false;

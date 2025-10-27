@@ -65,7 +65,7 @@ class Unique extends BaseRule
         return "The {$field} has already been taken.";
     }
 
-    public function passes($value, string $field, array $data): bool
+    public function passes(mixed $value, string $field, array $data): bool
     {
         // This will be handled by the batch executor
         // Individual execution is only for non-batched scenarios
