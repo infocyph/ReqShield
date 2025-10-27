@@ -12,33 +12,28 @@ interface Rule
      * - 1-10: Simple checks (type checks, empty checks)
      * - 10-50: Medium complexity (string operations, regex)
      * - 100+: Expensive operations (database queries, API calls)
-     *
-     * @return int
      */
     public function cost(): int;
 
     /**
      * Whether this rule can be batched with others.
      * Used for expensive operations like database queries.
-     *
-     * @return bool
      */
     public function isBatchable(): bool;
 
     /**
      * Get the validation error message.
      *
-     * @param string $field The field name
-     * @return string
+     * @param  string  $field  The field name
      */
     public function message(string $field): string;
+
     /**
      * Determine if the validation rule passes.
      *
-     * @param mixed $value The value being validated
-     * @param string $field The field name
-     * @param array $data All data being validated
-     * @return bool
+     * @param  mixed  $value  The value being validated
+     * @param  string  $field  The field name
+     * @param  array  $data  All data being validated
      */
     public function passes($value, string $field, array $data): bool;
 }

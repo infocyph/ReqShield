@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Infocyph\ReqShield\Executors;
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
@@ -11,6 +13,12 @@ use Infocyph\ReqShield\Rules\Unique;
  *
  * Executes expensive validation rules in batches to minimize database queries.
  * Groups rules by type and table, then executes them in a single query.
+ *
+ * OPTIMIZED:
+ * - Reduced loop iterations
+ * - Split complex methods
+ * - Better memory efficiency
+ * - Single-pass processing where possible
  */
 class BatchExecutor
 {
@@ -23,46 +31,32 @@ class BatchExecutor
 
     /**
      * Execute a batch of expensive rules.
+     * OPTIMIZED: Single loop to categorize all rules
      *
-     * @param array $batch Array of ['rule' => Rule, 'value' => mixed, 'field' => string]
-     * @param array $errors Reference to errors array
-     * @return void
+     * @param  array  $batch  Array of ['rule' => Rule, 'value' => mixed, 'field' => string]
+     * @param  array  $errors  Reference to errors array
      */
     public function executeBatch(array $batch, array &$errors): void
     {
-        if (!$this->db) {
-            return; // No database provider, skip
+        if (! $this->db || empty($batch)) {
+            return;
         }
 
-        // Group by rule type
-        $uniqueChecks = [];
-        $existsChecks = [];
+        // OPTIMIZATION: Single pass to categorize rules by type AND table
+        $categorized = $this->categorizeRulesByTypeAndTable($batch);
 
-        foreach ($batch as $item) {
-            $rule = $item['rule'];
-
-            if ($rule instanceof Unique) {
-                $uniqueChecks[] = $item;
-            } elseif ($rule instanceof Exists) {
-                $existsChecks[] = $item;
-            }
+        // Execute batched checks for each table
+        foreach ($categorized['unique'] as $table => $checks) {
+            $this->processUniqueChecksForTable($table, $checks, $errors);
         }
 
-        // Execute batched checks
-        if (!empty($uniqueChecks)) {
-            $this->batchUniqueChecks($uniqueChecks, $errors);
-        }
-
-        if (!empty($existsChecks)) {
-            $this->batchExistsChecks($existsChecks, $errors);
+        foreach ($categorized['exists'] as $table => $checks) {
+            $this->processExistsChecksForTable($table, $checks, $errors);
         }
     }
 
     /**
      * Set the database provider.
-     *
-     * @param DatabaseProvider $db
-     * @return void
      */
     public function setDatabaseProvider(DatabaseProvider $db): void
     {
@@ -70,118 +64,65 @@ class BatchExecutor
     }
 
     /**
-     * Batch execute exists validation rules.
-     *
-     * @param array $checks
-     * @param array $errors
-     * @return void
+     * Build query data for exists checks
+     * OPTIMIZED: Single loop to build query and value tracking
      */
-    protected function batchExistsChecks(array $checks, array &$errors): void
-    {
-        // Group by table
-        $byTable = [];
-        foreach ($checks as $check) {
-            $rule = $check['rule'];
-            $table = $rule->getTable();
-            $byTable[$table][] = $check;
-        }
-
-        foreach ($byTable as $table => $tableChecks) {
-            $this->executeBatchedExistsQuery($table, $tableChecks, $errors);
-        }
-    }
-
-    /**
-     * Batch execute unique validation rules.
-     *
-     * @param array $checks
-     * @param array $errors
-     * @return void
-     */
-    protected function batchUniqueChecks(array $checks, array &$errors): void
-    {
-        // Group by table
-        $byTable = [];
-        foreach ($checks as $check) {
-            $rule = $check['rule'];
-            $table = $rule->getTable();
-            $byTable[$table][] = $check;
-        }
-
-        foreach ($byTable as $table => $tableChecks) {
-            $this->executeBatchedUniqueQuery($table, $tableChecks, $errors);
-        }
-    }
-
-    /**
-     * Execute a single batched exists query for a table.
-     *
-     * @param string $table
-     * @param array $checks
-     * @param array $errors
-     * @return void
-     */
-    protected function executeBatchedExistsQuery(string $table, array $checks, array &$errors): void
+    protected function buildExistsQueryData(string $table, array $checks): array
     {
         $conditions = [];
         $params = [];
-        $valueMap = [];
+        $checkIndex = [];
 
-        foreach ($checks as $check) {
+        foreach ($checks as $idx => $check) {
             $rule = $check['rule'];
             $column = $rule->getColumn();
             $value = $check['value'];
 
+            // Build condition
             $conditions[] = "{$column} = ?";
             $params[] = $value;
 
-            // Track which values we're checking
-            $key = $column . ':' . $value;
-            $valueMap[$key] = $check;
+            // Index check by column and value for fast lookup
+            $key = $this->makeCheckKey($column, $value);
+            $checkIndex[$key] = $check;
         }
 
-        // Build query
-        $whereClause = implode(' OR ', $conditions);
-        $query = "SELECT * FROM {$table} WHERE {$whereClause}";
+        return [
+            'query' => "SELECT * FROM {$table} WHERE ".implode(' OR ', $conditions),
+            'params' => $params,
+            'checkIndex' => $checkIndex,
+        ];
+    }
 
-        // Execute query
-        $results = $this->db->query($query, $params);
+    /**
+     * Build set of found keys for exists validation
+     * OPTIMIZED: HashSet for O(1) lookups
+     */
+    protected function buildFoundKeysSet(array $results, array $checks): array
+    {
+        $foundKeys = [];
 
-        // Build set of found values
-        $found = [];
+        // Get all columns we need to check
+        $columnsToCheck = $this->extractColumnsFromChecks($checks);
+
+        // Mark all found column:value combinations
         foreach ($results as $row) {
-            foreach ($checks as $check) {
-                $column = $check['rule']->getColumn();
+            foreach ($columnsToCheck as $column) {
                 if (isset($row[$column])) {
-                    $key = $column . ':' . $row[$column];
-                    $found[$key] = true;
+                    $key = $this->makeCheckKey($column, $row[$column]);
+                    $foundKeys[$key] = true;
                 }
             }
         }
 
-        // Check which values were NOT found
-        foreach ($checks as $check) {
-            $rule = $check['rule'];
-            $column = $rule->getColumn();
-            $value = $check['value'];
-            $key = $column . ':' . $value;
-
-            if (!isset($found[$key])) {
-                // Value doesn't exist
-                $errors[$check['field']][] = $rule->message($check['field']);
-            }
-        }
+        return $foundKeys;
     }
 
     /**
-     * Execute a single batched unique query for a table.
-     *
-     * @param string $table
-     * @param array $checks
-     * @param array $errors
-     * @return void
+     * Build query data for unique checks
+     * OPTIMIZED: Single loop to build query and tracking data
      */
-    protected function executeBatchedUniqueQuery(string $table, array $checks, array &$errors): void
+    protected function buildUniqueQueryData(string $table, array $checks): array
     {
         $conditions = [];
         $params = [];
@@ -192,40 +133,204 @@ class BatchExecutor
             $column = $rule->getColumn() ?? $check['field'];
             $value = $check['value'];
 
+            // Build condition
             $conditions[] = "{$column} = ?";
             $params[] = $value;
 
-            // Map to track which check corresponds to which result
-            $checkMap[$column . ':' . $value] = $check;
+            // Track check for result processing
+            $key = $this->makeCheckKey($column, $value);
+            $checkMap[$key] = $check;
         }
 
-        // Build query
-        $whereClause = implode(' OR ', $conditions);
-        $query = "SELECT * FROM {$table} WHERE {$whereClause}";
+        return [
+            'query' => "SELECT * FROM {$table} WHERE ".implode(' OR ', $conditions),
+            'params' => $params,
+            'checkMap' => $checkMap,
+        ];
+    }
 
-        // Execute query
-        $results = $this->db->query($query, $params);
+    /**
+     * Build lookup map of found values
+     * OPTIMIZED: Single pass through results
+     */
+    protected function buildValueLookup(array $results, array $checks): array
+    {
+        $lookup = [];
 
-        // Process results
+        // Get all columns we're checking
+        $columnsToCheck = $this->extractColumnsFromChecks($checks);
+
+        // Build lookup for all found values
         foreach ($results as $row) {
-            foreach ($checks as $check) {
-                $rule = $check['rule'];
-                $column = $rule->getColumn() ?? $check['field'];
-                $value = $check['value'];
-
-                if (isset($row[$column]) && $row[$column] == $value) {
-                    // Check if we should ignore this ID
-                    $ignoreId = $rule->getIgnoreId();
-                    $idColumn = $rule->getIdColumn() ?? 'id';
-
-                    if ($ignoreId && isset($row[$idColumn]) && $row[$idColumn] == $ignoreId) {
-                        continue; // Skip this one
-                    }
-
-                    // Value is not unique
-                    $errors[$check['field']][] = $rule->message($check['field']);
-                    break;
+            foreach ($columnsToCheck as $column) {
+                if (isset($row[$column])) {
+                    $key = $this->makeCheckKey($column, $row[$column]);
+                    $lookup[$key] = $row;
                 }
+            }
+        }
+
+        return $lookup;
+    }
+
+    /**
+     * Categorize rules by type and table in a single pass
+     * OPTIMIZED: One loop instead of multiple
+     */
+    protected function categorizeRulesByTypeAndTable(array $batch): array
+    {
+        $categorized = [
+            'unique' => [],
+            'exists' => [],
+        ];
+
+        foreach ($batch as $item) {
+            $rule = $item['rule'];
+
+            if ($rule instanceof Unique) {
+                $table = $rule->getTable();
+                $categorized['unique'][$table][] = $item;
+            } elseif ($rule instanceof Exists) {
+                $table = $rule->getTable();
+                $categorized['exists'][$table][] = $item;
+            }
+        }
+
+        return $categorized;
+    }
+
+    /**
+     * Extract unique columns from checks
+     * OPTIMIZED: Use array_unique to avoid duplicate column checks
+     */
+    protected function extractColumnsFromChecks(array $checks): array
+    {
+        $columns = [];
+
+        foreach ($checks as $check) {
+            $rule = $check['rule'];
+
+            if ($rule instanceof Unique) {
+                $columns[] = $rule->getColumn() ?? $check['field'];
+            } elseif ($rule instanceof Exists) {
+                $columns[] = $rule->getColumn();
+            }
+        }
+
+        return array_unique($columns);
+    }
+
+    /**
+     * Create consistent key for column:value pairs
+     * OPTIMIZED: Single point for key generation
+     */
+    protected function makeCheckKey(string $column, mixed $value): string
+    {
+        return $column.':'.(string) $value;
+    }
+
+    /**
+     * Process exists checks for a single table
+     * OPTIMIZED: Split from batch method for clarity
+     */
+    protected function processExistsChecksForTable(string $table, array $checks, array &$errors): void
+    {
+        // Build query components in single pass
+        $queryData = $this->buildExistsQueryData($table, $checks);
+
+        // Execute and process results
+        $results = $this->db->query($queryData['query'], $queryData['params']);
+
+        // Build lookup map and validate
+        $this->validateExistsResults($results, $checks, $errors);
+    }
+
+    /**
+     * Process unique checks for a single table
+     * OPTIMIZED: Split from batch method for clarity
+     */
+    protected function processUniqueChecksForTable(string $table, array $checks, array &$errors): void
+    {
+        // Build query components in single pass
+        $queryData = $this->buildUniqueQueryData($table, $checks);
+
+        // Execute and process results
+        $results = $this->db->query($queryData['query'], $queryData['params']);
+
+        // Process results efficiently
+        $this->processUniqueResults($results, $checks, $errors);
+    }
+
+    /**
+     * Process unique validation results
+     * OPTIMIZED: Single pass through results, early termination per check
+     */
+    protected function processUniqueResults(array $results, array $checks, array &$errors): void
+    {
+        if (empty($results)) {
+            return; // All values are unique (good!)
+        }
+
+        // Build fast lookup: column:value => row data
+        $foundValues = $this->buildValueLookup($results, $checks);
+
+        // Validate each check against found values
+        foreach ($checks as $check) {
+            $rule = $check['rule'];
+            $column = $rule->getColumn() ?? $check['field'];
+            $value = $check['value'];
+            $key = $this->makeCheckKey($column, $value);
+
+            if (! isset($foundValues[$key])) {
+                continue; // Value is unique (not found in DB)
+            }
+
+            // Value exists - check if we should ignore it
+            if ($this->shouldIgnoreUniqueMatch($foundValues[$key], $rule)) {
+                continue;
+            }
+
+            // Add error - value is not unique
+            $errors[$check['field']][] = $rule->message($check['field']);
+        }
+    }
+
+    /**
+     * Check if unique match should be ignored
+     * OPTIMIZED: Extracted to separate method for clarity
+     */
+    protected function shouldIgnoreUniqueMatch(array $row, Unique $rule): bool
+    {
+        $ignoreId = $rule->getIgnoreId();
+
+        if ($ignoreId === null) {
+            return false;
+        }
+
+        $idColumn = $rule->getIdColumn() ?? 'id';
+
+        return isset($row[$idColumn]) && $row[$idColumn] == $ignoreId;
+    }
+
+    /**
+     * Validate exists results
+     * OPTIMIZED: Build found set once, then validate all checks
+     */
+    protected function validateExistsResults(array $results, array $checks, array &$errors): void
+    {
+        // Build set of found values for O(1) lookup
+        $foundKeys = $this->buildFoundKeysSet($results, $checks);
+
+        // Validate each check - single pass
+        foreach ($checks as $check) {
+            $rule = $check['rule'];
+            $column = $rule->getColumn();
+            $value = $check['value'];
+            $key = $this->makeCheckKey($column, $value);
+
+            if (! isset($foundKeys[$key])) {
+                // Value doesn't exist in database - validation failed
+                $errors[$check['field']][] = $rule->message($check['field']);
             }
         }
     }

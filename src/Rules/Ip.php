@@ -22,7 +22,7 @@ class Ip extends BaseRule
 
     public function passes($value, string $field, array $data): bool
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return false;
         }
 

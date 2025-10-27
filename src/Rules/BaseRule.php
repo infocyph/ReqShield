@@ -19,7 +19,7 @@ abstract class BaseRule implements Rule
     /**
      * Get the size of a value.
      *
-     * @param mixed $value
+     * @param  mixed  $value
      * @return int|float
      */
     protected function getSize($value)
@@ -42,8 +42,7 @@ abstract class BaseRule implements Rule
     /**
      * Helper method to check if value is empty.
      *
-     * @param mixed $value
-     * @return bool
+     * @param  mixed  $value
      */
     protected function isEmpty($value): bool
     {

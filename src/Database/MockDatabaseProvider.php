@@ -14,16 +14,11 @@ class MockDatabaseProvider implements DatabaseProvider
 {
     /**
      * Mock database data.
-     * @var array
      */
     protected array $data = [];
 
     /**
      * Add mock data.
-     *
-     * @param string $table
-     * @param array $rows
-     * @return void
      */
     public function addData(string $table, array $rows): void
     {
@@ -32,16 +27,12 @@ class MockDatabaseProvider implements DatabaseProvider
 
     /**
      * Batch check if values exist.
-     *
-     * @param string $table
-     * @param array $checks
-     * @return array
      */
     public function batchExistsCheck(string $table, array $checks): array
     {
         $missing = [];
 
-        if (!isset($this->data[$table])) {
+        if (! isset($this->data[$table])) {
             return array_values($checks);
         }
 
@@ -53,7 +44,7 @@ class MockDatabaseProvider implements DatabaseProvider
                     break;
                 }
             }
-            if (!$found) {
+            if (! $found) {
                 $missing[] = $value;
             }
         }
@@ -63,16 +54,12 @@ class MockDatabaseProvider implements DatabaseProvider
 
     /**
      * Batch check if values are unique.
-     *
-     * @param string $table
-     * @param array $checks
-     * @return array
      */
     public function batchUniqueCheck(string $table, array $checks): array
     {
         $nonUnique = [];
 
-        if (!isset($this->data[$table])) {
+        if (! isset($this->data[$table])) {
             return $nonUnique;
         }
 
@@ -91,15 +78,11 @@ class MockDatabaseProvider implements DatabaseProvider
     /**
      * Check if a value exists in a table.
      *
-     * @param string $table
-     * @param string $column
-     * @param mixed $value
-     * @param int|null $ignoreId
-     * @return bool
+     * @param  mixed  $value
      */
     public function exists(string $table, string $column, $value, ?int $ignoreId = null): bool
     {
-        if (!isset($this->data[$table])) {
+        if (! isset($this->data[$table])) {
             return false;
         }
 
@@ -109,6 +92,7 @@ class MockDatabaseProvider implements DatabaseProvider
                 if ($ignoreId && isset($row['id']) && $row['id'] === $ignoreId) {
                     continue;
                 }
+
                 return true;
             }
         }
@@ -118,10 +102,6 @@ class MockDatabaseProvider implements DatabaseProvider
 
     /**
      * Execute a database query.
-     *
-     * @param string $query
-     * @param array $params
-     * @return array
      */
     public function query(string $query, array $params = []): array
     {
@@ -131,7 +111,7 @@ class MockDatabaseProvider implements DatabaseProvider
         preg_match('/FROM\s+(\w+)/i', $query, $matches);
         $table = $matches[1] ?? null;
 
-        if (!$table || !isset($this->data[$table])) {
+        if (! $table || ! isset($this->data[$table])) {
             return [];
         }
 
@@ -140,7 +120,7 @@ class MockDatabaseProvider implements DatabaseProvider
         foreach ($this->data[$table] as $row) {
             // Check if any column matches any param
             foreach ($row as $value) {
-                if (in_array($value, $params)) {
+                if (in_array($value, $params, true)) {
                     $results[] = $row;
                     break;
                 }

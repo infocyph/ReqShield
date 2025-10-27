@@ -6,7 +6,7 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Support\Sanitizer;
 use Infocyph\ReqShield\Validator;
 
-if (!function_exists('validate')) {
+if (! function_exists('validate')) {
     /**
      * Create a new validator instance.
      */
@@ -16,7 +16,7 @@ if (!function_exists('validate')) {
     }
 }
 
-if (!function_exists('validator')) {
+if (! function_exists('validator')) {
     /**
      * Alias for validate function.
      */
@@ -26,7 +26,7 @@ if (!function_exists('validator')) {
     }
 }
 
-if (!function_exists('sanitize')) {
+if (! function_exists('sanitize')) {
     /**
      * Sanitize a value using specified sanitizers.
      */

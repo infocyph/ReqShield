@@ -14,40 +14,39 @@ class ValidationNode
 {
     /**
      * Cheap rules (cost < 50)
+     *
      * @var Rule[]
      */
     public array $cheapRules = [];
 
     /**
      * Child nodes for nested validation
+     *
      * @var array<string, ValidationNode>|null
      */
     public ?array $children = null;
 
     /**
      * Expensive rules (cost >= 100)
+     *
      * @var Rule[]
      */
     public array $expensiveRules = [];
 
     /**
      * Whether this field is optional (no required rule)
-     * @var bool
      */
     public bool $isOptional = true;
 
     /**
      * Medium rules (cost 50-99)
+     *
      * @var Rule[]
      */
     public array $mediumRules = [];
 
     /**
      * Add a child node for nested validation.
-     *
-     * @param string $key
-     * @param ValidationNode $node
-     * @return void
      */
     public function addChild(string $key, ValidationNode $node): void
     {
@@ -59,9 +58,6 @@ class ValidationNode
 
     /**
      * Add a rule to the appropriate cost bucket.
-     *
-     * @param Rule $rule
-     * @return void
      */
     public function addRule(Rule $rule): void
     {
@@ -97,9 +93,6 @@ class ValidationNode
 
     /**
      * Get a child node by key.
-     *
-     * @param string $key
-     * @return ValidationNode|null
      */
     public function getChild(string $key): ?ValidationNode
     {
@@ -108,8 +101,6 @@ class ValidationNode
 
     /**
      * Get statistics about this node (for debugging).
-     *
-     * @return array
      */
     public function getStats(): array
     {
@@ -126,29 +117,23 @@ class ValidationNode
 
     /**
      * Check if this node has children (nested validation).
-     *
-     * @return bool
      */
     public function hasChildren(): bool
     {
-        return $this->children !== null && !empty($this->children);
+        return $this->children !== null && ! empty($this->children);
     }
 
     /**
      * Check if this node has any expensive rules.
-     *
-     * @return bool
      */
     public function hasExpensiveRules(): bool
     {
-        return !empty($this->expensiveRules);
+        return ! empty($this->expensiveRules);
     }
 
     /**
      * Sort rules within each cost bucket by their exact cost.
      * This ensures even within a bucket, cheaper rules run first.
-     *
-     * @return void
      */
     public function sortRules(): void
     {

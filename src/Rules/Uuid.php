@@ -22,7 +22,7 @@ class Uuid extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return false;
         }
 
