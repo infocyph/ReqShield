@@ -21,7 +21,7 @@ class Unique extends BaseRule
         string $table,
         ?string $column = null,
         ?int $ignoreId = null,
-        ?string $idColumn = 'id'
+        ?string $idColumn = 'id',
     ) {
         $this->table = $table;
         $this->column = $column;

@@ -189,9 +189,9 @@ class SchemaCompiler
 
         // Handle parameterized rules
         return match ($name) {
-            'min' => new \Infocyph\ReqShield\Rules\Min((int) $params[0]),
-            'max' => new \Infocyph\ReqShield\Rules\Max((int) $params[0]),
-            'between' => new \Infocyph\ReqShield\Rules\Between((int) $params[0], (int) $params[1]),
+            'min' => new \Infocyph\ReqShield\Rules\Min((int)$params[0]),
+            'max' => new \Infocyph\ReqShield\Rules\Max((int)$params[0]),
+            'between' => new \Infocyph\ReqShield\Rules\Between((int)$params[0], (int)$params[1]),
             'in' => new \Infocyph\ReqShield\Rules\In($params),
             'not_in' => new \Infocyph\ReqShield\Rules\NotIn($params),
             'same' => new \Infocyph\ReqShield\Rules\Same($params[0]),
@@ -200,7 +200,7 @@ class SchemaCompiler
             'date_format' => new \Infocyph\ReqShield\Rules\DateFormat($params[0]),
             'before' => new \Infocyph\ReqShield\Rules\Before($params[0]),
             'after' => new \Infocyph\ReqShield\Rules\After($params[0]),
-            'size' => new \Infocyph\ReqShield\Rules\Size((int) $params[0]),
+            'size' => new \Infocyph\ReqShield\Rules\Size((int)$params[0]),
             'starts_with' => new \Infocyph\ReqShield\Rules\StartsWith(...$params),
             'ends_with' => new \Infocyph\ReqShield\Rules\EndsWith(...$params),
 
@@ -216,8 +216,8 @@ class SchemaCompiler
             'unique' => new \Infocyph\ReqShield\Rules\Unique(
                 $params[0],
                 $params[1] ?? null,
-                isset($params[2]) ? (int) $params[2] : null,
-                $params[3] ?? 'id'
+                isset($params[2]) ? (int)$params[2] : null,
+                $params[3] ?? 'id',
             ),
             'exists' => new \Infocyph\ReqShield\Rules\Exists($params[0], $params[1]),
 

@@ -29,7 +29,10 @@ class RequiredWithout extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $missingAnyField = array_any($this->fields, fn ($otherField) => !isset($data[$otherField]) || $this->isEmpty($data[$otherField]));
+        $missingAnyField = array_any(
+            $this->fields,
+            fn ($otherField) => !isset($data[$otherField]) || $this->isEmpty($data[$otherField]),
+        );
         if (!$missingAnyField) {
             return true;
         }

@@ -21,44 +21,38 @@ class Validator
 {
     /**
      * Batch executor for expensive rules.
-     * @var BatchExecutor
      */
     protected BatchExecutor $batchExecutor;
 
     /**
      * Schema compiler instance.
-     * @var SchemaCompiler
      */
     protected SchemaCompiler $compiler;
 
     /**
      * Custom error messages.
-     * @var array
      */
     protected array $customMessages = [];
 
     /**
      * Whether to fail fast (stop at first error per field).
-     * @var bool
      */
     protected bool $failFast = true;
+
     /**
      * Compiled validation schema.
+     *
      * @var array<string, ValidationNode>
      */
     protected array $schema;
 
     /**
      * Whether to stop validation entirely on first error.
-     * @var bool
      */
     protected bool $stopOnFirstError = false;
 
     /**
      * Create a new Validator instance.
-     *
-     * @param array $rules
-     * @param DatabaseProvider|null $db
      */
     public function __construct(array $rules, ?DatabaseProvider $db = null)
     {
@@ -70,8 +64,6 @@ class Validator
     /**
      * Static factory method.
      *
-     * @param array $rules
-     * @param DatabaseProvider|null $db
      * @return static
      */
     public static function make(array $rules, ?DatabaseProvider $db = null): self
@@ -81,8 +73,6 @@ class Validator
 
     /**
      * Get the compiled schema (for debugging).
-     *
-     * @return array
      */
     public function getSchema(): array
     {
@@ -91,8 +81,6 @@ class Validator
 
     /**
      * Get schema statistics (for debugging/optimization).
-     *
-     * @return array
      */
     public function getSchemaStats(): array
     {
@@ -111,13 +99,12 @@ class Validator
     /**
      * Register a custom rule with the compiler.
      *
-     * @param string $name
-     * @param string $class
      * @return $this
      */
     public function registerRule(string $name, string $class): self
     {
         $this->compiler->registerRule($name, $class);
+
         return $this;
     }
 
@@ -130,38 +117,36 @@ class Validator
     public function setCustomMessages(array $messages): self
     {
         $this->customMessages = $messages;
+
         return $this;
     }
 
     /**
      * Set whether to fail fast (stop at first error per field).
      *
-     * @param bool $failFast
      * @return $this
      */
     public function setFailFast(bool $failFast): self
     {
         $this->failFast = $failFast;
+
         return $this;
     }
 
     /**
      * Set whether to stop validation entirely on first error.
      *
-     * @param bool $stop
      * @return $this
      */
     public function setStopOnFirstError(bool $stop): self
     {
         $this->stopOnFirstError = $stop;
+
         return $this;
     }
 
     /**
      * Validate the given data.
-     *
-     * @param array $data
-     * @return ValidationResult
      */
     public function validate(array $data): ValidationResult
     {
@@ -188,6 +173,7 @@ class Validator
                 if ($this->stopOnFirstError) {
                     break;
                 }
+
                 continue; // Skip remaining rules for this field
             }
 
@@ -196,6 +182,7 @@ class Validator
                 if ($this->stopOnFirstError) {
                     break;
                 }
+
                 continue; // Skip expensive rules for this field
             }
 
@@ -232,7 +219,6 @@ class Validator
      * Check if a value is considered empty.
      *
      * @param mixed $value
-     * @return bool
      */
     protected function isEmpty($value): bool
     {
@@ -254,11 +240,7 @@ class Validator
     /**
      * Validate a set of rules for a field.
      *
-     * @param array $rules
      * @param mixed $value
-     * @param string $field
-     * @param array $data
-     * @param array $errors
      * @return bool True if all rules passed, false otherwise
      */
     protected function validateRuleSet(array $rules, $value, string $field, array $data, array &$errors): bool

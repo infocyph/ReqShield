@@ -17,7 +17,7 @@ class ValidationResult
 
     public function __construct(
         protected array $errors,
-        protected array $validated = []
+        protected array $validated = [],
     ) {
         $this->messageBag = new MessageBag($errors);
     }

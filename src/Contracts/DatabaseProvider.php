@@ -32,6 +32,7 @@ interface DatabaseProvider
      * @return bool
      */
     public function exists(string $table, string $column, $value, ?int $ignoreId = null): bool;
+
     /**
      * Execute a database query.
      *

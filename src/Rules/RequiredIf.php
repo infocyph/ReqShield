@@ -12,7 +12,7 @@ class RequiredIf extends BaseRule
 {
     public function __construct(
         protected string $otherField,
-        protected mixed $value
+        protected mixed $value,
     ) {
     }
 

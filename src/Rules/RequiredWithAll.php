@@ -29,7 +29,10 @@ class RequiredWithAll extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $hasAllFields = array_all($this->fields, fn ($otherField) => !(!isset($data[$otherField]) || $this->isEmpty($data[$otherField])));
+        $hasAllFields = array_all(
+            $this->fields,
+            fn ($otherField) => !(!isset($data[$otherField]) || $this->isEmpty($data[$otherField])),
+        );
         if (!$hasAllFields) {
             return true;
         }
