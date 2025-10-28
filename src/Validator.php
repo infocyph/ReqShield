@@ -9,6 +9,9 @@ use Infocyph\ReqShield\Executors\BatchExecutor;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 use Infocyph\ReqShield\Support\ValidationNode;
 use Infocyph\ReqShield\Support\ValidationResult;
+use Infocyph\ReqShield\Support\FieldAlias;
+use Infocyph\ReqShield\Support\NestedValidator;
+use Infocyph\ReqShield\Exceptions\InvalidRuleException;
 
 /**
  * Validator
@@ -30,14 +33,50 @@ class Validator
 
     protected array $customMessages = [];
 
+    /**
+     * Field name aliases for better error messages.
+     */
+    protected array $fieldAliases = [];
+
     protected bool $failFast = true;
 
+    /**
+     * Whether nested validation is enabled.
+     */
+    protected bool $nestedValidation = false;
+
     protected array $schema;
+
+        /**
+     * Whether to throw exception on validation failure.
+     */
+    protected bool $throwOnFailure = false;
 
     protected bool $stopOnFirstError = false;
 
     public function __construct(array $rules, ?DatabaseProvider $db = null)
     {
+        // Validate rules format
+        if (empty($rules)) {
+            throw InvalidRuleException::invalidFormat('rules', 'Rules array cannot be empty');
+        }
+
+        foreach ($rules as $field => $rule) {
+            if (!is_string($field)) {
+                throw InvalidRuleException::invalidFormat(
+                    (string)$field,
+                    'Field names must be strings'
+                );
+            }
+
+            if (!is_string($rule) && !is_array($rule)) {
+                throw InvalidRuleException::invalidFormat(
+                    $field,
+                    'Rules must be string or array'
+                );
+            }
+        }
+
         $this->compiler = new SchemaCompiler();
         $this->schema = $this->compiler->compile($rules);
         $this->batchExecutor = new BatchExecutor($db);
@@ -100,6 +139,43 @@ class Validator
      *
      * OPTIMIZED: Single-pass validation with minimal loops
      */
+    
+    /**
+     * Enable nested validation with dot notation support.
+     *
+     * @return self
+     */
+    public function enableNestedValidation(): self
+    {
+        $this->nestedValidation = true;
+        return $this;
+    }
+
+    /**
+     * Set field name aliases for better error messages.
+     *
+     * @param array $aliases Map of field names to display names
+     * @return self
+     */
+    public function setFieldAliases(array $aliases): self
+    {
+        $this->fieldAliases = $aliases;
+        FieldAlias::set($aliases);
+        return $this;
+    }
+
+    /**
+     * Set whether to throw exception on validation failure.
+     *
+     * @param bool $throw True to throw ValidationException on failure
+     * @return self
+     */
+    public function throwOnFailure(bool $throw = true): self
+    {
+        $this->throwOnFailure = $throw;
+        return $this;
+    }
+
     public function validate(array $data): ValidationResult
     {
         $context = $this->initializeValidationContext();
@@ -190,18 +266,6 @@ class Validator
     }
 
     /**
-     * Check if a value is considered empty
-     * OPTIMIZED: Inline this where used for better performance
-     * Kept for BC compatibility
-     */
-    protected function isEmpty(mixed $value): bool
-    {
-        return $value === null
-            || ($value === '' || (is_string($value) && trim($value) === ''))
-            || (is_countable($value) && count($value) === 0);
-    }
-
-    /**
      * Process all validation phases for a single field
      * OPTIMIZED: Combined phase processing in one method
      */
@@ -270,7 +334,8 @@ class Validator
             }
 
             // Rule failed - add error
-            $errors[$field][] = $this->customMessages[$field] ?? $rule->message($field);
+            $message = $this->customMessages[$field] ?? $rule->message(FieldAlias::get($field));
+            $errors[$field][] = $message;
 
             // Fail fast if enabled
             if ($this->failFast) {
@@ -282,17 +347,4 @@ class Validator
         return ! isset($errors[$field]);
     }
 
-    /**
-     * DEPRECATED: Use validatePhase() instead
-     * Kept for backward compatibility
-     */
-    protected function validateRuleSet(
-        array $rules,
-        mixed $value,
-        string $field,
-        array $data,
-        array &$errors,
-    ): bool {
-        return $this->validatePhase($rules, $value, $field, $data, $errors);
-    }
 }

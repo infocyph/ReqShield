@@ -7,8 +7,21 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
 /**
  * MockDatabaseProvider
  *
- * A simple in-memory database provider for testing and examples.
- * Replace this with your actual database implementation.
+ * ⚠️ WARNING: FOR TESTING AND EXAMPLES ONLY ⚠️
+ *
+ * This is a simple in-memory database provider intended ONLY for:
+ * - Unit testing
+ * - Documentation examples
+ * - Quick prototyping
+ *
+ * DO NOT USE IN PRODUCTION!
+ *
+ * For production use, implement DatabaseProvider with:
+ * - PDO with prepared statements
+ * - Your ORM (Eloquent, Doctrine, etc.)
+ * - Proper query builder with parameter binding
+ *
+ * This mock implementation does NOT provide real security or performance.
  */
 class MockDatabaseProvider implements DatabaseProvider
 {
@@ -22,6 +35,9 @@ class MockDatabaseProvider implements DatabaseProvider
      */
     public function addData(string $table, array $rows): void
     {
+        if (!is_array($rows) || empty($rows)) {
+            throw new \InvalidArgumentException("Rows must be a non-empty array");
+        }
         $this->data[$table] = $rows;
     }
 
@@ -98,6 +114,38 @@ class MockDatabaseProvider implements DatabaseProvider
         }
 
         return false;
+    }
+
+    /**
+     * Check if a composite key is unique.
+     */
+    public function compositeUnique(string $table, array $columns, ?int $ignoreId = null): bool
+    {
+        if (!isset($this->data[$table])) {
+            return true; // No data, so it's unique
+        }
+
+        foreach ($this->data[$table] as $row) {
+            // Check if we should ignore this row
+            if ($ignoreId && isset($row['id']) && $row['id'] === $ignoreId) {
+                continue;
+            }
+
+            // Check if all columns match
+            $allMatch = true;
+            foreach ($columns as $column => $value) {
+                if (!isset($row[$column]) || $row[$column] !== $value) {
+                    $allMatch = false;
+                    break;
+                }
+            }
+
+            if ($allMatch) {
+                return false; // Found a matching row, not unique
+            }
+        }
+
+        return true; // No matching row found, it's unique
     }
 
     /**

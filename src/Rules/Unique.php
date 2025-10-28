@@ -15,6 +15,16 @@ class Unique extends BaseRule
     protected ?DatabaseProvider $db;
     protected ?string $idColumn;
     protected ?int $ignoreId;
+
+    /**
+     * Whether to consider soft deletes.
+     */
+    protected bool $withTrashed = false;
+
+    /**
+     * Soft delete column name.
+     */
+    protected string $softDeleteColumn = 'deleted_at';
     protected string $table;
 
     public function __construct(
@@ -26,6 +36,8 @@ class Unique extends BaseRule
         $this->table = $table;
         $this->column = $column;
         $this->ignoreId = $ignoreId;
+        $this->withTrashed = $withTrashed;
+        $this->softDeleteColumn = $softDeleteColumn;
         $this->idColumn = $idColumn;
     }
 
@@ -80,5 +92,32 @@ class Unique extends BaseRule
     public function setDatabaseProvider(DatabaseProvider $db): void
     {
         $this->db = $db;
+    }
+
+    /**
+     * Check composite unique constraint.
+     */
+    protected function checkCompositeUnique(mixed $value, string $field, array $data): bool
+    {
+        $db = ValidationContext::getDatabaseProvider();
+
+        if (!$db) {
+            throw new \RuntimeException('Database provider is required for unique rule');
+        }
+
+        // Build column => value map
+        $columns = [];
+        foreach ($this->column as $col) {
+            if ($col === $field) {
+                $columns[$col] = $value;
+            } elseif (isset($data[$col])) {
+                $columns[$col] = $data[$col];
+            } else {
+                // Missing required column for composite unique
+                return true; // Pass this rule, other rules will catch missing fields
+            }
+        }
+
+        return $db->compositeUnique($this->table, $columns, $this->ignoreId);
     }
 }

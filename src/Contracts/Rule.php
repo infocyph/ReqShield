@@ -12,6 +12,10 @@ interface Rule
      * - 1-10: Simple checks (type checks, empty checks)
      * - 10-50: Medium complexity (string operations, regex)
      * - 100+: Expensive operations (database queries, API calls)
+     *
+     * @return int The cost value
+     *
+     * @example return 5; // For simple type checks
      */
     public function cost(): int;
 

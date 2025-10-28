@@ -183,4 +183,42 @@ class ValidationResult
     {
         return $this->validated;
     }
+
+    /**
+     * Get first error message for a field.
+     *
+     * @param string $field Field name
+     * @return string|null First error message or null
+     */
+    public function first(string $field): ?string
+    {
+        return $this->errors[$field][0] ?? null;
+    }
+
+    /**
+     * Get all error messages as a flat array.
+     *
+     * @return array All error messages
+     */
+    public function messages(): array
+    {
+        $messages = [];
+        foreach ($this->errors as $field => $fieldErrors) {
+            foreach ($fieldErrors as $error) {
+                $messages[] = $error;
+            }
+        }
+        return $messages;
+    }
+
+    /**
+     * Get validated data as JSON.
+     *
+     * @param int $flags JSON encode flags
+     * @return string JSON representation of validated data
+     */
+    public function toJson(int $flags = 0): string
+    {
+        return json_encode($this->validated, $flags);
+    }
 }

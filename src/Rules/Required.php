@@ -31,6 +31,31 @@ class Required extends BaseRule
         }
 
         if ((is_array($value) || is_countable($value)) && count($value) === 0) {
+            
+            // Check for uploaded files in $_FILES superglobal
+            if (isset($_FILES[$field])) {
+                $file = $_FILES[$field];
+
+                // Check if file was actually uploaded
+                if (isset($file['error'])) {
+                    return $file['error'] === UPLOAD_ERR_OK;
+                }
+
+                // Check if file has content
+                return isset($file['size']) && $file['size'] > 0;
+            }
+
+            // Check for objects with __toString method
+            if (is_object($value) && method_exists($value, '__toString')) {
+                $stringValue = (string) $value;
+                return $stringValue !== '' && trim($stringValue) !== '';
+            }
+
+            // Check for stream resources
+            if (is_resource($value)) {
+                return get_resource_type($value) === 'stream';
+            }
+
             return false;
         }
 
