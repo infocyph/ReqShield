@@ -9,7 +9,7 @@ use Infocyph\ReqShield\Validator;
 if (! function_exists('validate')) {
     /**
      * Create a new validator instance.
-     */
+     *
      *
      * @param array $rules Validation rules
      * @param DatabaseProvider|null $db Optional database provider
@@ -26,7 +26,7 @@ if (! function_exists('validate')) {
 if (! function_exists('validator')) {
     /**
      * Alias for validate function.
-     */
+     *
      *
      * @param array $rules Validation rules
      * @param DatabaseProvider|null $db Optional database provider
@@ -43,7 +43,7 @@ if (! function_exists('validator')) {
 if (! function_exists('sanitize')) {
     /**
      * Sanitize a value using specified sanitizers.
-     */
+     *
      *
      * @param mixed $value Value to sanitize
      * @param string|array $sanitizers Sanitizer name(s)

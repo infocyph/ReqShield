@@ -29,6 +29,14 @@ class ValidationResult
     }
 
     /**
+     * Magic method to set validated data as property
+     */
+    public function __set(string $key, mixed $value): void
+    {
+        $this->validated[$key] = $value;
+    }
+
+    /**
      * Magic method to check if validated data has property
      */
     public function __isset(string $key): bool
@@ -193,32 +201,5 @@ class ValidationResult
     public function first(string $field): ?string
     {
         return $this->errors[$field][0] ?? null;
-    }
-
-    /**
-     * Get all error messages as a flat array.
-     *
-     * @return array All error messages
-     */
-    public function messages(): array
-    {
-        $messages = [];
-        foreach ($this->errors as $field => $fieldErrors) {
-            foreach ($fieldErrors as $error) {
-                $messages[] = $error;
-            }
-        }
-        return $messages;
-    }
-
-    /**
-     * Get validated data as JSON.
-     *
-     * @param int $flags JSON encode flags
-     * @return string JSON representation of validated data
-     */
-    public function toJson(int $flags = 0): string
-    {
-        return json_encode($this->validated, $flags);
     }
 }
