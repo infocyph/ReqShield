@@ -23,15 +23,16 @@ class Extensions extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must have one of these extensions: " . implode(', ', $this->extensions) . ".";
+        return "The {$field} must have one of these extensions: ".implode(', ', $this->extensions).'.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['name'])) {
+        if (! is_array($value) || ! isset($value['name'])) {
             return false;
         }
         $ext = strtolower(pathinfo($value['name'], PATHINFO_EXTENSION));
+
         return in_array($ext, $this->extensions, true);
     }
 }

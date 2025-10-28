@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class PresentWithAll extends BaseRule
 {
     protected array $fields;
+
     public function __construct(string ...$fields)
     {
         $this->fields = $fields;
@@ -22,12 +23,13 @@ class PresentWithAll extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be present when all of " . implode(', ', $this->fields) . " are present.";
+        return "The {$field} must be present when all of ".implode(', ', $this->fields).' are present.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
         $hasAll = array_all($this->fields, fn ($f) => isset($data[$f]));
-        return !$hasAll || isset($data[$field]);
+
+        return ! $hasAll || isset($data[$field]);
     }
 }

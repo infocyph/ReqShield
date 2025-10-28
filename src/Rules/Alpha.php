@@ -17,15 +17,11 @@ class Alpha extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} may only contain letters.";
+        return "The $field may only contain letters.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        return preg_match('/^[a-zA-Z]+$/', $value) === 1;
+        return is_string($value) && preg_match('/^[a-zA-Z]+$/', $value) === 1;
     }
 }

@@ -29,7 +29,7 @@ class ProhibitedIf extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         // If condition is not met, field is allowed
-        if (!isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
+        if (! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
             return true;
         }
 

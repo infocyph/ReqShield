@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class LessThanOrEqual extends BaseRule
 {
     protected string $otherField;
+
     public function __construct(string $otherField)
     {
         $this->otherField = $otherField;
@@ -27,9 +28,10 @@ class LessThanOrEqual extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_numeric($value) || !isset($data[$this->otherField])) {
+        if (! is_numeric($value) || ! isset($data[$this->otherField])) {
             return false;
         }
+
         return $value <= $data[$this->otherField];
     }
 }

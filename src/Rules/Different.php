@@ -24,11 +24,11 @@ class Different extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be different from {$this->otherField}.";
+        return "The $field must be different from $this->otherField.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return !isset($data[$this->otherField]) || $value !== $data[$this->otherField];
+        return ! isset($data[$this->otherField]) || $value !== $data[$this->otherField];
     }
 }

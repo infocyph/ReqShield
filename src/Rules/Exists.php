@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Rules;
 
+use Infocyph\ReqShield\Contracts\DatabaseProvider;
+
 /**
  * Exists Rule - Cost: 100
  * Validates that a value exists in a database table.
@@ -12,7 +14,9 @@ namespace Infocyph\ReqShield\Rules;
 class Exists extends BaseRule
 {
     protected string $column;
+
     protected ?DatabaseProvider $db;
+
     protected string $table;
 
     public function __construct(string $table, string $column)
@@ -50,7 +54,7 @@ class Exists extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         // This will be handled by the batch executor
-        if (!$this->db) {
+        if (! $this->db) {
             return true; // Skip if no DB provider
         }
 

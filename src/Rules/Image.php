@@ -21,10 +21,11 @@ class Image extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['tmp_name'])) {
+        if (! is_array($value) || ! isset($value['tmp_name'])) {
             return false;
         }
         $imageInfo = @getimagesize($value['tmp_name']);
+
         return $imageInfo !== false;
     }
 }

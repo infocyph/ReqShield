@@ -10,9 +10,13 @@ namespace Infocyph\ReqShield\Rules;
 class Dimensions extends BaseRule
 {
     protected ?int $maxHeight;
+
     protected ?int $maxWidth;
+
     protected ?int $minHeight;
+
     protected ?int $minWidth;
+
     public function __construct(?int $minWidth = null, ?int $minHeight = null, ?int $maxWidth = null, ?int $maxHeight = null)
     {
         $this->minWidth = $minWidth;
@@ -28,12 +32,12 @@ class Dimensions extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must meet dimension requirements.";
+        return "The $field must meet dimension requirements.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['tmp_name'])) {
+        if (! is_array($value) || ! isset($value['tmp_name'])) {
             return false;
         }
         $imageInfo = @getimagesize($value['tmp_name']);
@@ -53,6 +57,7 @@ class Dimensions extends BaseRule
         if ($this->maxHeight && $height > $this->maxHeight) {
             return false;
         }
+
         return true;
     }
 }

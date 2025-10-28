@@ -12,7 +12,7 @@ class ActiveUrl extends BaseRule
 {
     public function cost(): int
     {
-        return 150; // Expensive - requires DNS lookup
+        return 150;
     }
 
     public function message(string $field): string

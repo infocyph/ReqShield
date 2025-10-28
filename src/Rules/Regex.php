@@ -29,7 +29,7 @@ class Regex extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_string($value) && !is_numeric($value)) {
+        if (! is_string($value) && ! is_numeric($value)) {
             return false;
         }
 

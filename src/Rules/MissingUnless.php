@@ -10,7 +10,9 @@ namespace Infocyph\ReqShield\Rules;
 class MissingUnless extends BaseRule
 {
     protected string $otherField;
+
     protected mixed $value;
+
     public function __construct(string $otherField, mixed $value)
     {
         $this->otherField = $otherField;
@@ -32,6 +34,7 @@ class MissingUnless extends BaseRule
         if (isset($data[$this->otherField]) && $data[$this->otherField] === $this->value) {
             return true;
         }
-        return !isset($data[$field]) || $this->isEmpty($value);
+
+        return ! isset($data[$field]) || $this->isEmpty($value);
     }
 }

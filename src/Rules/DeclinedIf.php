@@ -29,12 +29,10 @@ class DeclinedIf extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         // If condition not met, field can be anything
-        if (!isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
+        if (! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
             return true;
         }
 
-        // Condition met, must be declined
-        $declined = ['no', 'off', '0', 0, false, 'false'];
-        return in_array($value, $declined, true);
+        return in_array($value, ['no', 'off', '0', 0, false, 'false'], true);
     }
 }

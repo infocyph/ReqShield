@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class MultipleOf extends BaseRule
 {
     protected int|float $divisor;
+
     public function __construct(int|float $divisor)
     {
         $this->divisor = $divisor;
@@ -27,9 +28,10 @@ class MultipleOf extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_numeric($value)) {
+        if (! is_numeric($value)) {
             return false;
         }
-        return fmod((float)$value, (float)$this->divisor) === 0.0;
+
+        return fmod((float) $value, (float) $this->divisor) === 0.0;
     }
 }

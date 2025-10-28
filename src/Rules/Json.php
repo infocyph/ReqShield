@@ -22,11 +22,6 @@ class Json extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        json_decode($value);
-        return json_last_error() === JSON_ERROR_NONE;
+        return is_string($value) && json_validate($value);
     }
 }

@@ -26,12 +26,13 @@ class Date extends BaseRule
             return true;
         }
 
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return false;
         }
 
         try {
             new \DateTime($value);
+
             return true;
         } catch (\Exception $e) {
             return false;

@@ -24,16 +24,17 @@ class DateFormat extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} does not match the format {$this->format}.";
+        return "The $field does not match the format $this->format.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return false;
         }
 
         $date = \DateTime::createFromFormat($this->format, $value);
+
         return $date && $date->format($this->format) === $value;
     }
 }

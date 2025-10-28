@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class DateEquals extends BaseRule
 {
     protected string $date;
+
     public function __construct(string $date)
     {
         $this->date = $date;
@@ -22,15 +23,13 @@ class DateEquals extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be a date equal to {$this->date}.";
+        return "The $field must be a date equal to {$this->date}.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
         try {
-            $valueDate = new \DateTime((string)$value);
-            $compareDate = new \DateTime($this->date);
-            return $valueDate->format('Y-m-d') === $compareDate->format('Y-m-d');
+            return new \DateTime((string) $value)->format('Y-m-d') === new \DateTime($this->date)->format('Y-m-d');
         } catch (\Exception) {
             return false;
         }

@@ -22,7 +22,7 @@ abstract class BaseRule implements Rule
      * @param  mixed  $value
      * @return int|float
      */
-    protected function getSize($value)
+    protected function getSize(mixed $value): float|int|string
     {
         if (is_numeric($value)) {
             return $value;
@@ -44,7 +44,7 @@ abstract class BaseRule implements Rule
      *
      * @param  mixed  $value
      */
-    protected function isEmpty($value): bool
+    protected function isEmpty(mixed $value): bool
     {
         if (is_null($value)) {
             return true;

@@ -23,14 +23,15 @@ class Mimes extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be one of these types: " . implode(', ', $this->types) . ".";
+        return "The {$field} must be one of these types: ".implode(', ', $this->types).'.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['type'])) {
+        if (! is_array($value) || ! isset($value['type'])) {
             return false;
         }
+
         return in_array($value['type'], $this->types, true);
     }
 }

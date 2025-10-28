@@ -22,7 +22,10 @@ class Accepted extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $acceptable = ['yes', 'on', '1', 1, true, 'true'];
-        return in_array($value, $acceptable, true);
+        return in_array(
+            $value,
+            ['yes', 'on', '1', 1, true, 'true'],
+            true
+        );
     }
 }

@@ -22,7 +22,6 @@ class Boolean extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $acceptable = [true, false, 0, 1, '0', '1'];
-        return in_array($value, $acceptable, true);
+        return in_array($value, [true, false, 0, 1, '0', '1'], true);
     }
 }

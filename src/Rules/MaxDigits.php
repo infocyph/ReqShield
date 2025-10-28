@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class MaxDigits extends BaseRule
 {
     protected int $max;
+
     public function __construct(int $max)
     {
         $this->max = $max;
@@ -27,6 +28,6 @@ class MaxDigits extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_numeric($value) && strlen((string)$value) <= $this->max;
+        return is_numeric($value) && strlen((string) $value) <= $this->max;
     }
 }

@@ -22,10 +22,6 @@ class Distinct extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value)) {
-            return false;
-        }
-
-        return count($value) === count(array_unique($value, SORT_REGULAR));
+        return is_array($value) && count($value) === count(array_unique($value, SORT_REGULAR));
     }
 }

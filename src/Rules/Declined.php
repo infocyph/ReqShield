@@ -22,7 +22,6 @@ class Declined extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $declined = ['no', 'off', '0', 0, false, 'false'];
-        return in_array($value, $declined, true);
+        return in_array($value, ['no', 'off', '0', 0, false, 'false'], true);
     }
 }

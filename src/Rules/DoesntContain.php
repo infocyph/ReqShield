@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class DoesntContain extends BaseRule
 {
     protected mixed $needle;
+
     public function __construct(mixed $needle)
     {
         $this->needle = $needle;
@@ -22,11 +23,11 @@ class DoesntContain extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must not contain the specified value.";
+        return "The $field must not contain the specified value.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_array($value) && !in_array($this->needle, $value, true);
+        return is_array($value) && ! in_array($this->needle, $value, true);
     }
 }

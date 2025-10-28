@@ -21,6 +21,6 @@ class Missing extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return !isset($data[$field]) || $this->isEmpty($value);
+        return ! isset($data[$field]) || $this->isEmpty($value);
     }
 }

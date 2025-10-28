@@ -23,19 +23,15 @@ class AcceptedIf extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be accepted when {$this->otherField} is {$this->value}.";
+        return "The $field must be accepted when {$this->otherField} is {$this->value}.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        // If condition not met, field can be anything
         if (! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
             return true;
         }
 
-        // Condition met, must be accepted
-        $acceptable = ['yes', 'on', '1', 1, true, 'true'];
-
-        return in_array($value, $acceptable, true);
+        return in_array($value, ['yes', 'on', '1', 1, true, 'true'], true);
     }
 }

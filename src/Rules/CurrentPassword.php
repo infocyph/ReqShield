@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class CurrentPassword extends BaseRule
 {
     protected mixed $callback;
+
     public function __construct(callable $callback)
     {
         $this->callback = $callback;
@@ -22,11 +23,11 @@ class CurrentPassword extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} does not match current password.";
+        return "The $field does not match current password.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return (bool)call_user_func($this->callback, $value, $field, $data);
+        return (bool) call_user_func($this->callback, $value, $field, $data);
     }
 }

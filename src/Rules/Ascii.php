@@ -16,7 +16,7 @@ class Ascii extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must only contain ASCII characters.";
+        return "The $field must only contain ASCII characters.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class ExcludeWithout extends BaseRule
 {
     protected string $otherField;
+
     public function __construct(string $otherField)
     {
         $this->otherField = $otherField;
@@ -27,9 +28,7 @@ class ExcludeWithout extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!isset($data[$this->otherField])) {
-            return false; // Exclude field
-        }
-        return true;
+        return isset($data[$this->otherField]); // Exclude field
+
     }
 }
