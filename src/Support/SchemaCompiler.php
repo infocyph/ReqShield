@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Infocyph\ReqShield;
+namespace Infocyph\ReqShield\Support;
 
 use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Exceptions\InvalidRuleException;

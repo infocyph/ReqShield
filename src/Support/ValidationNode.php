@@ -1,6 +1,6 @@
 <?php
 
-namespace Infocyph\ReqShield;
+namespace Infocyph\ReqShield\Support;
 
 use Infocyph\ReqShield\Contracts\Rule;
 

@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Infocyph\ReqShield;
-
-use Infocyph\ReqShield\Support\MessageBag;
+namespace Infocyph\ReqShield\Support;
 
 /**
  * ValidationResult
