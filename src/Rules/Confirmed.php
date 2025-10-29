@@ -17,7 +17,7 @@ class Confirmed extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field confirmation does not match.";
+        return "The {$field} confirmation does not match.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

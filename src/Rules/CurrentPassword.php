@@ -23,7 +23,7 @@ class CurrentPassword extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field does not match current password.";
+        return "The {$field} does not match current password.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

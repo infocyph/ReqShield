@@ -16,7 +16,7 @@ class Bail extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field stops validation on first failure.";
+        return "The {$field} stops validation on first failure.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

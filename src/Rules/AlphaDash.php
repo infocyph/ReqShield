@@ -17,11 +17,11 @@ class AlphaDash extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field may only contain letters, numbers, dashes, and underscores.";
+        return "The {$field} may only contain letters, numbers, dashes, and underscores.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_string($value) && is_numeric($value) && preg_match('/^[a-zA-Z0-9_-]+$/', $value) === 1;
+        return is_string($value) && preg_match('/^[a-zA-Z0-9_-]+$/', $value) === 1;
     }
 }

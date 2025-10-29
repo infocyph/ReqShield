@@ -22,6 +22,6 @@ class AlphaNum extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_string($value) && is_numeric($value) && preg_match('/^[a-zA-Z0-9]+$/', $value) === 1;
+        return is_string($value) && preg_match('/^[a-zA-Z0-9]+$/', $value) === 1;
     }
 }

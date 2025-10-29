@@ -8,6 +8,7 @@ namespace Infocyph\ReqShield\Support;
  * ValidationResult
  *
  * Represents the result of a validation operation with enhanced error handling.
+ * MINOR IMPROVEMENTS: Added utility methods
  */
 class ValidationResult
 {
@@ -29,19 +30,19 @@ class ValidationResult
     }
 
     /**
-     * Magic method to set validated data as property
-     */
-    public function __set(string $key, mixed $value): void
-    {
-        $this->validated[$key] = $value;
-    }
-
-    /**
      * Magic method to check if validated data has property
      */
     public function __isset(string $key): bool
     {
         return $this->has($key);
+    }
+
+    /**
+     * Magic method to set validated data as property
+     */
+    public function __set(string $key, mixed $value): void
+    {
+        $this->validated[$key] = $value;
     }
 
     /**
@@ -89,7 +90,24 @@ class ValidationResult
      */
     public function fails(): bool
     {
-        return !empty($this->errors);
+        return ! empty($this->errors);
+    }
+
+    /**
+     * Filter validated data by callback
+     * NEW: Added for flexible data filtering
+     */
+    public function filter(callable $callback): array
+    {
+        return array_filter($this->validated, $callback, ARRAY_FILTER_USE_BOTH);
+    }
+
+    /**
+     * Get first error message for a field (alias for firstError).
+     */
+    public function first(string $field): ?string
+    {
+        return $this->errors[$field][0] ?? null;
     }
 
     /**
@@ -125,6 +143,28 @@ class ValidationResult
     }
 
     /**
+     * Map validated data with callback
+     * NEW: Added for data transformation
+     */
+    public function map(callable $callback): array
+    {
+        return array_map($callback, $this->validated);
+    }
+
+    /**
+     * Merge another ValidationResult
+     * NEW: Added for combining multiple validation results
+     */
+    public function merge(ValidationResult $other): self
+    {
+        $this->errors = array_merge($this->errors, $other->errors());
+        $this->validated = array_merge($this->validated, $other->validated());
+        $this->messageBag = new MessageBag($this->errors);
+
+        return $this;
+    }
+
+    /**
      * Get MessageBag instance for advanced error handling
      */
     public function messages(): MessageBag
@@ -156,12 +196,28 @@ class ValidationResult
         $safe = $this->validated;
 
         foreach ($additionalFields as $field) {
-            if (!isset($safe[$field]) && !$this->hasError($field)) {
+            if (! isset($safe[$field]) && ! $this->hasError($field)) {
                 $safe[$field] = null;
             }
         }
 
         return $safe;
+    }
+
+    /**
+     * Throw exception if validation failed
+     * NEW: Added for fail-fast validation
+     */
+    public function throw(): self
+    {
+        if ($this->fails()) {
+            throw new \Infocyph\ReqShield\Exceptions\ValidationException(
+                'Validation failed',
+                $this->errors
+            );
+        }
+
+        return $this;
     }
 
     /**
@@ -173,6 +229,20 @@ class ValidationResult
             'valid' => $this->passes(),
             'errors' => $this->errors,
             'validated' => $this->validated,
+        ];
+    }
+
+    /**
+     * Get a DTO-friendly representation
+     * NEW: Added for framework integration
+     */
+    public function toDTO(): object
+    {
+        return (object) [
+            'success' => $this->passes(),
+            'errors' => $this->errors,
+            'data' => $this->validated,
+            'errorCount' => $this->errorCount(),
         ];
     }
 
@@ -193,13 +263,28 @@ class ValidationResult
     }
 
     /**
-     * Get first error message for a field.
-     *
-     * @param string $field Field name
-     * @return string|null First error message or null
+     * Execute callback if validation fails
+     * NEW: Added for fluent handling
      */
-    public function first(string $field): ?string
+    public function whenFails(callable $callback): self
     {
-        return $this->errors[$field][0] ?? null;
+        if ($this->fails()) {
+            $callback($this->errors);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Execute callback if validation passes
+     * NEW: Added for fluent handling
+     */
+    public function whenPasses(callable $callback): self
+    {
+        if ($this->passes()) {
+            $callback($this->validated);
+        }
+
+        return $this;
     }
 }

@@ -23,7 +23,7 @@ class DoesntContain extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field must not contain the specified value.";
+        return "The {$field} must not contain the specified value.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

@@ -24,14 +24,14 @@ class After extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field must be a date after {$this->date}.";
+        return "The {$field} must be a date after {$this->date}.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
         try {
             return new \DateTime($value) > new \DateTime($this->date);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }

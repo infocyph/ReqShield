@@ -10,58 +10,81 @@ use Infocyph\ReqShield\Exceptions\InvalidRuleException;
 /**
  * SchemaCompiler
  *
- * Compiles array-based validation rules into an optimized ValidationNode structure.
- * Supports nested validation and wildcard array validation.
+ * Compiles validation rules into optimized ValidationNode structures.
+ * IMPROVED: Simplified rule parsing using rule-map configuration.
  */
 class SchemaCompiler
 {
     /**
-     * Map of string rule names to rule classes.
+     * Rule map configuration - loaded from rule-map.php.
      */
-    protected array $ruleMap = [
-        // Basic (from CheapRules.php)
-        'required' => 'Infocyph\ReqShield\Rules\Required',
-        'string' => 'Infocyph\ReqShield\Rules\StringRule',
-        'integer' => 'Infocyph\ReqShield\Rules\IntegerRule',
-        'numeric' => 'Infocyph\ReqShield\Rules\Numeric',
-        'boolean' => 'Infocyph\ReqShield\Rules\Boolean',
-        'array' => 'Infocyph\ReqShield\Rules\ArrayRule',
-
-        // Format (from MediumRules.php)
-        'email' => 'Infocyph\ReqShield\Rules\Email',
-        'url' => 'Infocyph\ReqShield\Rules\Url',
-        'ip' => 'Infocyph\ReqShield\Rules\Ip',
-        'json' => 'Infocyph\ReqShield\Rules\Json',
-        'alpha' => 'Infocyph\ReqShield\Rules\Alpha',
-        'alpha_num' => 'Infocyph\ReqShield\Rules\AlphaNum',
-        'alpha_dash' => 'Infocyph\ReqShield\Rules\AlphaDash',
-        'date' => 'Infocyph\ReqShield\Rules\Date',
-
-        // Additional (from AdditionalRules.php)
-        'uuid' => 'Infocyph\ReqShield\Rules\Uuid',
-        'mac' => 'Infocyph\ReqShield\Rules\Mac',
-        'distinct' => 'Infocyph\ReqShield\Rules\Distinct',
-        'confirmed' => 'Infocyph\ReqShield\Rules\Confirmed',
-        'accepted' => 'Infocyph\ReqShield\Rules\Accepted',
-        'declined' => 'Infocyph\ReqShield\Rules\Declined',
-        'lowercase' => 'Infocyph\ReqShield\Rules\Lowercase',
-        'uppercase' => 'Infocyph\ReqShield\Rules\Uppercase',
-
-        // Conditional (from ConditionalRules.php)
-        'sometimes' => 'Infocyph\ReqShield\Rules\Sometimes',
-        'nullable' => 'Infocyph\ReqShield\Rules\Nullable',
-        'prohibited' => 'Infocyph\ReqShield\Rules\Prohibited',
-    ];
+    protected array $ruleMap = [];
 
     /**
-     * Compile validation rules into a schema.
+     * Rules that require special parameter handling.
+     */
+    protected array $specialRules = [
+        // Numeric rules with type casting
+        'min', 'max', 'size', 'digits', 'min_digits', 'max_digits', 'multiple_of',
+
+        // Rules with multiple parameters
+        'between', 'digits_between', 'decimal',
+
+        // Database rules with complex constructors
+        'unique', 'exists',
+
+        // File rules
+        'mimes', 'mimetypes', 'extensions', 'dimensions',
+
+        // Variadic rules (use spread operator)
+        'starts_with', 'ends_with', 'contains', 'doesnt_contain',
+        'doesnt_start_with', 'doesnt_end_with', 'required_with',
+        'required_with_all', 'required_without', 'required_without_all',
+        'required_array_keys', 'present_with', 'present_with_all',
+        'prohibits', 'exclude_with', 'exclude_without',
+
+        // Comparison rules
+        'same', 'different', 'regex', 'not_regex', 'in_array',
+
+        // Date rules
+        'date_format', 'date_equals', 'before', 'before_or_equal',
+        'after', 'after_or_equal',
+
+        // Conditional rules
+        'required_if', 'required_unless', 'required_if_accepted',
+        'required_if_declined', 'present_if', 'present_unless',
+        'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless',
+        'exclude_if', 'exclude_unless', 'accepted_if', 'declined_if',
+
+        // Array rules
+        'in', 'not_in',
+
+        // Callback
+        'callback',
+
+        // Comparison rules with field reference
+        'gt', 'gte', 'lt', 'lte',
+    ];
+
+    public function __construct()
+    {
+        $this->loadRuleMap();
+    }
+
+    /**
+     * Compile validation rules into optimized schema.
      */
     public function compile(array $rules): array
     {
         $schema = [];
 
         foreach ($rules as $field => $ruleSet) {
-            // Handle nested dot notation (e.g., "user.name", "items.*.price")
+            // Convert string rules to array
+            if (is_string($ruleSet)) {
+                $ruleSet = explode('|', $ruleSet);
+            }
+
+            // Handle nested fields with dot notation
             if (str_contains($field, '.')) {
                 $this->compileNestedField($schema, $field, $ruleSet);
             } else {
@@ -69,18 +92,10 @@ class SchemaCompiler
             }
         }
 
-        // Sort all rules for optimal execution
+        // Sort rules by cost in all nodes
         $this->sortAllNodes($schema);
 
         return $schema;
-    }
-
-    /**
-     * Get all registered rules.
-     */
-    public function getRegisteredRules(): array
-    {
-        return $this->ruleMap;
     }
 
     /**
@@ -88,11 +103,15 @@ class SchemaCompiler
      */
     public function registerRule(string $name, string $class): void
     {
+        if (! class_exists($class)) {
+            throw new InvalidRuleException("Rule class does not exist: {$class}");
+        }
+
         $this->ruleMap[$name] = $class;
     }
 
     /**
-     * Compile rules for a single field.
+     * Compile a single field's rules into a ValidationNode.
      */
     protected function compileField(array $ruleSet): ValidationNode
     {
@@ -138,17 +157,134 @@ class SchemaCompiler
     }
 
     /**
-     * Create a simple rule without parameters.
+     * Create rule instance based on rule configuration.
+     * IMPROVED: Simplified using rule-map and dynamic parameter handling
      */
-    protected function createSimpleRule(string $name): Rule
+    protected function createRuleInstance(string $name, array $params): Rule
     {
-        if (isset($this->ruleMap[$name])) {
-            $class = $this->ruleMap[$name];
-
-            return new $class();
+        if (! isset($this->ruleMap[$name])) {
+            throw new InvalidRuleException("Unknown rule: {$name}");
         }
 
-        throw new InvalidRuleException("Unknown rule: {$name}");
+        $class = $this->ruleMap[$name];
+
+        // Handle special rules with custom parameter logic
+        if (in_array($name, $this->specialRules, true)) {
+            return $this->createSpecialRule($name, $class, $params);
+        }
+
+        // Simple rules without parameters
+        return new $class();
+    }
+
+    /**
+     * Create special rules with parameter handling.
+     * IMPROVED: Centralized parameter handling logic
+     */
+    protected function createSpecialRule(string $name, string $class, array $params): Rule
+    {
+        return match ($name) {
+            // Numeric rules
+            'min', 'max', 'size', 'digits', 'min_digits', 'max_digits', 'multiple_of' => new $class((int) $params[0]),
+
+            'between', 'digits_between' => new $class((int) $params[0], (int) $params[1]),
+
+            'decimal' => new $class(
+                isset($params[0]) ? (int) $params[0] : null,
+                isset($params[1]) ? (int) $params[1] : null
+            ),
+
+            // Database rules
+            'unique' => new $class(
+                $params[0], // table
+                $params[1] ?? null, // column
+                isset($params[2]) ? (int) $params[2] : null, // ignoreId
+                $params[3] ?? false, // withTrashed
+                $params[4] ?? 'deleted_at' // softDeleteColumn
+            ),
+            'exists' => new $class(
+                $params[0], // table
+                $params[1] ?? null // column
+            ),
+
+            // File rules (variadic)
+            'mimes', 'mimetypes', 'extensions' => new $class(...$params),
+
+            'dimensions' => new $class($this->parseDimensionsParams($params)),
+
+            // Variadic string rules
+            'starts_with', 'ends_with', 'contains', 'doesnt_contain',
+            'doesnt_start_with', 'doesnt_end_with' => new $class(...$params),
+
+            // Variadic conditional rules
+            'required_with', 'required_with_all', 'required_without',
+            'required_without_all', 'required_array_keys', 'present_with',
+            'present_with_all', 'prohibits', 'exclude_with', 'exclude_without' => new $class(...$params),
+
+            // Array rules
+            'in', 'not_in' => new $class($params),
+            'in_array' => new $class($params[0]),
+
+            // Comparison rules (single parameter)
+            'same', 'different', 'regex', 'not_regex' => new $class($params[0]),
+
+            // Field comparison rules
+            'gt', 'gte', 'lt', 'lte' => new $class($params[0]),
+
+            // Date rules
+            'date_format', 'date_equals', 'before', 'before_or_equal',
+            'after', 'after_or_equal' => new $class($params[0]),
+
+            // Conditional rules with two params
+            'required_if', 'required_unless', 'present_if', 'present_unless',
+            'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless',
+            'exclude_if', 'exclude_unless', 'accepted_if', 'declined_if' => new $class($params[0], $params[1] ?? null),
+
+            // Single field conditional rules
+            'required_if_accepted', 'required_if_declined' => new $class($params[0]),
+
+            // Callback
+            'callback' => new $class($params[0]),
+
+            default => throw new InvalidRuleException("Unknown special rule: {$name}")
+        };
+    }
+
+    /**
+     * Load rule map from configuration file.
+     */
+    protected function loadRuleMap(): void
+    {
+        $mapPath = __DIR__.'/../Rules/rule-map.php';
+
+        if (! file_exists($mapPath)) {
+            throw new InvalidRuleException("Rule map file not found: {$mapPath}");
+        }
+
+        $this->ruleMap = require $mapPath;
+
+        if (! is_array($this->ruleMap)) {
+            throw new InvalidRuleException('Rule map must return an array');
+        }
+    }
+
+    /**
+     * Parse dimensions parameters from string format.
+     *
+     * @param  array  $params  Parameters like ['min_width=100', 'max_height=500']
+     * @return array Parsed dimensions array
+     */
+    protected function parseDimensionsParams(array $params): array
+    {
+        $dimensions = [];
+        foreach ($params as $param) {
+            if (str_contains($param, '=')) {
+                [$key, $value] = explode('=', $param, 2);
+                $dimensions[$key] = $value;
+            }
+        }
+
+        return $dimensions;
     }
 
     /**
@@ -183,48 +319,13 @@ class SchemaCompiler
 
     /**
      * Parse string rule (e.g., "min:18", "unique:users,email,5").
+     * IMPROVED: Simplified - no more giant match statement!
      */
     protected function parseStringRule(string $rule): Rule
     {
         [$name, $params] = $this->parseRuleString($rule);
 
-        // Handle parameterized rules
-        return match ($name) {
-            'min' => new \Infocyph\ReqShield\Rules\Min((int) $params[0]),
-            'max' => new \Infocyph\ReqShield\Rules\Max((int) $params[0]),
-            'between' => new \Infocyph\ReqShield\Rules\Between((int) $params[0], (int) $params[1]),
-            'in' => new \Infocyph\ReqShield\Rules\In($params),
-            'not_in' => new \Infocyph\ReqShield\Rules\NotIn($params),
-            'same' => new \Infocyph\ReqShield\Rules\Same($params[0]),
-            'different' => new \Infocyph\ReqShield\Rules\Different($params[0]),
-            'regex' => new \Infocyph\ReqShield\Rules\Regex($params[0]),
-            'date_format' => new \Infocyph\ReqShield\Rules\DateFormat($params[0]),
-            'before' => new \Infocyph\ReqShield\Rules\Before($params[0]),
-            'after' => new \Infocyph\ReqShield\Rules\After($params[0]),
-            'size' => new \Infocyph\ReqShield\Rules\Size((int) $params[0]),
-            'starts_with' => new \Infocyph\ReqShield\Rules\StartsWith(...$params),
-            'ends_with' => new \Infocyph\ReqShield\Rules\EndsWith(...$params),
-
-            // Conditional rules
-            'required_if' => new \Infocyph\ReqShield\Rules\RequiredIf($params[0], $params[1] ?? null),
-            'required_unless' => new \Infocyph\ReqShield\Rules\RequiredUnless($params[0], $params[1] ?? null),
-            'required_with' => new \Infocyph\ReqShield\Rules\RequiredWith(...$params),
-            'required_with_all' => new \Infocyph\ReqShield\Rules\RequiredWithAll(...$params),
-            'required_without' => new \Infocyph\ReqShield\Rules\RequiredWithout(...$params),
-            'prohibited_if' => new \Infocyph\ReqShield\Rules\ProhibitedIf($params[0], $params[1] ?? null),
-
-            // Database rules
-            'unique' => new \Infocyph\ReqShield\Rules\Unique(
-                $params[0],
-                $params[1] ?? null,
-                isset($params[2]) ? (int) $params[2] : null,
-                $params[3] ?? 'id'
-            ),
-            'exists' => new \Infocyph\ReqShield\Rules\Exists($params[0], $params[1]),
-
-            // Simple rules (no parameters)
-            default => $this->createSimpleRule($name),
-        };
+        return $this->createRuleInstance($name, $params);
     }
 
     /**

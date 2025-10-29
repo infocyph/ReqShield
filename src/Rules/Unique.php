@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Rules;
 
+use Infocyph\ReqShield\Contracts\DatabaseProvider;
+
 /**
  * Unique Rule - Cost: 100
  * Validates that a value is unique in a database table.
@@ -17,28 +19,30 @@ class Unique extends BaseRule
     protected ?int $ignoreId;
 
     /**
-     * Whether to consider soft deletes.
-     */
-    protected bool $withTrashed = false;
-
-    /**
      * Soft delete column name.
      */
     protected string $softDeleteColumn = 'deleted_at';
     protected string $table;
 
+    /**
+     * Whether to consider soft deletes.
+     */
+    protected bool $withTrashed = false;
+
     public function __construct(
         string $table,
         ?string $column = null,
         ?int $ignoreId = null,
-        ?string $idColumn = 'id'
+        ?string $idColumn = 'id',
+        bool $withTrashed = false,
+        string $softDeleteColumn = 'deleted_at'
     ) {
         $this->table = $table;
         $this->column = $column;
         $this->ignoreId = $ignoreId;
+        $this->idColumn = $idColumn;
         $this->withTrashed = $withTrashed;
         $this->softDeleteColumn = $softDeleteColumn;
-        $this->idColumn = $idColumn;
     }
 
     public function cost(): int
@@ -86,7 +90,7 @@ class Unique extends BaseRule
         }
 
         $column = $this->column ?? $field;
-        return $this->db->exists($this->table, $column, $value, $this->ignoreId);
+        return !$this->db->exists($this->table, $column, $value, $this->ignoreId);
     }
 
     public function setDatabaseProvider(DatabaseProvider $db): void
@@ -99,9 +103,7 @@ class Unique extends BaseRule
      */
     protected function checkCompositeUnique(mixed $value, string $field, array $data): bool
     {
-        $db = ValidationContext::getDatabaseProvider();
-
-        if (!$db) {
+        if (!$this->db) {
             throw new \RuntimeException('Database provider is required for unique rule');
         }
 
@@ -118,6 +120,6 @@ class Unique extends BaseRule
             }
         }
 
-        return $db->compositeUnique($this->table, $columns, $this->ignoreId);
+        return $this->db->compositeUnique($this->table, $columns, $this->ignoreId);
     }
 }

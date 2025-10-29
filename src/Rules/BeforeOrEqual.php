@@ -23,7 +23,7 @@ class BeforeOrEqual extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field must be a date before or equal to $this->date.";
+        return "The {$field} must be a date before or equal to $this->date.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

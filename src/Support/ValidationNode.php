@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Infocyph\ReqShield\Support;
 
 use Infocyph\ReqShield\Contracts\Rule;
@@ -9,6 +11,8 @@ use Infocyph\ReqShield\Contracts\Rule;
  *
  * Represents a compiled set of validation rules for a single field.
  * Rules are grouped by cost for optimal execution order.
+ *
+ * MINOR IMPROVEMENTS: Added helper methods and better statistics
  */
 class ValidationNode
 {
@@ -64,7 +68,7 @@ class ValidationNode
         $cost = $rule->cost();
 
         // Check if this is a required rule
-        if ($rule instanceof \Validation\Rules\Required) {
+        if ($rule instanceof \Infocyph\ReqShield\Rules\Required) {
             $this->isOptional = false;
         }
 
@@ -79,6 +83,7 @@ class ValidationNode
 
     /**
      * Get all rules (for debugging/inspection).
+     * NOTE: Uses array_merge but only called for debugging/stats - not in hot path
      *
      * @return Rule[]
      */
@@ -100,19 +105,61 @@ class ValidationNode
     }
 
     /**
+     * Get total rule count.
+     * NEW: Added for convenience
+     */
+    public function getRuleCount(): int
+    {
+        return count($this->cheapRules) + count($this->mediumRules) + count($this->expensiveRules);
+    }
+
+    /**
+     * Get rules by cost category.
+     * NEW: Added for more flexible access
+     */
+    public function getRulesByCost(string $category): array
+    {
+        return match ($category) {
+            'cheap' => $this->cheapRules,
+            'medium' => $this->mediumRules,
+            'expensive' => $this->expensiveRules,
+            default => []
+        };
+    }
+
+    /**
      * Get statistics about this node (for debugging).
+     * IMPROVED: More comprehensive stats
      */
     public function getStats(): array
     {
-        return [
+        $stats = [
             'cheap_rules' => count($this->cheapRules),
             'medium_rules' => count($this->mediumRules),
             'expensive_rules' => count($this->expensiveRules),
-            'total_rules' => count($this->getAllRules()),
+            'total_rules' => $this->getRuleCount(),
             'is_optional' => $this->isOptional,
             'has_children' => $this->hasChildren(),
             'children_count' => $this->hasChildren() ? count($this->children) : 0,
         ];
+
+        // Add detailed rule names for debugging
+        if ($this->getRuleCount() > 0) {
+            $stats['rule_types'] = array_map(
+                fn ($rule) => new \ReflectionClass($rule)->getShortName(),
+                $this->getAllRules()
+            );
+        }
+
+        // Add child statistics recursively
+        if ($this->hasChildren()) {
+            $stats['children'] = [];
+            foreach ($this->children as $key => $child) {
+                $stats['children'][$key] = $child->getStats();
+            }
+        }
+
+        return $stats;
     }
 
     /**
@@ -129,6 +176,17 @@ class ValidationNode
     public function hasExpensiveRules(): bool
     {
         return ! empty($this->expensiveRules);
+    }
+
+    /**
+     * Check if node is empty (no rules).
+     * NEW: Added for validation
+     */
+    public function isEmpty(): bool
+    {
+        return empty($this->cheapRules)
+            && empty($this->mediumRules)
+            && empty($this->expensiveRules);
     }
 
     /**

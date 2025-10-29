@@ -23,7 +23,7 @@ class AcceptedIf extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field must be accepted when {$this->otherField} is {$this->value}.";
+        return "The {$field} must be accepted when {$this->otherField} is {$this->value}.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

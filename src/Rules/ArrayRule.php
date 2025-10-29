@@ -17,7 +17,7 @@ class ArrayRule extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field must be an array.";
+        return "The {$field} must be an array.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool

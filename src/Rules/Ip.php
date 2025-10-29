@@ -17,7 +17,7 @@ class Ip extends BaseRule
 
     public function message(string $field): string
     {
-        return "The $field must be a valid IP address.";
+        return "The {$field} must be a valid IP address.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
