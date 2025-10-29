@@ -90,7 +90,7 @@ class ValidationResult
      */
     public function fails(): bool
     {
-        return ! empty($this->errors);
+        return !empty($this->errors);
     }
 
     /**
@@ -196,7 +196,7 @@ class ValidationResult
         $safe = $this->validated;
 
         foreach ($additionalFields as $field) {
-            if (! isset($safe[$field]) && ! $this->hasError($field)) {
+            if (!isset($safe[$field]) && !$this->hasError($field)) {
                 $safe[$field] = null;
             }
         }

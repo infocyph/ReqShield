@@ -13,6 +13,7 @@ namespace Infocyph\ReqShield\Support;
  * - 'addresses.0.city' => validates city in first address
  *
  * IMPROVED: Better performance with reduced array operations
+ * FIXED: Removed duplicate methods, optimized flattenData
  *
  * @example
  * $rules = [
@@ -110,31 +111,35 @@ class NestedValidator
     }
 
     /**
-     * Flatten nested data for validation.
-     * IMPROVED: Use array_push with spread operator instead of array_merge
+     * Flatten nested array into dot notation keys.
+     * IMPROVED: Optimized to avoid array_merge in loops
      *
-     * @param array $data The nested data
-     * @param string $prefix Key prefix for recursion
-     * @return array Flattened data with dot notation keys
+     * Example:
+     * Input: ['user' => ['email' => 'test@example.com', 'profile' => ['age' => 25]]]
+     * Output: ['user.email' => 'test@example.com', 'user.profile.age' => 25]
+     *
+     * @param array $data Nested array to flatten
+     * @param string $prefix Current prefix (used for recursion)
+     * @return array Flattened array with dot notation keys
      */
     public static function flattenData(array $data, string $prefix = ''): array
     {
         $flattened = [];
 
         foreach ($data as $key => $value) {
-            $newKey = $prefix ? "{$prefix}.{$key}" : (string)$key;
+            $newKey = $prefix === '' ? (string)$key : "{$prefix}.{$key}";
 
             if (is_array($value) && !empty($value)) {
-                // Check if it's an associative array or indexed array
+                // Check if it's an associative array (not a list)
                 if (static::isAssociativeArray($value)) {
-                    // Recursive flatten for nested arrays
+                    // Recursively flatten nested associative arrays
+                    // IMPROVED: Direct assignment instead of array_merge
                     $nested = static::flattenData($value, $newKey);
-                    // IMPROVED: More efficient merge
                     foreach ($nested as $nestedKey => $nestedValue) {
                         $flattened[$nestedKey] = $nestedValue;
                     }
                 } else {
-                    // For indexed arrays, flatten each element
+                    // For indexed arrays (lists), keep as is
                     $flattened[$newKey] = $value;
                 }
             } else {
@@ -143,6 +148,57 @@ class NestedValidator
         }
 
         return $flattened;
+    }
+
+    /**
+     * Get nested value using dot notation.
+     * Supports both flattened and nested arrays
+     *
+     * @param array $data The data array
+     * @param string $key Dot notation key
+     * @param mixed $default Default value if not found
+     * @return mixed The value or default
+     */
+    public static function getNestedValue(array $data, string $key, mixed $default = null): mixed
+    {
+        // First try direct key access (for flattened arrays)
+        if (array_key_exists($key, $data)) {
+            return $data[$key];
+        }
+
+        // Then try nested access (for non-flattened arrays)
+        $value = static::extractValue($data, $key);
+        return $value ?? $default;
+    }
+
+    /**
+     * Get all paths in a nested array as dot notation.
+     * Useful for debugging or introspection
+     *
+     * @param array $data The nested array
+     * @param string $prefix Current prefix (for recursion)
+     * @return array List of all paths in dot notation
+     */
+    public static function getPaths(array $data, string $prefix = ''): array
+    {
+        $paths = [];
+
+        foreach ($data as $key => $value) {
+            $newKey = $prefix === '' ? (string)$key : "{$prefix}.{$key}";
+
+            if (is_array($value) && !empty($value) && static::isAssociativeArray($value)) {
+                // Add all nested paths
+                $nestedPaths = static::getPaths($value, $newKey);
+                foreach ($nestedPaths as $path) {
+                    $paths[] = $path;
+                }
+            } else {
+                // Add this path
+                $paths[] = $newKey;
+            }
+        }
+
+        return $paths;
     }
 
     /**
@@ -225,8 +281,35 @@ class NestedValidator
     }
 
     /**
+     * Unflatten data from dot notation back to nested structure.
+     * Useful for converting validated data back to nested format
+     *
+     * Example:
+     * Input: ['user.email' => 'test@example.com', 'user.profile.age' => 25]
+     * Output: ['user' => ['email' => 'test@example.com', 'profile' => ['age' => 25]]]
+     *
+     * @param array $data Flattened array with dot notation keys
+     * @return array Nested array structure
+     */
+    public static function unflattenData(array $data): array
+    {
+        $result = [];
+
+        foreach ($data as $key => $value) {
+            static::setValue($result, $key, $value);
+        }
+
+        return $result;
+    }
+
+    /**
      * Build expanded path efficiently.
-     * IMPROVED: New helper method to reduce string concatenation overhead
+     * IMPROVED: Helper method to reduce string concatenation overhead
+     *
+     * @param string $before Path before wildcard
+     * @param int|string $index Current index
+     * @param string $after Path after wildcard
+     * @return string Complete expanded path
      */
     protected static function buildExpandedPath(string $before, int|string $index, string $after): string
     {
@@ -246,8 +329,11 @@ class NestedValidator
     }
 
     /**
-     * Check if array is associative.
-     * IMPROVED: New helper method for better array handling
+     * Check if array is associative (not a sequential list).
+     * IMPROVED: Helper method for better array handling
+     *
+     * @param array $array Array to check
+     * @return bool True if associative, false if sequential
      */
     protected static function isAssociativeArray(array $array): bool
     {
@@ -255,6 +341,7 @@ class NestedValidator
             return false;
         }
 
+        // Check if keys are sequential integers starting from 0
         return array_keys($array) !== range(0, count($array) - 1);
     }
 }
