@@ -92,6 +92,30 @@ class MockDatabaseProvider implements DatabaseProvider
     }
 
     /**
+     * Check if a composite key is unique.
+     */
+    public function compositeUnique(string $table, array $columns, ?int $ignoreId = null): bool
+    {
+        if (!isset($this->data[$table])) {
+            return true; // No data, so it's unique
+        }
+
+        foreach ($this->data[$table] as $row) {
+            // Check if we should ignore this row
+            if ($ignoreId && isset($row['id']) && $row['id'] === $ignoreId) {
+                continue;
+            }
+            $allMatch = array_all($columns, fn ($value, $column) => !(!isset($row[$column]) || $row[$column] !== $value));
+
+            if ($allMatch) {
+                return false; // Found a matching row, not unique
+            }
+        }
+
+        return true; // No matching row found, it's unique
+    }
+
+    /**
      * Check if a value exists in a table.
      *
      * @param  mixed  $value
@@ -114,38 +138,6 @@ class MockDatabaseProvider implements DatabaseProvider
         }
 
         return false;
-    }
-
-    /**
-     * Check if a composite key is unique.
-     */
-    public function compositeUnique(string $table, array $columns, ?int $ignoreId = null): bool
-    {
-        if (!isset($this->data[$table])) {
-            return true; // No data, so it's unique
-        }
-
-        foreach ($this->data[$table] as $row) {
-            // Check if we should ignore this row
-            if ($ignoreId && isset($row['id']) && $row['id'] === $ignoreId) {
-                continue;
-            }
-
-            // Check if all columns match
-            $allMatch = true;
-            foreach ($columns as $column => $value) {
-                if (!isset($row[$column]) || $row[$column] !== $value) {
-                    $allMatch = false;
-                    break;
-                }
-            }
-
-            if ($allMatch) {
-                return false; // Found a matching row, not unique
-            }
-        }
-
-        return true; // No matching row found, it's unique
     }
 
     /**

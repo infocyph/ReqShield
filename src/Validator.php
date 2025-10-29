@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield;
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
+use Infocyph\ReqShield\Exceptions\InvalidRuleException;
 use Infocyph\ReqShield\Executors\BatchExecutor;
+use Infocyph\ReqShield\Support\FieldAlias;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 use Infocyph\ReqShield\Support\ValidationNode;
 use Infocyph\ReqShield\Support\ValidationResult;
-use Infocyph\ReqShield\Support\FieldAlias;
-use Infocyph\ReqShield\Support\NestedValidator;
-use Infocyph\ReqShield\Exceptions\InvalidRuleException;
 
 /**
  * Validator
@@ -33,12 +32,12 @@ class Validator
 
     protected array $customMessages = [];
 
+    protected bool $failFast = true;
+
     /**
      * Field name aliases for better error messages.
      */
     protected array $fieldAliases = [];
-
-    protected bool $failFast = true;
 
     /**
      * Whether nested validation is enabled.
@@ -47,12 +46,12 @@ class Validator
 
     protected array $schema;
 
-        /**
+    protected bool $stopOnFirstError = false;
+
+    /**
      * Whether to throw exception on validation failure.
      */
     protected bool $throwOnFailure = false;
-
-    protected bool $stopOnFirstError = false;
 
     public function __construct(array $rules, ?DatabaseProvider $db = null)
     {
@@ -85,6 +84,23 @@ class Validator
     public static function make(array $rules, ?DatabaseProvider $db = null): self
     {
         return new static($rules, $db);
+    }
+
+    /**
+     * Validate the given data.
+     *
+     * OPTIMIZED: Single-pass validation with minimal loops
+     */
+
+    /**
+     * Enable nested validation with dot notation support.
+     *
+     * @return self
+     */
+    public function enableNestedValidation(): self
+    {
+        $this->nestedValidation = true;
+        return $this;
     }
 
     public function getSchema(): array
@@ -127,30 +143,6 @@ class Validator
         return $this;
     }
 
-    public function setStopOnFirstError(bool $stop): self
-    {
-        $this->stopOnFirstError = $stop;
-
-        return $this;
-    }
-
-    /**
-     * Validate the given data.
-     *
-     * OPTIMIZED: Single-pass validation with minimal loops
-     */
-    
-    /**
-     * Enable nested validation with dot notation support.
-     *
-     * @return self
-     */
-    public function enableNestedValidation(): self
-    {
-        $this->nestedValidation = true;
-        return $this;
-    }
-
     /**
      * Set field name aliases for better error messages.
      *
@@ -161,6 +153,13 @@ class Validator
     {
         $this->fieldAliases = $aliases;
         FieldAlias::set($aliases);
+        return $this;
+    }
+
+    public function setStopOnFirstError(bool $stop): self
+    {
+        $this->stopOnFirstError = $stop;
+
         return $this;
     }
 

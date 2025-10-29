@@ -17,18 +17,18 @@ class InvalidRuleException extends ValidationException
     }
 
     /**
-     * Create exception for unknown rule.
-     */
-    public static function unknownRule(string $ruleName): self
-    {
-        return new self("Unknown validation rule: '{$ruleName}'");
-    }
-
-    /**
      * Create exception for invalid rule parameters.
      */
     public static function invalidParameters(string $rule, string $reason): self
     {
         return new self("Invalid parameters for rule '{$rule}': {$reason}");
+    }
+
+    /**
+     * Create exception for unknown rule.
+     */
+    public static function unknownRule(string $ruleName): self
+    {
+        return new self("Unknown validation rule: '{$ruleName}'");
     }
 }

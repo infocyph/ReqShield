@@ -4,20 +4,19 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
+use ArrayAccess;
 use Countable;
 use Iterator;
-use ArrayAccess;
 use JsonSerializable;
 
 class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
 {
-    protected array $messages = [];
-
     // Cache for expensive operations
     protected ?array $flatCache = null;
-    protected ?int $messageCount = null;
-    protected int $iteratorPosition = 0;
     protected array $iteratorKeys = [];
+    protected int $iteratorPosition = 0;
+    protected ?int $messageCount = null;
+    protected array $messages = [];
 
     public function __construct(array $messages = [])
     {
@@ -30,6 +29,39 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     public function __toString(): string
     {
         return $this->toString();
+    }
+
+    /**
+     * Create a new instance from flat array
+     * Useful for migration from simple error arrays
+     */
+    public static function fromFlat(array $messages, string $defaultKey = 'error'): self
+    {
+        $bag = new self();
+
+        foreach ($messages as $key => $message) {
+            if (is_numeric($key)) {
+                $bag->add($defaultKey, $message);
+            } else {
+                $bag->add($key, $message);
+            }
+        }
+
+        return $bag;
+    }
+
+    /**
+     * Create from array with multiple formats support
+     */
+    public static function make(array $messages): self
+    {
+        // Check if already in correct format
+        if (self::isValidFormat($messages)) {
+            return new self($messages);
+        }
+
+        // Convert flat array to grouped format
+        return self::fromFlat($messages);
     }
 
     /**
@@ -73,27 +105,19 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * Set messages for a key (replaces existing)
+     * Get all messages
      */
-    public function set(string $key, array $messages): self
+    public function all(): array
     {
-        $this->messages[$key] = $messages;
-        $this->invalidateCaches();
-
-        return $this;
+        return $this->messages;
     }
 
     /**
-     * Remove messages for a specific key
+     * Check if any messages exist
      */
-    public function remove(string $key): self
+    public function any(): bool
     {
-        if (isset($this->messages[$key])) {
-            unset($this->messages[$key]);
-            $this->invalidateCaches();
-        }
-
-        return $this;
+        return !empty($this->messages);
     }
 
     /**
@@ -108,19 +132,53 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * Get all messages
+     * Get count of fields with messages
      */
-    public function all(): array
+    public function count(): int
     {
-        return $this->messages;
+        return count($this->messages);
+    }
+
+    public function current(): mixed
+    {
+        return $this->messages[$this->iteratorKeys[$this->iteratorPosition]];
     }
 
     /**
-     * Get all keys
+     * Get messages except specified keys
      */
-    public function keys(): array
+    public function except(array $keys): self
     {
-        return array_keys($this->messages);
+        $filtered = array_diff_key($this->messages, array_flip($keys));
+        return new self($filtered);
+    }
+
+    /**
+     * Filter messages by callback
+     */
+    public function filter(callable $callback): self
+    {
+        $filtered = array_filter($this->messages, $callback, ARRAY_FILTER_USE_BOTH);
+        return new self($filtered);
+    }
+
+    /**
+     * Get the first message for a key
+     */
+    public function first(?string $key = null): ?string
+    {
+        if ($key === null) {
+            // Get first message from any field
+            foreach ($this->messages as $messages) {
+                if (!empty($messages)) {
+                    return $messages[0];
+                }
+            }
+            return null;
+        }
+
+        $messages = $this->get($key);
+        return $messages[0] ?? null;
     }
 
     /**
@@ -161,14 +219,6 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * Check if any messages exist
-     */
-    public function any(): bool
-    {
-        return !empty($this->messages);
-    }
-
-    /**
      * Check if bag is empty
      */
     public function isEmpty(): bool
@@ -185,50 +235,24 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * Get count of fields with messages
+     * JsonSerializable implementation
      */
-    public function count(): int
+    public function jsonSerialize(): array
     {
-        return count($this->messages);
+        return $this->messages;
+    }
+
+    public function key(): mixed
+    {
+        return $this->iteratorKeys[$this->iteratorPosition];
     }
 
     /**
-     * Get total count of all messages (across all fields)
-     * OPTIMIZED: Cached result
+     * Get all keys
      */
-    public function messageCount(): int
+    public function keys(): array
     {
-        if ($this->messageCount !== null) {
-            return $this->messageCount;
-        }
-
-        $count = 0;
-        foreach ($this->messages as $messages) {
-            $count += count($messages);
-        }
-
-        $this->messageCount = $count;
-
-        return $count;
-    }
-
-    /**
-     * Get the first message for a key
-     */
-    public function first(?string $key = null): ?string
-    {
-        if ($key === null) {
-            // Get first message from any field
-            foreach ($this->messages as $messages) {
-                if (!empty($messages)) {
-                    return $messages[0];
-                }
-            }
-            return null;
-        }
-
-        $messages = $this->get($key);
-        return $messages[0] ?? null;
+        return array_keys($this->messages);
     }
 
     /**
@@ -252,6 +276,18 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
+     * Map messages with callback
+     */
+    public function map(callable $callback): self
+    {
+        $mapped = array_map(function ($messages) use ($callback) {
+            return array_map($callback, $messages);
+        }, $this->messages);
+
+        return new self($mapped);
+    }
+
+    /**
      * Merge another message bag
      * OPTIMIZED: No array_merge in loop!
      */
@@ -272,37 +308,56 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * Get unique messages (remove duplicates)
-     * OPTIMIZED: Only process if needed
+     * Get total count of all messages (across all fields)
+     * OPTIMIZED: Cached result
      */
-    public function unique(): self
+    public function messageCount(): int
     {
-        $unique = array_map(function ($messages) {
-            return array_values(array_unique($messages));
-        }, $this->messages);
+        if ($this->messageCount !== null) {
+            return $this->messageCount;
+        }
 
-        return new self($unique);
+        $count = 0;
+        foreach ($this->messages as $messages) {
+            $count += count($messages);
+        }
+
+        $this->messageCount = $count;
+
+        return $count;
     }
 
-    /**
-     * Filter messages by callback
-     */
-    public function filter(callable $callback): self
+    public function next(): void
     {
-        $filtered = array_filter($this->messages, $callback, ARRAY_FILTER_USE_BOTH);
-        return new self($filtered);
+        ++$this->iteratorPosition;
     }
 
-    /**
-     * Map messages with callback
-     */
-    public function map(callable $callback): self
-    {
-        $mapped = array_map(function ($messages) use ($callback) {
-            return array_map($callback, $messages);
-        }, $this->messages);
+    // ============================================
+    // ArrayAccess Implementation
+    // ============================================
 
-        return new self($mapped);
+    public function offsetExists(mixed $offset): bool
+    {
+        return $this->has($offset);
+    }
+
+    public function offsetGet(mixed $offset): mixed
+    {
+        return $this->get($offset);
+    }
+
+    public function offsetSet(mixed $offset, mixed $value): void
+    {
+        if (is_array($value)) {
+            $this->set($offset, $value);
+        } else {
+            $this->add($offset, $value);
+        }
+    }
+
+    public function offsetUnset(mixed $offset): void
+    {
+        $this->remove($offset);
     }
 
     /**
@@ -315,52 +370,45 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * Get messages except specified keys
+     * Remove messages for a specific key
      */
-    public function except(array $keys): self
+    public function remove(string $key): self
     {
-        $filtered = array_diff_key($this->messages, array_flip($keys));
-        return new self($filtered);
+        if (isset($this->messages[$key])) {
+            unset($this->messages[$key]);
+            $this->invalidateCaches();
+        }
+
+        return $this;
+    }
+
+    // ============================================
+    // Iterator Implementation
+    // ============================================
+
+    public function rewind(): void
+    {
+        $this->iteratorKeys = array_keys($this->messages);
+        $this->iteratorPosition = 0;
     }
 
     /**
-     * Transform messages to key => first message pairs
+     * Set messages for a key (replaces existing)
      */
-    public function toSimpleArray(): array
+    public function set(string $key, array $messages): self
     {
-        $simple = [];
+        $this->messages[$key] = $messages;
+        $this->invalidateCaches();
 
-        foreach ($this->messages as $key => $messages) {
-            $simple[$key] = $messages[0] ?? '';
-        }
-
-        return $simple;
+        return $this;
     }
 
     /**
-     * Get messages as formatted string
-     * OPTIMIZED: Build string directly instead of array operations
+     * Convert to array
      */
-    public function toString(string $format = '- :message', string $separator = "\n"): string
+    public function toArray(): array
     {
-        if ($this->isEmpty()) {
-            return '';
-        }
-
-        $output = '';
-        $isFirst = true;
-
-        foreach ($this->messages as $key => $messages) {
-            foreach ($messages as $message) {
-                if (!$isFirst) {
-                    $output .= $separator;
-                }
-                $output .= str_replace([':key', ':message'], [$key, $message], $format);
-                $isFirst = false;
-            }
-        }
-
-        return $output;
+        return $this->messages;
     }
 
     /**
@@ -413,14 +461,6 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * Convert to array
-     */
-    public function toArray(): array
-    {
-        return $this->messages;
-    }
-
-    /**
      * Convert to JSON
      */
     public function toJson(int $options = 0): string
@@ -429,36 +469,56 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     }
 
     /**
-     * JsonSerializable implementation
+     * Transform messages to key => first message pairs
      */
-    public function jsonSerialize(): array
+    public function toSimpleArray(): array
     {
-        return $this->messages;
+        $simple = [];
+
+        foreach ($this->messages as $key => $messages) {
+            $simple[$key] = $messages[0] ?? '';
+        }
+
+        return $simple;
     }
 
-    // ============================================
-    // Iterator Implementation
-    // ============================================
-
-    public function rewind(): void
+    /**
+     * Get messages as formatted string
+     * OPTIMIZED: Build string directly instead of array operations
+     */
+    public function toString(string $format = '- :message', string $separator = "\n"): string
     {
-        $this->iteratorKeys = array_keys($this->messages);
-        $this->iteratorPosition = 0;
+        if ($this->isEmpty()) {
+            return '';
+        }
+
+        $output = '';
+        $isFirst = true;
+
+        foreach ($this->messages as $key => $messages) {
+            foreach ($messages as $message) {
+                if (!$isFirst) {
+                    $output .= $separator;
+                }
+                $output .= str_replace([':key', ':message'], [$key, $message], $format);
+                $isFirst = false;
+            }
+        }
+
+        return $output;
     }
 
-    public function current(): mixed
+    /**
+     * Get unique messages (remove duplicates)
+     * OPTIMIZED: Only process if needed
+     */
+    public function unique(): self
     {
-        return $this->messages[$this->iteratorKeys[$this->iteratorPosition]];
-    }
+        $unique = array_map(function ($messages) {
+            return array_values(array_unique($messages));
+        }, $this->messages);
 
-    public function key(): mixed
-    {
-        return $this->iteratorKeys[$this->iteratorPosition];
-    }
-
-    public function next(): void
-    {
-        ++$this->iteratorPosition;
+        return new self($unique);
     }
 
     public function valid(): bool
@@ -466,32 +526,12 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
         return isset($this->iteratorKeys[$this->iteratorPosition]);
     }
 
-    // ============================================
-    // ArrayAccess Implementation
-    // ============================================
-
-    public function offsetExists(mixed $offset): bool
+    /**
+     * Check if array is in valid MessageBag format
+     */
+    protected static function isValidFormat(array $messages): bool
     {
-        return $this->has($offset);
-    }
-
-    public function offsetGet(mixed $offset): mixed
-    {
-        return $this->get($offset);
-    }
-
-    public function offsetSet(mixed $offset, mixed $value): void
-    {
-        if (is_array($value)) {
-            $this->set($offset, $value);
-        } else {
-            $this->add($offset, $value);
-        }
-    }
-
-    public function offsetUnset(mixed $offset): void
-    {
-        $this->remove($offset);
+        return array_all($messages, fn ($value) => is_array($value));
     }
 
     // ============================================
@@ -505,46 +545,5 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     {
         $this->flatCache = null;
         $this->messageCount = null;
-    }
-
-    /**
-     * Create a new instance from flat array
-     * Useful for migration from simple error arrays
-     */
-    public static function fromFlat(array $messages, string $defaultKey = 'error'): self
-    {
-        $bag = new self();
-
-        foreach ($messages as $key => $message) {
-            if (is_numeric($key)) {
-                $bag->add($defaultKey, $message);
-            } else {
-                $bag->add($key, $message);
-            }
-        }
-
-        return $bag;
-    }
-
-    /**
-     * Create from array with multiple formats support
-     */
-    public static function make(array $messages): self
-    {
-        // Check if already in correct format
-        if (self::isValidFormat($messages)) {
-            return new self($messages);
-        }
-
-        // Convert flat array to grouped format
-        return self::fromFlat($messages);
-    }
-
-    /**
-     * Check if array is in valid MessageBag format
-     */
-    protected static function isValidFormat(array $messages): bool
-    {
-        return array_all($messages, fn($value) => is_array($value));
     }
 }
