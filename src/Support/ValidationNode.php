@@ -167,7 +167,7 @@ class ValidationNode
      */
     public function hasChildren(): bool
     {
-        return $this->children !== null && !empty($this->children);
+        return $this->children !== null && ! empty($this->children);
     }
 
     /**
@@ -175,7 +175,7 @@ class ValidationNode
      */
     public function hasExpensiveRules(): bool
     {
-        return !empty($this->expensiveRules);
+        return ! empty($this->expensiveRules);
     }
 
     /**

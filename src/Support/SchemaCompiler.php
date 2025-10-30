@@ -103,7 +103,7 @@ class SchemaCompiler
      */
     public function registerRule(string $name, string $class): void
     {
-        if (!class_exists($class)) {
+        if (! class_exists($class)) {
             throw new InvalidRuleException("Rule class does not exist: {$class}");
         }
 
@@ -136,7 +136,7 @@ class SchemaCompiler
         foreach ($parts as $index => $part) {
             $isLast = $index === count($parts) - 1;
 
-            if (!isset($current[$part])) {
+            if (! isset($current[$part])) {
                 $current[$part] = new ValidationNode();
             }
 
@@ -162,7 +162,7 @@ class SchemaCompiler
      */
     protected function createRuleInstance(string $name, array $params): Rule
     {
-        if (!isset($this->ruleMap[$name])) {
+        if (! isset($this->ruleMap[$name])) {
             throw new InvalidRuleException("Unknown rule: {$name}");
         }
 
@@ -185,14 +185,11 @@ class SchemaCompiler
     {
         return match ($name) {
             // Numeric rules
-            'min', 'max', 'size', 'digits', 'min_digits', 'max_digits', 'multiple_of'
-            => new $class((int) $params[0]),
+            'min', 'max', 'size', 'digits', 'min_digits', 'max_digits', 'multiple_of' => new $class((int) $params[0]),
 
-            'between', 'digits_between'
-            => new $class((int) $params[0], (int) $params[1]),
+            'between', 'digits_between' => new $class((int) $params[0], (int) $params[1]),
 
-            'decimal'
-            => new $class(
+            'decimal' => new $class(
                 isset($params[0]) ? (int) $params[0] : null,
                 isset($params[1]) ? (int) $params[1] : null
             ),
@@ -211,55 +208,43 @@ class SchemaCompiler
             ),
 
             // File rules (variadic)
-            'mimes', 'mimetypes', 'extensions'
-            => new $class(...$params),
+            'mimes', 'mimetypes', 'extensions' => new $class(...$params),
 
-            'dimensions'
-            => new $class($this->parseDimensionsParams($params)),
+            'dimensions' => new $class($this->parseDimensionsParams($params)),
 
             // Variadic string rules
             'starts_with', 'ends_with', 'contains', 'doesnt_contain',
-            'doesnt_start_with', 'doesnt_end_with'
-            => new $class(...$params),
+            'doesnt_start_with', 'doesnt_end_with' => new $class(...$params),
 
             // Variadic conditional rules
             'required_with', 'required_with_all', 'required_without',
             'required_without_all', 'required_array_keys', 'present_with',
-            'present_with_all', 'prohibits', 'exclude_with', 'exclude_without'
-            => new $class(...$params),
+            'present_with_all', 'prohibits', 'exclude_with', 'exclude_without' => new $class(...$params),
 
             // Array rules
-            'in', 'not_in'
-            => new $class($params),
-            'in_array'
-            => new $class($params[0]),
+            'in', 'not_in' => new $class($params),
+            'in_array' => new $class($params[0]),
 
             // Comparison rules (single parameter)
-            'same', 'different', 'regex', 'not_regex'
-            => new $class($params[0]),
+            'same', 'different', 'regex', 'not_regex' => new $class($params[0]),
 
             // Field comparison rules
-            'gt', 'gte', 'lt', 'lte'
-            => new $class($params[0]),
+            'gt', 'gte', 'lt', 'lte' => new $class($params[0]),
 
             // Date rules
             'date_format', 'date_equals', 'before', 'before_or_equal',
-            'after', 'after_or_equal'
-            => new $class($params[0]),
+            'after', 'after_or_equal' => new $class($params[0]),
 
             // Conditional rules with two params
             'required_if', 'required_unless', 'present_if', 'present_unless',
             'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless',
-            'exclude_if', 'exclude_unless', 'accepted_if', 'declined_if'
-            => new $class($params[0], $params[1] ?? null),
+            'exclude_if', 'exclude_unless', 'accepted_if', 'declined_if' => new $class($params[0], $params[1] ?? null),
 
             // Single field conditional rules
-            'required_if_accepted', 'required_if_declined'
-            => new $class($params[0]),
+            'required_if_accepted', 'required_if_declined' => new $class($params[0]),
 
             // Callback
-            'callback'
-            => new $class($params[0]),
+            'callback' => new $class($params[0]),
 
             default => throw new InvalidRuleException("Unknown special rule: {$name}")
         };
@@ -270,23 +255,23 @@ class SchemaCompiler
      */
     protected function loadRuleMap(): void
     {
-        $mapPath = __DIR__ . '/../Rules/rule-map.php';
+        $mapPath = __DIR__.'/../Rules/rule-map.php';
 
-        if (!file_exists($mapPath)) {
+        if (! file_exists($mapPath)) {
             throw new InvalidRuleException("Rule map file not found: {$mapPath}");
         }
 
         $this->ruleMap = require $mapPath;
 
-        if (!is_array($this->ruleMap)) {
-            throw new InvalidRuleException("Rule map must return an array");
+        if (! is_array($this->ruleMap)) {
+            throw new InvalidRuleException('Rule map must return an array');
         }
     }
 
     /**
      * Parse dimensions parameters from string format.
      *
-     * @param array $params Parameters like ['min_width=100', 'max_height=500']
+     * @param  array  $params  Parameters like ['min_width=100', 'max_height=500']
      * @return array Parsed dimensions array
      */
     protected function parseDimensionsParams(array $params): array
@@ -317,7 +302,7 @@ class SchemaCompiler
             return $this->parseStringRule($rule);
         }
 
-        throw new InvalidRuleException('Invalid rule format: ' . gettype($rule));
+        throw new InvalidRuleException('Invalid rule format: '.gettype($rule));
     }
 
     /**

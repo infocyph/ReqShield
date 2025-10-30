@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Infocyph\ReqShield\Support;
+namespace Infocyph\ReqShield;
 
 /**
  * Sanitizer
@@ -20,10 +20,14 @@ class Sanitizer
 {
     // Common character sets
     private const ALPHA = 'a-zA-Z';
-    private const ALPHANUMERIC = self::ALPHA . self::NUMERIC;
-    private const FILENAME_CHARS = self::ALPHANUMERIC . '._-';
+
+    private const ALPHANUMERIC = self::ALPHA.self::NUMERIC;
+
+    private const FILENAME_CHARS = self::ALPHANUMERIC.'._-';
+
     private const NUMERIC = '0-9';
-    private const SLUG_CHARS = self::ALPHANUMERIC . '_-';
+
+    private const SLUG_CHARS = self::ALPHANUMERIC.'_-';
 
     // Cached regex patterns for performance
     private static array $patterns = [];
@@ -37,11 +41,11 @@ class Sanitizer
      */
     public static function alpha(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        return self::pregReplace('/[^' . self::ALPHA . ']/', '', $value);
+        return self::pregReplace('/[^'.self::ALPHA.']/', '', $value);
     }
 
     /**
@@ -49,11 +53,11 @@ class Sanitizer
      */
     public static function alphaDash(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        return self::pregReplace('/[^' . self::SLUG_CHARS . ']/', '', $value);
+        return self::pregReplace('/[^'.self::SLUG_CHARS.']/', '', $value);
     }
 
     /**
@@ -62,11 +66,11 @@ class Sanitizer
      */
     public static function alphanumeric(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        return self::pregReplace('/[^' . self::ALPHANUMERIC . ']/', '', $value);
+        return self::pregReplace('/[^'.self::ALPHANUMERIC.']/', '', $value);
     }
 
     /**
@@ -74,11 +78,11 @@ class Sanitizer
      */
     public static function alphanumericSpace(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        return self::pregReplace('/[^' . self::ALPHANUMERIC . '\s]/', '', $value);
+        return self::pregReplace('/[^'.self::ALPHANUMERIC.'\s]/', '', $value);
     }
 
     // ============================================
@@ -108,18 +112,15 @@ class Sanitizer
      */
     public static function array(mixed $value): array
     {
-        if (!is_array($value)) {
+        if (! is_array($value)) {
             return [];
         }
 
-        $result = [];
-        foreach ($value as $key => $item) {
-            $result[$key] = is_array($item)
+        return array_map(function ($item) {
+            return is_array($item)
                 ? self::array($item)
                 : (is_string($item) ? self::string($item) : $item);
-        }
-
-        return $result;
+        }, $value);
     }
 
     // ============================================
@@ -131,11 +132,12 @@ class Sanitizer
      */
     public static function base64Decode(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
         $decoded = base64_decode($value, true);
+
         return $decoded !== false ? $decoded : '';
     }
 
@@ -144,7 +146,7 @@ class Sanitizer
      */
     public static function base64Encode(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -156,15 +158,14 @@ class Sanitizer
      */
     public static function batch(array $values, string|callable $sanitizer): array
     {
-        $result = [];
-
-        foreach ($values as $key => $value) {
-            $result[$key] = is_string($sanitizer) && method_exists(self::class, $sanitizer)
+        return array_map(function ($value) use ($sanitizer) {
+            return is_string($sanitizer) && method_exists(
+                self::class,
+                $sanitizer
+            )
                 ? self::$sanitizer($value)
                 : (is_callable($sanitizer) ? $sanitizer($value) : $value);
-        }
-
-        return $result;
+        }, $values);
     }
 
     // ============================================
@@ -197,15 +198,15 @@ class Sanitizer
      */
     public static function camelCase(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        $value = self::pregReplace('/[^' . self::ALPHANUMERIC . '\s]/', '', $value);
+        $value = self::pregReplace('/[^'.self::ALPHANUMERIC.'\s]/', '', $value);
         $value = mb_convert_case($value, MB_CASE_TITLE, 'UTF-8');
         $value = str_replace(' ', '', $value);
 
-        return mb_strtolower(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') .
+        return mb_strtolower(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8').
             mb_substr($value, 1, null, 'UTF-8');
     }
 
@@ -226,7 +227,7 @@ class Sanitizer
      */
     public static function currency(mixed $value): float
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return is_numeric($value) ? (float) $value : 0.0;
         }
 
@@ -244,7 +245,7 @@ class Sanitizer
      */
     public static function domain(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -263,11 +264,12 @@ class Sanitizer
      */
     public static function email(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
         $sanitized = filter_var($value, FILTER_SANITIZE_EMAIL);
+
         return $sanitized !== false ? $sanitized : '';
     }
 
@@ -277,7 +279,7 @@ class Sanitizer
      */
     public static function escapeLike(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -290,7 +292,7 @@ class Sanitizer
      */
     public static function filename(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -298,7 +300,7 @@ class Sanitizer
         $value = str_replace(['/', '\\', "\0"], '', $value);
 
         // Keep only safe filename characters
-        return self::pregReplace('/[^' . self::FILENAME_CHARS . ']/', '_', $value);
+        return self::pregReplace('/[^'.self::FILENAME_CHARS.']/', '_', $value);
     }
 
     /**
@@ -323,10 +325,10 @@ class Sanitizer
         $number = is_numeric($value) ? (float) $value : 0.0;
 
         return match ($currency) {
-            'USD' => '$' . number_format($number, $decimals),
-            'EUR' => '€' . number_format($number, $decimals, ',', '.'),
-            'GBP' => '£' . number_format($number, $decimals),
-            default => $currency . ' ' . number_format($number, $decimals)
+            'USD' => '$'.number_format($number, $decimals),
+            'EUR' => '€'.number_format($number, $decimals, ',', '.'),
+            'GBP' => '£'.number_format($number, $decimals),
+            default => $currency.' '.number_format($number, $decimals)
         };
     }
 
@@ -367,11 +369,12 @@ class Sanitizer
      */
     public static function jsonDecode(mixed $value, bool $associative = true): mixed
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return $associative ? [] : null;
         }
 
-        $decoded = json_decode($value, $associative);
+        $decoded = json_decode($value, $associative, 512, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
         return json_last_error() === JSON_ERROR_NONE ? $decoded : ($associative ? [] : null);
     }
 
@@ -381,7 +384,8 @@ class Sanitizer
      */
     public static function jsonEncode(mixed $value): string
     {
-        $encoded = json_encode($value);
+        $encoded = json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
         return $encoded !== false ? $encoded : '';
     }
 
@@ -391,14 +395,13 @@ class Sanitizer
      */
     public static function kebabCase(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        $value = self::pregReplace('/[^' . self::ALPHANUMERIC . '\s]/', '', $value);
-        $value = self::pregReplace('/\s+/', '-', strtolower($value));
+        $value = self::pregReplace('/[^'.self::ALPHANUMERIC.'\s]/', '', $value);
 
-        return $value;
+        return self::pregReplace('/\s+/', '-', strtolower($value));
     }
 
     /**
@@ -415,7 +418,7 @@ class Sanitizer
      */
     public static function normalizeWhitespace(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -431,11 +434,11 @@ class Sanitizer
      */
     public static function numeric(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        return self::pregReplace('/[^' . self::NUMERIC . ']/', '', $value);
+        return self::pregReplace('/[^'.self::NUMERIC.']/', '', $value);
     }
 
     /**
@@ -444,11 +447,12 @@ class Sanitizer
      */
     public static function pascalCase(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        $value = self::pregReplace('/[^' . self::ALPHANUMERIC . '\s]/', '', $value);
+        $value = self::pregReplace('/[^'.self::ALPHANUMERIC.'\s]/', '', $value);
+
         return str_replace(' ', '', mb_convert_case($value, MB_CASE_TITLE, 'UTF-8'));
     }
 
@@ -458,7 +462,7 @@ class Sanitizer
      */
     public static function phone(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -471,7 +475,7 @@ class Sanitizer
      */
     public static function removeLineBreaks(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -487,7 +491,7 @@ class Sanitizer
      */
     public static function removeSqlPatterns(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -510,7 +514,7 @@ class Sanitizer
      */
     public static function removeXss(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -521,9 +525,7 @@ class Sanitizer
         $value = self::pregReplace('/\s*on\w+\s*=\s*["\']?[^"\']*["\']?/i', '', $value);
 
         // Remove javascript: protocol
-        $value = self::pregReplace('/javascript:/i', '', $value);
-
-        return $value;
+        return self::pregReplace('/javascript:/i', '', $value);
     }
 
     /**
@@ -531,11 +533,11 @@ class Sanitizer
      */
     public static function sentenceCase(mixed $value): string
     {
-        if (!is_string($value) || $value === '') {
+        if (! is_string($value) || $value === '') {
             return '';
         }
 
-        return mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') .
+        return mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8').
             mb_strtolower(mb_substr($value, 1, null, 'UTF-8'), 'UTF-8');
     }
 
@@ -549,7 +551,7 @@ class Sanitizer
      */
     public static function slug(mixed $value, string $separator = '-'): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -568,9 +570,7 @@ class Sanitizer
         $value = trim($value, $separator);
 
         // Replace multiple separators with single
-        $value = self::pregReplace('/' . preg_quote($separator, '/') . '+/', $separator, $value);
-
-        return $value;
+        return self::pregReplace('/'.preg_quote($separator, '/').'+/', $separator, $value);
     }
 
     /**
@@ -578,14 +578,13 @@ class Sanitizer
      */
     public static function snakeCase(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
-        $value = self::pregReplace('/[^' . self::ALPHANUMERIC . '\s]/', '', $value);
-        $value = self::pregReplace('/\s+/', '_', strtolower($value));
+        $value = self::pregReplace('/[^'.self::ALPHANUMERIC.'\s]/', '', $value);
 
-        return $value;
+        return self::pregReplace('/\s+/', '_', strtolower($value));
     }
 
     /**
@@ -610,12 +609,12 @@ class Sanitizer
      */
     public static function stripTags(mixed $value, string|array $allowedTags = ''): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
         if (is_array($allowedTags)) {
-            $allowedTags = '<' . implode('><', $allowedTags) . '>';
+            $allowedTags = '<'.implode('><', $allowedTags).'>';
         }
 
         return strip_tags($value, $allowedTags);
@@ -627,6 +626,7 @@ class Sanitizer
     public static function stripUnsafeTags(mixed $value): string
     {
         $safeTags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li'];
+
         return self::stripTags($value, $safeTags);
     }
 
@@ -666,7 +666,7 @@ class Sanitizer
      */
     public static function truncate(mixed $value, int $length, string $suffix = '...'): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -674,7 +674,7 @@ class Sanitizer
             return $value;
         }
 
-        return mb_substr($value, 0, $length, 'UTF-8') . $suffix;
+        return mb_substr($value, 0, $length, 'UTF-8').$suffix;
     }
 
     /**
@@ -682,7 +682,7 @@ class Sanitizer
      */
     public static function truncateWords(mixed $value, int $words, string $suffix = '...'): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
@@ -692,7 +692,7 @@ class Sanitizer
             return $value;
         }
 
-        return implode(' ', array_slice($wordArray, 0, $words)) . $suffix;
+        return implode(' ', array_slice($wordArray, 0, $words)).$suffix;
     }
 
     /**
@@ -714,11 +714,12 @@ class Sanitizer
      */
     public static function url(mixed $value): string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return '';
         }
 
         $sanitized = filter_var($value, FILTER_SANITIZE_URL);
+
         return $sanitized !== false ? $sanitized : '';
     }
 
@@ -728,11 +729,12 @@ class Sanitizer
     protected static function pregReplace(string $pattern, string $replacement, string $subject): string
     {
         // Cache compiled patterns for performance
-        if (!isset(self::$patterns[$pattern])) {
+        if (! isset(self::$patterns[$pattern])) {
             self::$patterns[$pattern] = $pattern;
         }
 
         $result = preg_replace(self::$patterns[$pattern], $replacement, $subject);
-        return $result !== null ? $result : $subject;
+
+        return $result ?? $subject;
     }
 }

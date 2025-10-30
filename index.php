@@ -6,7 +6,8 @@ require_once __DIR__.'/vendor/autoload.php';
 
 use Infocyph\ReqShield\Exceptions\ValidationException;
 use Infocyph\ReqShield\Rules\Callback;
-use Infocyph\ReqShield\Support\{FieldAlias, Sanitizer};
+use Infocyph\ReqShield\Sanitizer;
+use Infocyph\ReqShield\Support\{FieldAlias};
 use Infocyph\ReqShield\Validator;
 
 echo "╔════════════════════════════════════════════════════════════╗\n";

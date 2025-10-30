@@ -29,8 +29,8 @@ class NestedValidator
      * Expand wildcard rules for array validation.
      * IMPROVED: More efficient array operations
      *
-     * @param array $data The data to validate
-     * @param array $parsedRules Parsed rules from parseRules()
+     * @param  array  $data  The data to validate
+     * @param  array  $parsedRules  Parsed rules from parseRules()
      * @return array Expanded rules without wildcards
      */
     public static function expandWildcards(array $data, array $parsedRules): array
@@ -38,8 +38,9 @@ class NestedValidator
         $expanded = [];
 
         foreach ($parsedRules as $key => $ruleData) {
-            if (!$ruleData['is_wildcard']) {
+            if (! $ruleData['is_wildcard']) {
                 $expanded[$key] = $ruleData['rule'];
+
                 continue;
             }
 
@@ -63,7 +64,7 @@ class NestedValidator
                 ? static::extractValue($data, $pathBeforeWildcard)
                 : $data;
 
-            if (!is_array($arrayData)) {
+            if (! is_array($arrayData)) {
                 continue;
             }
 
@@ -86,8 +87,8 @@ class NestedValidator
      * Extract nested value from data using dot notation.
      * IMPROVED: Early returns for better performance
      *
-     * @param array $data The data array
-     * @param string $path Dot notation path
+     * @param  array  $data  The data array
+     * @param  string  $path  Dot notation path
      * @return mixed The value at the path or null
      */
     public static function extractValue(array $data, string $path): mixed
@@ -100,7 +101,7 @@ class NestedValidator
                 return null; // Wildcard should be handled separately
             }
 
-            if (!is_array($value) || !array_key_exists($segment, $value)) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
                 return null;
             }
 
@@ -118,8 +119,8 @@ class NestedValidator
      * Input: ['user' => ['email' => 'test@example.com', 'profile' => ['age' => 25]]]
      * Output: ['user.email' => 'test@example.com', 'user.profile.age' => 25]
      *
-     * @param array $data Nested array to flatten
-     * @param string $prefix Current prefix (used for recursion)
+     * @param  array  $data  Nested array to flatten
+     * @param  string  $prefix  Current prefix (used for recursion)
      * @return array Flattened array with dot notation keys
      */
     public static function flattenData(array $data, string $prefix = ''): array
@@ -127,9 +128,9 @@ class NestedValidator
         $flattened = [];
 
         foreach ($data as $key => $value) {
-            $newKey = $prefix === '' ? (string)$key : "{$prefix}.{$key}";
+            $newKey = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
 
-            if (is_array($value) && !empty($value)) {
+            if (is_array($value) && ! empty($value)) {
                 // Check if it's an associative array (not a list)
                 if (static::isAssociativeArray($value)) {
                     // Recursively flatten nested associative arrays
@@ -154,9 +155,9 @@ class NestedValidator
      * Get nested value using dot notation.
      * Supports both flattened and nested arrays
      *
-     * @param array $data The data array
-     * @param string $key Dot notation key
-     * @param mixed $default Default value if not found
+     * @param  array  $data  The data array
+     * @param  string  $key  Dot notation key
+     * @param  mixed  $default  Default value if not found
      * @return mixed The value or default
      */
     public static function getNestedValue(array $data, string $key, mixed $default = null): mixed
@@ -168,6 +169,7 @@ class NestedValidator
 
         // Then try nested access (for non-flattened arrays)
         $value = static::extractValue($data, $key);
+
         return $value ?? $default;
     }
 
@@ -175,8 +177,8 @@ class NestedValidator
      * Get all paths in a nested array as dot notation.
      * Useful for debugging or introspection
      *
-     * @param array $data The nested array
-     * @param string $prefix Current prefix (for recursion)
+     * @param  array  $data  The nested array
+     * @param  string  $prefix  Current prefix (for recursion)
      * @return array List of all paths in dot notation
      */
     public static function getPaths(array $data, string $prefix = ''): array
@@ -184,9 +186,9 @@ class NestedValidator
         $paths = [];
 
         foreach ($data as $key => $value) {
-            $newKey = $prefix === '' ? (string)$key : "{$prefix}.{$key}";
+            $newKey = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
 
-            if (is_array($value) && !empty($value) && static::isAssociativeArray($value)) {
+            if (is_array($value) && ! empty($value) && static::isAssociativeArray($value)) {
                 // Add all nested paths
                 $nestedPaths = static::getPaths($value, $newKey);
                 foreach ($nestedPaths as $path) {
@@ -204,8 +206,8 @@ class NestedValidator
     /**
      * Check if value exists at a nested path.
      *
-     * @param array $data The data array
-     * @param string $path Dot notation path
+     * @param  array  $data  The data array
+     * @param  string  $path  Dot notation path
      * @return bool True if value exists
      */
     public static function has(array $data, string $path): bool
@@ -218,7 +220,7 @@ class NestedValidator
                 return false; // Can't check existence with wildcard
             }
 
-            if (!is_array($value) || !array_key_exists($segment, $value)) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
                 return false;
             }
 
@@ -232,7 +234,7 @@ class NestedValidator
      * Parse nested rules into a flat structure.
      * IMPROVED: More efficient parsing with reduced operations
      *
-     * @param array $rules Validation rules with dot notation
+     * @param  array  $rules  Validation rules with dot notation
      * @return array Parsed rules structure
      */
     public static function parseRules(array $rules): array
@@ -257,9 +259,9 @@ class NestedValidator
     /**
      * Set a value in nested data using dot notation.
      *
-     * @param array $data The data array (passed by reference)
-     * @param string $path Dot notation path
-     * @param mixed $value Value to set
+     * @param  array  $data  The data array (passed by reference)
+     * @param  string  $path  Dot notation path
+     * @param  mixed  $value  Value to set
      */
     public static function setValue(array &$data, string $path, mixed $value): void
     {
@@ -272,7 +274,7 @@ class NestedValidator
             if ($isLast) {
                 $current[$segment] = $value;
             } else {
-                if (!isset($current[$segment]) || !is_array($current[$segment])) {
+                if (! isset($current[$segment]) || ! is_array($current[$segment])) {
                     $current[$segment] = [];
                 }
                 $current = &$current[$segment];
@@ -288,7 +290,7 @@ class NestedValidator
      * Input: ['user.email' => 'test@example.com', 'user.profile.age' => 25]
      * Output: ['user' => ['email' => 'test@example.com', 'profile' => ['age' => 25]]]
      *
-     * @param array $data Flattened array with dot notation keys
+     * @param  array  $data  Flattened array with dot notation keys
      * @return array Nested array structure
      */
     public static function unflattenData(array $data): array
@@ -306,9 +308,9 @@ class NestedValidator
      * Build expanded path efficiently.
      * IMPROVED: Helper method to reduce string concatenation overhead
      *
-     * @param string $before Path before wildcard
-     * @param int|string $index Current index
-     * @param string $after Path after wildcard
+     * @param  string  $before  Path before wildcard
+     * @param  int|string  $index  Current index
+     * @param  string  $after  Path after wildcard
      * @return string Complete expanded path
      */
     protected static function buildExpandedPath(string $before, int|string $index, string $after): string
@@ -325,14 +327,14 @@ class NestedValidator
             return "{$index}.{$after}";
         }
 
-        return (string)$index;
+        return (string) $index;
     }
 
     /**
      * Check if array is associative (not a sequential list).
      * IMPROVED: Helper method for better array handling
      *
-     * @param array $array Array to check
+     * @param  array  $array  Array to check
      * @return bool True if associative, false if sequential
      */
     protected static function isAssociativeArray(array $array): bool

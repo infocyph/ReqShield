@@ -9,13 +9,17 @@ use Countable;
 use Iterator;
 use JsonSerializable;
 
-class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
+class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
 {
     // Cache for expensive operations
     protected ?array $flatCache = null;
+
     protected array $iteratorKeys = [];
+
     protected int $iteratorPosition = 0;
+
     protected ?int $messageCount = null;
+
     protected array $messages = [];
 
     public function __construct(array $messages = [])
@@ -70,7 +74,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
      */
     public function add(string $key, string $message): self
     {
-        if (!isset($this->messages[$key])) {
+        if (! isset($this->messages[$key])) {
             $this->messages[$key] = [];
         }
 
@@ -92,7 +96,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
             return $this;
         }
 
-        if (!isset($this->messages[$key])) {
+        if (! isset($this->messages[$key])) {
             $this->messages[$key] = $messages;
         } else {
             // Use array_push for better performance than multiple assignments
@@ -117,7 +121,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
      */
     public function any(): bool
     {
-        return !empty($this->messages);
+        return ! empty($this->messages);
     }
 
     /**
@@ -150,6 +154,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     public function except(array $keys): self
     {
         $filtered = array_diff_key($this->messages, array_flip($keys));
+
         return new self($filtered);
     }
 
@@ -159,6 +164,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     public function filter(callable $callback): self
     {
         $filtered = array_filter($this->messages, $callback, ARRAY_FILTER_USE_BOTH);
+
         return new self($filtered);
     }
 
@@ -170,14 +176,16 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
         if ($key === null) {
             // Get first message from any field
             foreach ($this->messages as $messages) {
-                if (!empty($messages)) {
+                if (! empty($messages)) {
                     return $messages[0];
                 }
             }
+
             return null;
         }
 
         $messages = $this->get($key);
+
         return $messages[0] ?? null;
     }
 
@@ -215,7 +223,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
      */
     public function has(string $key): bool
     {
-        return isset($this->messages[$key]) && !empty($this->messages[$key]);
+        return isset($this->messages[$key]) && ! empty($this->messages[$key]);
     }
 
     /**
@@ -231,7 +239,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
      */
     public function isNotEmpty(): bool
     {
-        return !empty($this->messages);
+        return ! empty($this->messages);
     }
 
     /**
@@ -264,14 +272,16 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
             // Get last message from any field
             $lastMessage = null;
             foreach ($this->messages as $messages) {
-                if (!empty($messages)) {
+                if (! empty($messages)) {
                     $lastMessage = end($messages);
                 }
             }
+
             return $lastMessage;
         }
 
         $messages = $this->get($key);
+
         return $messages[count($messages) - 1] ?? null;
     }
 
@@ -294,7 +304,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     public function merge(MessageBag $bag): self
     {
         foreach ($bag->all() as $key => $messages) {
-            if (!isset($this->messages[$key])) {
+            if (! isset($this->messages[$key])) {
                 $this->messages[$key] = $messages;
             } else {
                 // Use array_push with spread operator - much faster than array_merge!
@@ -329,7 +339,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
 
     public function next(): void
     {
-        ++$this->iteratorPosition;
+        $this->iteratorPosition++;
     }
 
     // ============================================
@@ -366,6 +376,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
     public function only(array $keys): self
     {
         $filtered = array_intersect_key($this->messages, array_flip($keys));
+
         return new self($filtered);
     }
 
@@ -424,14 +435,14 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
         $isFirst = true;
 
         foreach ($this->messages as $key => $messages) {
-            if (!$isFirst) {
+            if (! $isFirst) {
                 $output .= $separator;
             }
 
-            $output .= str_replace(':key', $key, $keyFormat) . $separator;
+            $output .= str_replace(':key', $key, $keyFormat).$separator;
 
             foreach ($messages as $message) {
-                $output .= str_replace([':key', ':message'], [$key, $message], $messageFormat) . $separator;
+                $output .= str_replace([':key', ':message'], [$key, $message], $messageFormat).$separator;
             }
 
             $isFirst = false;
@@ -452,7 +463,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
         $html = "<{$listType}>";
 
         foreach ($this->flatten() as $message) {
-            $html .= '<li>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</li>';
+            $html .= '<li>'.htmlspecialchars($message, ENT_QUOTES, 'UTF-8').'</li>';
         }
 
         $html .= "</{$listType}>";
@@ -497,7 +508,7 @@ class MessageBag implements Countable, Iterator, ArrayAccess, JsonSerializable
 
         foreach ($this->messages as $key => $messages) {
             foreach ($messages as $message) {
-                if (!$isFirst) {
+                if (! $isFirst) {
                     $output .= $separator;
                 }
                 $output .= str_replace([':key', ':message'], [$key, $message], $format);

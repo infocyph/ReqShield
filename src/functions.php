@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
-use Infocyph\ReqShield\Support\Sanitizer;
+use Infocyph\ReqShield\Sanitizer;
 use Infocyph\ReqShield\Validator;
 
 if (! function_exists('validator')) {
