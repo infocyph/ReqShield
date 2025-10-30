@@ -14,14 +14,18 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
 class Unique extends BaseRule
 {
     protected ?string $column;
+
     protected ?DatabaseProvider $db;
+
     protected ?string $idColumn;
+
     protected ?int $ignoreId;
 
     /**
      * Soft delete column name.
      */
     protected string $softDeleteColumn = 'deleted_at';
+
     protected string $table;
 
     /**
@@ -85,12 +89,13 @@ class Unique extends BaseRule
     {
         // This will be handled by the batch executor
         // Individual execution is only for non-batched scenarios
-        if (!$this->db) {
+        if (! $this->db) {
             return true; // Skip if no DB provider
         }
 
         $column = $this->column ?? $field;
-        return !$this->db->exists($this->table, $column, $value, $this->ignoreId);
+
+        return ! $this->db->exists($this->table, $column, $value, $this->ignoreId);
     }
 
     public function setDatabaseProvider(DatabaseProvider $db): void
@@ -103,7 +108,7 @@ class Unique extends BaseRule
      */
     protected function checkCompositeUnique(mixed $value, string $field, array $data): bool
     {
-        if (!$this->db) {
+        if (! $this->db) {
             throw new \RuntimeException('Database provider is required for unique rule');
         }
 
