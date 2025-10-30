@@ -26,6 +26,6 @@ class Mac extends BaseRule
             return false;
         }
 
-        return preg_match('/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/', $value) === 1;
+        return filter_var($value, FILTER_VALIDATE_MAC) !== false;
     }
 }

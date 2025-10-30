@@ -31,7 +31,8 @@ if (! function_exists('validate')) {
      * @param  array  $rules  Validation rules
      * @param  array  $data  Data to validate
      * @param  DatabaseProvider|null  $db  Optional database provider
-     * @return \Infocyph\ReqShield\ValidationResult
+     *
+     * @throws \Infocyph\ReqShield\Exceptions\ValidationException
      *
      * @example
      * $result = validate(['email' => 'required|email'], $_POST);
@@ -71,6 +72,8 @@ if (! function_exists('passes')) {
      * @param  array  $data  Data to validate
      * @param  DatabaseProvider|null  $db  Optional database provider
      *
+     * @throws \Infocyph\ReqShield\Exceptions\ValidationException
+     *
      * @example if (passes(['email' => 'required|email'], $_POST)) { ... }
      */
     function passes(array $rules, array $data, ?DatabaseProvider $db = null): bool
@@ -86,6 +89,8 @@ if (! function_exists('fails')) {
      * @param  array  $rules  Validation rules
      * @param  array  $data  Data to validate
      * @param  DatabaseProvider|null  $db  Optional database provider
+     *
+     * @throws \Infocyph\ReqShield\Exceptions\ValidationException
      *
      * @example if (fails(['email' => 'required|email'], $_POST)) { ... }
      */
