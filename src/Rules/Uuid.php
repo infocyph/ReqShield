@@ -31,10 +31,10 @@ class Uuid extends BaseRule
     protected string $versionPattern;
 
     /**
-     * @param  string|null  $version  Version specification (e.g., "4", "345",
+     * @param string|int|null $version Version specification (e.g., "4", "345",
      *                                "3-5", "!2")
      */
-    public function __construct(?string $version = null)
+    public function __construct(string|int|null $version = null)
     {
         $this->parseVersionSpec($version);
         $this->versionPattern = $this->buildVersionPattern();
@@ -181,10 +181,10 @@ class Uuid extends BaseRule
      * Parse version specification and return allowed versions array
      * Complexity: O(n) where n is length of version string
      */
-    protected function parseVersionSpec(?string $version): void
+    protected function parseVersionSpec(string|int|null $version): void
     {
         if ($version !== null && $version !== '') {
-            $version = trim($version);
+            $version = trim((string)$version);
             match (true) {
                 $version[0] === '!' => $this->parseExcludeVersion($version),
                 str_contains($version, '-') => $this->parseRangeVersion($version),

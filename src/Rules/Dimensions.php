@@ -9,21 +9,13 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Dimensions extends BaseRule
 {
-    protected ?int $maxHeight;
 
-    protected ?int $maxWidth;
-
-    protected ?int $minHeight;
-
-    protected ?int $minWidth;
-
-    public function __construct(?int $minWidth = null, ?int $minHeight = null, ?int $maxWidth = null, ?int $maxHeight = null)
-    {
-        $this->minWidth = $minWidth;
-        $this->minHeight = $minHeight;
-        $this->maxWidth = $maxWidth;
-        $this->maxHeight = $maxHeight;
-    }
+    public function __construct(
+        protected string|int|null $minWidth = 0,
+        protected string|int|null $minHeight = 0,
+        protected string|int|null $maxWidth = 0,
+        protected string|int|null $maxHeight = 0,
+    ) {}
 
     public function cost(): int
     {
@@ -37,7 +29,7 @@ class Dimensions extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_array($value) || ! isset($value['tmp_name'])) {
+        if (!is_array($value) || !isset($value['tmp_name'])) {
             return false;
         }
         $imageInfo = @getimagesize($value['tmp_name']);
@@ -60,4 +52,5 @@ class Dimensions extends BaseRule
 
         return true;
     }
+
 }

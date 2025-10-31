@@ -167,7 +167,7 @@ class ValidationNode
      */
     public function hasChildren(): bool
     {
-        return $this->children !== null && ! empty($this->children);
+        return ! empty($this->children);
     }
 
     /**
