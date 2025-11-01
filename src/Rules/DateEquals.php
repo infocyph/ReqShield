@@ -9,7 +9,6 @@ namespace Infocyph\ReqShield\Rules;
  */
 class DateEquals extends BaseRule
 {
-
     protected string $date;
 
     public function __construct(string $date)

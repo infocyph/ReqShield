@@ -21,17 +21,16 @@ use Infocyph\ReqShield\Exceptions\InvalidRuleException;
  */
 class SchemaCompiler
 {
-
-    /**
-     * Rule map configuration - loaded from rule-map.php.
-     */
-    protected array $ruleMap = [];
-
     /**
      * Rules that expect array parameters (all params as single array).
      * Example: 'in:1,2,3' → new In([1, 2, 3])
      */
     protected array $arrayRules = ['in', 'not_in'];
+
+    /**
+     * Rule map configuration - loaded from rule-map.php.
+     */
+    protected array $ruleMap = [];
 
     public function __construct()
     {
@@ -92,6 +91,25 @@ class SchemaCompiler
     }
 
     /**
+     * Cast string parameters to appropriate types based on content.
+     * Uses pattern-based heuristics for fast, simple type casting.
+     */
+    protected function castParameters(array $params): array
+    {
+        return array_map(function ($param) {
+            return match (true) {
+                $param === '' || $param === 'null' => null,
+                $param === 'true' => true,
+                $param === 'false' => false,
+                is_numeric($param) => str_contains($param, '.')
+                    ? (float)$param
+                    : (int)$param,
+                default => $param,
+            };
+        }, $params);
+    }
+
+    /**
      * Compile a single field's rules into a ValidationNode.
      */
     protected function compileField(array $ruleSet): ValidationNode
@@ -142,25 +160,6 @@ class SchemaCompiler
                 "Invalid parameter types for rule '{$name}': {$e->getMessage()}",
             );
         }
-    }
-
-    /**
-     * Cast string parameters to appropriate types based on content.
-     * Uses pattern-based heuristics for fast, simple type casting.
-     */
-    protected function castParameters(array $params): array
-    {
-        return array_map(function ($param) {
-            return match (true) {
-                $param === '' || $param === 'null' => null,
-                $param === 'true' => true,
-                $param === 'false' => false,
-                is_numeric($param) => str_contains($param, '.')
-                    ? (float)$param
-                    : (int)$param,
-                default => $param,
-            };
-        }, $params);
     }
 
     /**

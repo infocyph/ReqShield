@@ -18,13 +18,12 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Mimes extends BaseRule
 {
-    protected array $types;
-
     /**
      * Cached MIME type mappings
      * Loaded from mime-types.php configuration file
      */
     protected static ?array $mimeMap = null;
+    protected array $types;
 
     public function __construct(string ...$types)
     {
@@ -34,6 +33,30 @@ class Mimes extends BaseRule
         if (self::$mimeMap === null) {
             self::loadMimeTypes();
         }
+    }
+
+    /**
+     * Clear the cached MIME type mappings (useful for testing)
+     *
+     * @return void
+     */
+    public static function clearMimeMap(): void
+    {
+        self::$mimeMap = null;
+    }
+
+    /**
+     * Get the MIME type mapping array (for testing/debugging)
+     *
+     * @return array
+     */
+    public static function getMimeMap(): array
+    {
+        if (self::$mimeMap === null) {
+            self::loadMimeTypes();
+        }
+
+        return self::$mimeMap;
     }
 
     public function cost(): int
@@ -80,29 +103,5 @@ class Mimes extends BaseRule
     protected static function loadMimeTypes(): void
     {
         require __DIR__ . '/mime-types.php';
-    }
-
-    /**
-     * Get the MIME type mapping array (for testing/debugging)
-     *
-     * @return array
-     */
-    public static function getMimeMap(): array
-    {
-        if (self::$mimeMap === null) {
-            self::loadMimeTypes();
-        }
-
-        return self::$mimeMap;
-    }
-
-    /**
-     * Clear the cached MIME type mappings (useful for testing)
-     *
-     * @return void
-     */
-    public static function clearMimeMap(): void
-    {
-        self::$mimeMap = null;
     }
 }

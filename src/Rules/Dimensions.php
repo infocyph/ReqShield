@@ -9,13 +9,13 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Dimensions extends BaseRule
 {
-
     public function __construct(
         protected string|int|null $minWidth = 0,
         protected string|int|null $minHeight = 0,
         protected string|int|null $maxWidth = 0,
         protected string|int|null $maxHeight = 0,
-    ) {}
+    ) {
+    }
 
     public function cost(): int
     {
