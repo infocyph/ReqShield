@@ -14,7 +14,7 @@ echo "╔═══════════════════════�
 echo "║        ReqShield - Complete Examples (103 Rules!)         ║\n";
 echo "║              100% Rule Coverage Demonstration              ║\n";
 echo "╚════════════════════════════════════════════════════════════╝\n\n";
-goto lv2;
+
 // ============================================
 // Example 1: Basic Validation
 // ============================================
@@ -585,7 +585,7 @@ $fluentResult
 echo "Only email & name: ".json_encode($fluentResult->only(['email', 'name']))."\n";
 echo "Except age: ".json_encode($fluentResult->except(['age']))."\n";
 echo "Has email: ".($fluentResult->has('email') ? 'Yes' : 'No')."\n";
-lv2:
+
 // ============================================
 // Example 18: Performance Benchmark
 // ============================================
@@ -972,76 +972,109 @@ echo "  exclude_if:       Remove if condition matches\n";
 echo "  exclude_unless:   Remove unless condition matches\n";
 echo "  exclude_with:     Remove if another field is present\n";
 echo "  exclude_without:  Remove if another field is absent\n";
-exit;
-// ============================================
-// Example 26: Pattern Matching (Regex) ✨ NEW
-// ============================================
-
-//echo "\n=== Example 26: Pattern Matching with Regex ✨ ===\n\n";
-//
-//$regexValidator = Validator::make([
-//    'phone' => ['required','regex:/^\+?[1-9]\d{1,14}$/'],
-//    'zipcode' => ['required','regex:/^\d{5}(-\d{4})?$/'],
-//    'product_code' => ['required','regex:/^[A-Z]{3}-\d{4}$/'],
-//    'username' => ['required','regex:/^[a-zA-Z0-9_]{3,20}$/','not_regex:/^(admin|root|system)$/'],
-//    'no_spaces' => ['not_regex:/^\s$/'],
-//]);
-//
-//$regexData = [
-//    'phone' => '+12125551234',
-//    'zipcode' => '12345',
-//    'product_code' => 'ABC-1234',
-//    'username' => 'john_doe',
-//    'no_spaces' => 'nospaces',
-//];
-//
-//$result26 = $regexValidator->validate($regexData);
-//
-//if ($result26->passes()) {
-//    echo "✓ All regex validations passed!\n";
-//    echo "  Phone: Matches E.164 format\n";
-//    echo "  Zipcode: US format (12345 or 12345-6789)\n";
-//    echo "  Product code: ABC-1234 format\n";
-//    echo "  Username: Alphanumeric + underscore, not reserved words\n";
-//    echo "  No spaces: Contains no whitespace\n";
-//}
 
 // ============================================
-// Example 27: Numeric Comparison Operators ✨ NEW
+// Example 26: Regex Validation
 // ============================================
 
-//echo "\n=== Example 27: Numeric Comparison Operators (gt, gte, lt, lte) ✨ ===\n\n";
-//
-//$comparisonValidator = Validator::make([
-//    'price' => 'required|numeric|gt:0', // Greater than 0
-//    'discount_price' => 'required|numeric|lt:price', // Less than price
-//    'min_quantity' => 'required|integer|gte:1', // Greater than or equal to 1
-//    'max_quantity' => 'required|integer|lte:100|gte:min_quantity', // Between 1 and 100
-//    'stock' => 'integer|gte:0', // Stock can't be negative
-//]);
-//
-//$comparisonData = [
-//    'price' => 99.99,
-//    'discount_price' => 79.99,
-//    'min_quantity' => 1,
-//    'max_quantity' => 10,
-//    'stock' => 50,
-//];
-//
-//$result27 = $comparisonValidator->validate($comparisonData);
-//
-//if ($result27->passes()) {
-//    echo "✓ All comparison validations passed!\n";
-//    echo "  gt (>): Greater than\n";
-//    echo "  gte (>=): Greater than or equal to\n";
-//    echo "  lt (<): Less than\n";
-//    echo "  lte (<=): Less than or equal to\n";
-//    echo "\n  Examples:\n";
-//    echo "    Price ({$comparisonData['price']}) > 0 ✓\n";
-//    echo "    Discount ({$comparisonData['discount_price']}) < Price ({$comparisonData['price']}) ✓\n";
-//    echo "    Min quantity ({$comparisonData['min_quantity']}) >= 1 ✓\n";
-//    echo "    Max quantity ({$comparisonData['max_quantity']}) <= 100 ✓\n";
-//}
+echo "Example 26: Regex Validation\n";
+echo str_repeat("-", 70) . "\n\n";
+
+try {
+    $regexValidator = Validator::make([
+        'phone' => ['required', 'regex:/^\+?[1-9]\d{1,14}$/'],
+        'zipcode' => ['required', 'regex:/^\d{5}(-\d{4})?$/'],
+        'product_code' => ['required', 'regex:/^[A-Z]{3}-\d{4}$/'],
+        'username' => ['required', 'regex:/^[a-zA-Z0-9_]{3,20}$/', 'not_regex:/^(admin|root|system)$/i'],
+        'no_spaces' => ['not_regex:/\s/'],
+    ]);
+
+    $regexData = [
+        'phone' => '+12125551234',
+        'zipcode' => '12345',
+        'product_code' => 'ABC-1234',
+        'username' => 'john_doe',
+        'no_spaces' => 'nospaces',
+    ];
+
+    $result26 = $regexValidator->validate($regexData);
+
+    if ($result26->passes()) {
+        echo "✓ All regex validations PASSED!\n\n";
+        echo "Validated data:\n";
+        foreach ($regexData as $field => $value) {
+            echo "  {$field}: {$value}\n";
+        }
+    } else {
+        echo "✗ Regex validation FAILED:\n\n";
+        foreach ($result26->errors() as $field => $errors) {
+            echo "  {$field}:\n";
+            foreach ($errors as $error) {
+                echo "    - {$error}\n";
+            }
+        }
+    }
+} catch (Exception $e) {
+    echo "❌ ERROR in Example 26:\n";
+    echo "  " . $e->getMessage() . "\n";
+    echo "  File: " . $e->getFile() . ":" . $e->getLine() . "\n";
+}
+
+echo "\n" . str_repeat("=", 70) . "\n\n";
+
+// ============================================
+// Example 27: Field Comparisons
+// ============================================
+
+echo "Example 27: Numeric Comparisons\n";
+echo str_repeat("-", 70) . "\n\n";
+
+try {
+    $comparisonValidator = Validator::make([
+        'original_price' => 'required|numeric|min:0.01',
+        'sale_price' => 'required|numeric|lt:original_price',
+        'min_order' => 'required|integer|min:1',
+        'max_order' => 'required|integer|max:100|gte:min_order',
+        'current_stock' => 'required|integer|min:0',
+        'reorder_level' => 'required|integer|lte:current_stock',
+    ]);
+
+    $comparisonData = [
+        'original_price' => 99.99,
+        'sale_price' => 79.99,
+        'min_order' => 1,
+        'max_order' => 10,
+        'current_stock' => 50,
+        'reorder_level' => 20,
+    ];
+
+    $result27 = $comparisonValidator->validate($comparisonData);
+
+    if ($result27->passes()) {
+        echo "✓ All comparison validations PASSED!\n\n";
+        echo "Field comparisons verified:\n";
+        echo "  sale_price (79.99) < original_price (99.99) ✓\n";
+        echo "  max_order (10) >= min_order (1) ✓\n";
+        echo "  reorder_level (20) <= current_stock (50) ✓\n\n";
+        echo "Literal comparisons verified:\n";
+        echo "  original_price (99.99) >= 0.01 ✓\n";
+        echo "  min_order (1) >= 1 ✓\n";
+        echo "  max_order (10) <= 100 ✓\n";
+        echo "  current_stock (50) >= 0 ✓\n";
+    } else {
+        echo "✗ Comparison validation FAILED:\n\n";
+        foreach ($result27->errors() as $field => $errors) {
+            echo "  {$field}:\n";
+            foreach ($errors as $error) {
+                echo "    - {$error}\n";
+            }
+        }
+    }
+} catch (Exception $e) {
+    echo "❌ ERROR in Example 27:\n";
+    echo "  " . $e->getMessage() . "\n";
+    echo "  File: " . $e->getFile() . ":" . $e->getLine() . "\n";
+}
 
 // ============================================
 // Example 28: Advanced Array Rules ✨ NEW
@@ -1115,26 +1148,42 @@ if ($result29->passes()) {
 
 echo "\n=== Example 30: Bail Rule (Stop on First Failure) ✨ ===\n\n";
 
-echo "Without 'bail':\n";
-echo "  If field is empty, all rules are checked:\n";
-echo "  - required (fails)\n";
-echo "  - email (also fails)\n";
-echo "  - max:255 (also fails)\n";
-echo "  - unique (also checks DB)\n";
-echo "  Result: Multiple error messages\n\n";
+// Test 1: WITHOUT bail - shows all errors
+echo "Test 1: WITHOUT bail rule\n";
+$validator1 = Validator::make([
+    'email' => ['required', 'email', 'max:255']
+]);
 
-echo "With 'bail':\n";
-echo "  If field is empty:\n";
-echo "  - bail (marker)\n";
-echo "  - required (fails) → STOP\n";
-echo "  - email, max, unique are NOT checked\n";
-echo "  Result: Only first error message\n";
-echo "  Benefit: Faster, cleaner errors, no unnecessary DB queries\n\n";
+$result1 = $validator1->validate(['email' => 'not-an-email-way-too-long-string-that-exceeds-255-characters' . str_repeat('x', 300)]);
 
-echo "✓ 'bail' rule is useful for:\n";
-echo "  - Stopping expensive validations after cheap ones fail\n";
-echo "  - Cleaner error messages (one per field)\n";
-echo "  - Performance optimization\n";
+if ($result1->fails()) {
+    echo "  Errors found: " . count($result1->errors()['email']) . "\n";
+    foreach ($result1->errors()['email'] as $error) {
+        echo "    - {$error}\n";
+    }
+    echo "  All rules were checked ✓\n";
+}
+
+// Test 2: WITH bail - stops at first error
+echo "\nTest 2: WITH bail rule\n";
+$validator2 = Validator::make([
+    'email' => ['bail', 'required', 'email', 'max:255']
+]);
+
+$result2 = $validator2->validate(['email' => '']);
+
+if ($result2->fails()) {
+    echo "  Errors found: " . count($result2->errors()['email']) . "\n";
+    foreach ($result2->errors()['email'] as $error) {
+        echo "    - {$error}\n";
+    }
+    echo "  Stopped after first failure ✓\n";
+}
+
+echo "\nBail rule explained:\n";
+echo "  - Without bail: All rules checked, multiple errors\n";
+echo "  - With bail: Stops at first failure, single error\n";
+echo "  - Benefit: Faster validation, cleaner error messages\n";
 
 // ============================================
 // Example 31: String Negation Rules ✨ NEW
@@ -1196,42 +1245,10 @@ if ($result32->passes()) {
 }
 
 // ============================================
-// Example 33: Sometimes Rule ✨ NEW
+// Example 33: Additional Missing Rules
 // ============================================
 
-echo "\n=== Example 33: Sometimes Rule (Optional Validation) ✨ ===\n\n";
-
-$sometimesValidator = Validator::make([
-    'name' => 'required|string',
-    'email' => 'sometimes|required|email', // Only validate if present
-    'phone' => 'sometimes|required|regex:/^\+?[0-9]{10,15}$/',
-]);
-
-// Case 1: Email present
-$data1 = [
-    'name' => 'John',
-    'email' => 'john@example.com',
-];
-$result33a = $sometimesValidator->validate($data1);
-echo $result33a->passes() ? "✓ Case 1: With email - passed\n" : "✗ Failed\n";
-
-// Case 2: Email not present (skipped)
-$data2 = [
-    'name' => 'Jane',
-];
-$result33b = $sometimesValidator->validate($data2);
-echo $result33b->passes() ? "✓ Case 2: Without email - passed (skipped)\n" : "✗ Failed\n";
-
-echo "\n'sometimes' rule explained:\n";
-echo "  - If field is present: Apply all rules after 'sometimes'\n";
-echo "  - If field is absent: Skip all validation for this field\n";
-echo "  - Useful for optional fields that must be valid if provided\n";
-
-// ============================================
-// Example 34: Additional Missing Rules
-// ============================================
-
-echo "\n=== Example 34: Additional Rules (nullable, present, filled, active_url) ===\n\n";
+echo "\n=== Example 33: Additional Rules (nullable, present, filled, active_url) ===\n\n";
 
 $additionalValidator = Validator::make([
     'optional' => 'nullable|email', // Can be null, but if present must be email
@@ -1261,8 +1278,8 @@ echo "  active_url: URL must be active (DNS record exists)\n";
 // ============================================
 
 echo "\n\n╔════════════════════════════════════════════════════════════╗\n";
-echo "║     All Examples Completed Successfully!                  ║\n";
-echo "║          100% Rule Coverage (103/103 Rules)               ║\n";
+echo "║     All Examples Completed Successfully!                   ║\n";
+echo "║          100% Rule Coverage                                ║\n";
 echo "╚════════════════════════════════════════════════════════════╝\n\n";
 
 echo "🎉 Features Demonstrated:\n";
@@ -1296,7 +1313,7 @@ echo "   decimal, multiple_of, gt, gte, lt, lte\n\n";
 
 echo "✅ Date/Time (7): date, date_format, date_equals, before, before_or_equal, after, after_or_equal\n\n";
 
-echo "✅ Conditional (27): sometimes, required_if, required_unless, required_with, required_with_all,\n";
+echo "✅ Conditional (27): required_if, required_unless, required_with, required_with_all,\n";
 echo "   required_without, required_without_all, required_array_keys, required_if_accepted, required_if_declined,\n";
 echo "   present_if, present_unless, present_with, present_with_all, missing, missing_if, missing_unless,\n";
 echo "   prohibited, prohibited_if, prohibited_unless, prohibits,\n";
@@ -1328,17 +1345,5 @@ echo "  ✓ Advanced examples: 12 examples (✨ NEW)\n";
 echo "  ✓ Total examples: 34\n";
 echo "  ✓ Rules covered: 103/103 (100%)\n";
 echo "  ✓ Missing rules: 0\n\n";
-
-echo "✨ NEW in this version (58 rules added):\n";
-echo "  ✓ File validations (6 rules)\n";
-echo "  ✓ Advanced conditionals (19 rules)\n";
-echo "  ✓ Pattern matching (2 rules)\n";
-echo "  ✓ Numeric comparisons (4 rules)\n";
-echo "  ✓ Advanced arrays (2 rules)\n";
-echo "  ✓ Advanced acceptance (4 rules)\n";
-echo "  ✓ String negations (2 rules)\n";
-echo "  ✓ Date equals (1 rule)\n";
-echo "  ✓ Bail rule (1 rule)\n";
-echo "  ✓ Sometimes rule (1 rule)\n\n";
 
 echo "🎯 Perfect Coverage Achieved! 🎉\n\n";

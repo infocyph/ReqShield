@@ -21,6 +21,7 @@ use Infocyph\ReqShield\Exceptions\InvalidRuleException;
  */
 class SchemaCompiler
 {
+
     /**
      * Rule map configuration - loaded from rule-map.php.
      */
@@ -40,8 +41,9 @@ class SchemaCompiler
     /**
      * Compile validation rules into optimized schema.
      *
-     * FIXED: Always keeps schema flat - nested fields are just field names with dots.
-     * The NestedValidator will flatten the data to match these keys.
+     * FIXED: Always keeps schema flat - nested fields are just field names
+     * with dots. The NestedValidator will flatten the data to match these
+     * keys.
      *
      * Example:
      * Input: ['user.email' => 'required|email', 'user.name' => 'required']
@@ -204,8 +206,14 @@ class SchemaCompiler
     {
         $parts = explode(':', $rule, 2);
         $name = $parts[0];
-        $params = isset($parts[1]) ? explode(',', $parts[1]) : [];
 
+        // Don't split regex parameters - commas are part of pattern!
+        if (in_array($name, ['regex', 'not_regex'])) {
+            return [$name, [$parts[1]]];
+        }
+
+        // Normal rules: split on comma
+        $params = explode(',', $parts[1] ?? '');
         return [$name, $params];
     }
 
@@ -219,4 +227,5 @@ class SchemaCompiler
 
         return $this->createRuleInstance($name, $params);
     }
+
 }

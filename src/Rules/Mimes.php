@@ -79,24 +79,7 @@ class Mimes extends BaseRule
      */
     protected static function loadMimeTypes(): void
     {
-        // Try multiple locations for the mime-types.php file
-        $locations = [
-            // Same directory as this class
-            __DIR__ . '/mime-types.php',
-
-            // Package config directory (assuming standard structure)
-            __DIR__ . '/../../config/mime-types.php',
-
-            // Project root config
-            dirname(__DIR__, 4) . '/config/mime-types.php',
-        ];
-
-        foreach ($locations as $path) {
-            if (file_exists($path)) {
-                self::$mimeMap = require $path;
-                return;
-            }
-        }
+        require __DIR__ . '/mime-types.php';
     }
 
     /**

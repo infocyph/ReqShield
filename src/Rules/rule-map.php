@@ -98,7 +98,6 @@ return [
     // ==========================================
     // Conditional Validations
     // ==========================================
-    'sometimes' => 'Infocyph\ReqShield\Rules\Sometimes',
     'required_if' => 'Infocyph\ReqShield\Rules\RequiredIf',
     'required_unless' => 'Infocyph\ReqShield\Rules\RequiredUnless',
     'required_with' => 'Infocyph\ReqShield\Rules\RequiredWith',
