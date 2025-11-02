@@ -26,4 +26,5 @@ class File extends BaseRule
             && is_uploaded_file($value['tmp_name'])
             && $value['error'] === UPLOAD_ERR_OK;
     }
+
 }

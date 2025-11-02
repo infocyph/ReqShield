@@ -21,12 +21,13 @@ class BatchExecutor
      * Execute a batch of expensive rules.
      * OPTIMIZED: Single loop to categorize all rules
      *
-     * @param  array  $batch  Array of ['rule' => Rule, 'value' => mixed, 'field' => string]
-     * @param  array  $errors  Reference to errors array
+     * @param array $batch Array of ['rule' => Rule, 'value' => mixed, 'field'
+     *     => string]
+     * @param array $errors Reference to errors array
      */
     public function executeBatch(array $batch, array &$errors): void
     {
-        if (! $this->db || empty($batch)) {
+        if (!$this->db || empty($batch)) {
             return;
         }
 
@@ -55,8 +56,10 @@ class BatchExecutor
      * Build lookup structure from database results
      * OPTIMIZED: Unified method for both exists and unique checks
      */
-    protected function buildLookupFromResults(array $results, array $checks): array
-    {
+    protected function buildLookupFromResults(
+        array $results,
+        array $checks,
+    ): array {
         $lookup = [];
 
         // Get all columns we need to check
@@ -77,11 +80,14 @@ class BatchExecutor
 
     /**
      * Build query data for database checks
-     * OPTIMIZED: Unified method to eliminate duplicate code between exists and unique
-     * FIXED: Removed costly array_merge in loop
+     * OPTIMIZED: Unified method to eliminate duplicate code between exists and
+     * unique FIXED: Removed costly array_merge in loop
      */
-    protected function buildQueryData(string $table, array $checks, bool $isUnique = false): array
-    {
+    protected function buildQueryData(
+        string $table,
+        array $checks,
+        bool $isUnique = false,
+    ): array {
         // Group values by column for efficient IN clauses
         $grouped = [];
         $checkIndex = [];
@@ -118,15 +124,23 @@ class BatchExecutor
 
         // Select columns needed
         if ($isUnique) {
-            $allCols = array_unique(array_merge(array_keys($grouped), array_keys($idColumns)));
+            $allCols = array_unique(
+                array_merge(array_keys($grouped), array_keys($idColumns)),
+            );
         } else {
             $allCols = array_keys($grouped);
         }
 
-        $selectCols = implode(', ', array_map([$this, 'escapeIdentifier'], $allCols));
+        $selectCols = implode(
+            ', ',
+            array_map([$this, 'escapeIdentifier'], $allCols),
+        );
 
         return [
-            'query' => "SELECT {$selectCols} FROM {$escapedTable} WHERE ".implode(' OR ', $conditions),
+            'query' => "SELECT {$selectCols} FROM {$escapedTable} WHERE " . implode(
+                ' OR ',
+                $conditions,
+            ),
             'params' => $params,
             'checkIndex' => $checkIndex,
         ];
@@ -166,8 +180,10 @@ class BatchExecutor
     {
         $identifier = str_replace('`', '', $identifier);
 
-        if (! preg_match('/^[a-zA-Z0-9_]+$/', $identifier)) {
-            throw new \InvalidArgumentException("Invalid identifier: {$identifier}");
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $identifier)) {
+            throw new \InvalidArgumentException(
+                "Invalid identifier: {$identifier}",
+            );
         }
 
         return "`{$identifier}`";
@@ -201,26 +217,29 @@ class BatchExecutor
     protected function makeCheckKey(string $column, mixed $value): string
     {
         if (is_array($value)) {
-            $value = 'array:'.json_encode($value);
+            $value = 'array:' . json_encode($value);
         } elseif (is_object($value)) {
-            $value = 'object:'.json_encode($value);
+            $value = 'object:' . json_encode($value);
         } elseif (is_bool($value)) {
             $value = $value ? 'bool:true' : 'bool:false';
         } elseif (is_null($value)) {
             $value = 'null';
         } else {
-            $value = (string) $value;
+            $value = (string)$value;
         }
 
-        return $column.':'.$value;
+        return $column . ':' . $value;
     }
 
     /**
      * Process exists checks for a single table
      * OPTIMIZED: Uses unified buildQueryData method
      */
-    protected function processExistsChecksForTable(string $table, array $checks, array &$errors): void
-    {
+    protected function processExistsChecksForTable(
+        string $table,
+        array $checks,
+        array &$errors,
+    ): void {
         // Build query components in single pass
         $queryData = $this->buildQueryData($table, $checks, false);
 
@@ -235,8 +254,11 @@ class BatchExecutor
      * Process unique checks for a single table
      * OPTIMIZED: Uses unified buildQueryData method
      */
-    protected function processUniqueChecksForTable(string $table, array $checks, array &$errors): void
-    {
+    protected function processUniqueChecksForTable(
+        string $table,
+        array $checks,
+        array &$errors,
+    ): void {
         // Build query components in single pass
         $queryData = $this->buildQueryData($table, $checks, true);
 
@@ -251,8 +273,11 @@ class BatchExecutor
      * Process unique validation results
      * OPTIMIZED: Single pass through results, early termination per check
      */
-    protected function processUniqueResults(array $results, array $checks, array &$errors): void
-    {
+    protected function processUniqueResults(
+        array $results,
+        array $checks,
+        array &$errors,
+    ): void {
         if (empty($results)) {
             return; // All values are unique (good!)
         }
@@ -267,7 +292,7 @@ class BatchExecutor
             $value = $check['value'];
             $key = $this->makeCheckKey($column, $value);
 
-            if (! isset($foundValues[$key])) {
+            if (!isset($foundValues[$key])) {
                 continue; // Value is unique (not found in DB)
             }
 
@@ -295,15 +320,18 @@ class BatchExecutor
 
         $idColumn = $rule->getIdColumn() ?? 'id';
 
-        return isset($row[$idColumn]) && (int) $row[$idColumn] === $ignoreId;
+        return isset($row[$idColumn]) && (int)$row[$idColumn] === $ignoreId;
     }
 
     /**
      * Validate exists results
      * OPTIMIZED: Build found set once, then validate all checks
      */
-    protected function validateExistsResults(array $results, array $checks, array &$errors): void
-    {
+    protected function validateExistsResults(
+        array $results,
+        array $checks,
+        array &$errors,
+    ): void {
         // Build set of found values for O(1) lookup
         $foundKeys = $this->buildLookupFromResults($results, $checks);
 
@@ -314,10 +342,11 @@ class BatchExecutor
             $value = $check['value'];
             $key = $this->makeCheckKey($column, $value);
 
-            if (! isset($foundKeys[$key])) {
+            if (!isset($foundKeys[$key])) {
                 // Value doesn't exist in database - validation failed
                 $errors[$check['field']][] = $rule->message($check['field']);
             }
         }
     }
+
 }

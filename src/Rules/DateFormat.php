@@ -29,7 +29,7 @@ class DateFormat extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_string($value)) {
+        if (!is_string($value)) {
             return false;
         }
 
@@ -37,4 +37,5 @@ class DateFormat extends BaseRule
 
         return $date && $date->format($this->format) === $value;
     }
+
 }

@@ -12,7 +12,7 @@ class RequiredUnless extends BaseRule
 {
     public function __construct(
         protected string $otherField,
-        protected mixed $value
+        protected mixed $value,
     ) {
     }
 
@@ -36,4 +36,5 @@ class RequiredUnless extends BaseRule
         // Condition is not met, field must have value
         return !$this->isEmpty($value);
     }
+
 }

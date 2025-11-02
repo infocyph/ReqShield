@@ -21,6 +21,10 @@ class HexColor extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_string($value) && preg_match('/^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/', $value) === 1;
+        return is_string($value) && preg_match(
+            '/^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/',
+            $value,
+        ) === 1;
     }
+
 }

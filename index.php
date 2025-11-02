@@ -7,7 +7,7 @@ require_once __DIR__.'/vendor/autoload.php';
 use Infocyph\ReqShield\Exceptions\ValidationException;
 use Infocyph\ReqShield\Rules\Callback;
 use Infocyph\ReqShield\Sanitizer;
-use Infocyph\ReqShield\Support\{FieldAlias};
+use Infocyph\ReqShield\Support\FieldAlias;
 use Infocyph\ReqShield\Validator;
 
 echo "╔════════════════════════════════════════════════════════════╗\n";
@@ -63,7 +63,7 @@ $invalidValidator->setFieldAliases([
     'user_name' => 'Full Name',
     'user_age' => 'Age',
     'pwd' => 'Password',
-    'pwd_confirm' => 'Password Confirmation'
+    'pwd_confirm' => 'Password Confirmation',
 ]);
 
 $invalidData = [
@@ -79,7 +79,7 @@ $result2 = $invalidValidator->validate($invalidData);
 if ($result2->fails()) {
     echo "✗ Validation failed (with nice field names):\n";
     foreach ($result2->errors() as $field => $errors) {
-        echo "  - ".implode(', ', $errors)."\n";
+        echo '  - '.implode(', ', $errors)."\n";
     }
 }
 
@@ -126,9 +126,9 @@ $nestedData = [
         'name' => 'John Doe',
         'profile' => [
             'age' => 25,
-            'bio' => 'Software developer'
-        ]
-    ]
+            'bio' => 'Software developer',
+        ],
+    ],
 ];
 
 $result4 = $nestedValidator->validate($nestedData);
@@ -136,8 +136,8 @@ $result4 = $nestedValidator->validate($nestedData);
 if ($result4->passes()) {
     echo "✓ Nested validation works! All fields validated successfully.\n";
     $validated = $result4->validated();
-    echo "Total validated fields: ".count($validated)."\n";
-    echo "Flattened keys: ".implode(', ', array_keys($validated))."\n";
+    echo 'Total validated fields: '.count($validated)."\n";
+    echo 'Flattened keys: '.implode(', ', array_keys($validated))."\n";
 }
 
 // Test with invalid nested data
@@ -146,9 +146,9 @@ $invalidNested = [
         'email' => 'not-an-email',
         'name' => 'Jo',
         'profile' => [
-            'age' => 15
-        ]
-    ]
+            'age' => 15,
+        ],
+    ],
 ];
 
 $result4b = $nestedValidator->validate($invalidNested);
@@ -173,14 +173,14 @@ $throwValidator = Validator::make([
 try {
     $throwValidator->validate([
         'email' => 'invalid',
-        'age' => 15
+        'age' => 15,
     ]);
     echo "✗ Should have thrown exception!\n";
 } catch (ValidationException $e) {
     echo "✓ Exception thrown as expected!\n";
-    echo "Exception message: ".$e->getMessage()."\n";
-    echo "Error count: ".$e->getErrorCount()." field(s)\n";
-    echo "First error: ".$e->getFirstFieldError('email')."\n";
+    echo 'Exception message: '.$e->getMessage()."\n";
+    echo 'Error count: '.$e->getErrorCount()." field(s)\n";
+    echo 'First error: '.$e->getFirstFieldError('email')."\n";
 }
 
 // ============================================
@@ -203,14 +203,14 @@ $sanitizerMethods = [
 foreach ($sanitizerMethods as $method => $input) {
     if (method_exists(Sanitizer::class, $method)) {
         $result = Sanitizer::$method($input);
-        echo ucfirst($method).": ".$result."\n";
+        echo ucfirst($method).': '.$result."\n";
     }
 }
 
 // JSON decode (special case)
 if (method_exists(Sanitizer::class, 'jsonDecode')) {
     $jsonResult = Sanitizer::jsonDecode('{"name":"John"}');
-    echo "JSON: ".json_encode($jsonResult)."\n";
+    echo 'JSON: '.json_encode($jsonResult)."\n";
 }
 
 echo "\nCore sanitizers demonstrated:\n";
@@ -244,10 +244,10 @@ FieldAlias::setBatch($aliases);
 $newTime = (microtime(true) - $start) * 1000;
 
 echo "Setting {$iterations} field aliases:\n";
-echo "Old way (individual): ".number_format($oldTime, 2)."ms\n";
-echo "New way (batch): ".number_format($newTime, 2)."ms\n";
+echo 'Old way (individual): '.number_format($oldTime, 2)."ms\n";
+echo 'New way (batch): '.number_format($newTime, 2)."ms\n";
 if ($newTime > 0 && $oldTime > $newTime) {
-    echo "✓ ".number_format($oldTime / $newTime, 1)."x faster!\n";
+    echo '✓ '.number_format($oldTime / $newTime, 1)."x faster!\n";
 } else {
     echo "✓ Batch operation completed!\n";
 }
@@ -543,8 +543,8 @@ $customValidator = Validator::make([
             callback: fn ($value) => $value % 2 === 0,
             cost: 5,
             message: 'Number must be even'
-        )
-    ]
+        ),
+    ],
 ]);
 
 $customData = [
@@ -571,7 +571,7 @@ $fluentResult = $fluentValidator->validate([
     'email' => 'test@example.com',
     'name' => 'John Doe',
     'age' => 30,
-    'extra' => 'ignored'
+    'extra' => 'ignored',
 ]);
 
 $fluentResult
@@ -582,9 +582,9 @@ $fluentResult
         echo "✗ Validation failed!\n";
     });
 
-echo "Only email & name: ".json_encode($fluentResult->only(['email', 'name']))."\n";
-echo "Except age: ".json_encode($fluentResult->except(['age']))."\n";
-echo "Has email: ".($fluentResult->has('email') ? 'Yes' : 'No')."\n";
+echo 'Only email & name: '.json_encode($fluentResult->only(['email', 'name']))."\n";
+echo 'Except age: '.json_encode($fluentResult->except(['age']))."\n";
+echo 'Has email: '.($fluentResult->has('email') ? 'Yes' : 'No')."\n";
 
 // ============================================
 // Example 18: Performance Benchmark
@@ -635,11 +635,11 @@ $multiData = ['field1' => '', 'field2' => ''];
 
 $multiValidator->setStopOnFirstError(true);
 $result19a = $multiValidator->validate($multiData);
-echo "Fail-fast: ".$result19a->errorCount()." field(s) with errors\n";
+echo 'Fail-fast: '.$result19a->errorCount()." field(s) with errors\n";
 
 $multiValidator->setStopOnFirstError(false);
 $result19b = $multiValidator->validate($multiData);
-echo "Collect all: ".$result19b->errorCount()." field(s) with errors\n";
+echo 'Collect all: '.$result19b->errorCount()." field(s) with errors\n";
 
 // ============================================
 // Example 20: Complete Sanitizer Showcase
@@ -649,22 +649,22 @@ echo "\n=== Example 20: Complete Sanitizer Showcase (51 methods!) ===\n\n";
 
 echo "Basic Types:\n";
 echo "  string: '".Sanitizer::string('  <b>text</b>  ')."'\n";
-echo "  integer: ".Sanitizer::integer('123.45')."\n";
-echo "  float: ".Sanitizer::float('123.45')."\n";
-echo "  boolean: ".(Sanitizer::boolean('yes') ? 'true' : 'false')."\n";
+echo '  integer: '.Sanitizer::integer('123.45')."\n";
+echo '  float: '.Sanitizer::float('123.45')."\n";
+echo '  boolean: '.(Sanitizer::boolean('yes') ? 'true' : 'false')."\n";
 
 echo "\nCase Conversions:\n";
-echo "  lowercase: ".Sanitizer::lowercase('HELLO')."\n";
-echo "  uppercase: ".Sanitizer::uppercase('hello')."\n";
-echo "  camelCase: ".Sanitizer::camelCase('hello world')."\n";
-echo "  PascalCase: ".Sanitizer::pascalCase('hello world')."\n";
-echo "  snake_case: ".Sanitizer::snakeCase('Hello World')."\n";
-echo "  kebab-case: ".Sanitizer::kebabCase('Hello World')."\n";
+echo '  lowercase: '.Sanitizer::lowercase('HELLO')."\n";
+echo '  uppercase: '.Sanitizer::uppercase('hello')."\n";
+echo '  camelCase: '.Sanitizer::camelCase('hello world')."\n";
+echo '  PascalCase: '.Sanitizer::pascalCase('hello world')."\n";
+echo '  snake_case: '.Sanitizer::snakeCase('Hello World')."\n";
+echo '  kebab-case: '.Sanitizer::kebabCase('Hello World')."\n";
 
 echo "\nText Processing:\n";
 echo "  trim: '".Sanitizer::trim('  hello  ')."'\n";
-echo "  slug: ".Sanitizer::slug('Hello World!')."\n";
-echo "  truncate: ".Sanitizer::truncate('Long text here', 10)."\n";
+echo '  slug: '.Sanitizer::slug('Hello World!')."\n";
+echo '  truncate: '.Sanitizer::truncate('Long text here', 10)."\n";
 
 // ============================================
 // Example 21: Real-World Registration Flow
@@ -686,7 +686,7 @@ $registrationValidator = Validator::make([
         'password' => 'Password',
         'password_confirmation' => 'Password Confirmation',
         'age' => 'Age',
-        'terms' => 'Terms & Conditions'
+        'terms' => 'Terms & Conditions',
     ]);
 
 $rawInput = [
@@ -769,30 +769,30 @@ $fileInfo = [
     'type' => 'application/x-httpd-php', // PHP file MIME type
     'size' => filesize($testFile),
     'tmp_name' => $testFile,
-    'error' => UPLOAD_ERR_OK
+    'error' => UPLOAD_ERR_OK,
 ];
 
-echo "Using test file: " . basename($testFile) . " (" . round($fileInfo['size'] / 1024, 2) . " KB)\n\n";
+echo 'Using test file: '.basename($testFile).' ('.round($fileInfo['size'] / 1024, 2)." KB)\n\n";
 
 // Test 1: Size validation (without 'file' rule)
 echo "Test 1: File size validation\n";
 $sizeValidator = Validator::make([
-    'document' => 'required|max:10240'  // max 10MB - this script should be under that
+    'document' => 'required|max:10240',  // max 10MB - this script should be under that
 ]);
 
 $result23a = $sizeValidator->validate(['document' => $fileInfo]);
 
 if ($result23a->passes()) {
     echo "  ✓ File size validation passed!\n";
-    echo "    File size: " . round($fileInfo['size'] / 1024, 2) . " KB (under 10MB limit)\n";
+    echo '    File size: '.round($fileInfo['size'] / 1024, 2)." KB (under 10MB limit)\n";
 } else {
-    echo "  ✗ Test failed: " . $result23a->errors()['document'][0] . "\n";
+    echo '  ✗ Test failed: '.$result23a->errors()['document'][0]."\n";
 }
 
 // Test 2: MIME type validation
 echo "\nTest 2: MIME type validation\n";
 $mimeValidator = Validator::make([
-    'script' => 'required|mimes:php,txt'  // Allow PHP and text files
+    'script' => 'required|mimes:php,txt',  // Allow PHP and text files
 ]);
 
 $result23b = $mimeValidator->validate(['script' => $fileInfo]);
@@ -801,13 +801,13 @@ if ($result23b->passes()) {
     echo "  ✓ MIME type validation passed!\n";
     echo "    Accepted: PHP file (text/x-php)\n";
 } else {
-    echo "  ✗ Test failed: " . $result23b->errors()['script'][0] . "\n";
+    echo '  ✗ Test failed: '.$result23b->errors()['script'][0]."\n";
 }
 
 // Test 3: Extension validation
 echo "\nTest 3: File extension validation\n";
 $extValidator = Validator::make([
-    'source' => 'required|extensions:php,txt,md'
+    'source' => 'required|extensions:php,txt,md',
 ]);
 
 $result23c = $extValidator->validate(['source' => $fileInfo]);
@@ -816,20 +816,20 @@ if ($result23c->passes()) {
     echo "  ✓ Extension validation passed!\n";
     echo "    File extension: .php (allowed)\n";
 } else {
-    echo "  ✗ Test failed: " . $result23c->errors()['source'][0] . "\n";
+    echo '  ✗ Test failed: '.$result23c->errors()['source'][0]."\n";
 }
 
 // Test 4: Invalid extension (should fail)
 echo "\nTest 4: Reject wrong extension\n";
 $strictValidator = Validator::make([
-    'image' => 'required|extensions:jpg,png,gif'  // Only images
+    'image' => 'required|extensions:jpg,png,gif',  // Only images
 ]);
 
 $result23d = $strictValidator->validate(['image' => $fileInfo]);
 
 if ($result23d->fails()) {
     echo "  ✓ Correctly rejected non-image file!\n";
-    echo "    Error: " . $result23d->errors()['image'][0] . "\n";
+    echo '    Error: '.$result23d->errors()['image'][0]."\n";
 } else {
     echo "  ✗ Should have rejected PHP file as image!\n";
 }
@@ -837,20 +837,20 @@ if ($result23d->fails()) {
 // Test 5: File too large (should fail)
 echo "\nTest 5: Reject oversized file\n";
 $tinyValidator = Validator::make([
-    'tiny' => 'required|max:1'  // max 1KB - script is larger
+    'tiny' => 'required|max:1',  // max 1KB - script is larger
 ]);
 
 $result23e = $tinyValidator->validate(['tiny' => $fileInfo]);
 
 if ($result23e->fails()) {
     echo "  ✓ Correctly rejected oversized file!\n";
-    echo "    File: " . round($fileInfo['size'] / 1024, 2) . " KB > 1 KB limit\n";
-    echo "    Error: " . $result23e->errors()['tiny'][0] . "\n";
+    echo '    File: '.round($fileInfo['size'] / 1024, 2)." KB > 1 KB limit\n";
+    echo '    Error: '.$result23e->errors()['tiny'][0]."\n";
 } else {
     echo "  ✗ Should have rejected file as too large!\n";
 }
 
-echo "\n" . str_repeat("─", 70) . "\n";
+echo "\n".str_repeat('─', 70)."\n";
 echo "File validation rules explained:\n";
 echo "  file:          Requires is_uploaded_file() - HTTP uploads only\n";
 echo "  image:         Validates image file types (jpg, png, gif, etc)\n";
@@ -881,7 +881,7 @@ $presentData = [
     'status' => 'published',
     'published_date' => '2024-01-15',
     'tags' => ['tech', 'news'],
-    'categories' => ['technology']
+    'categories' => ['technology'],
 ];
 
 $result24a = $presentValidator->validate($presentData);
@@ -956,15 +956,15 @@ $excludeData = [
 $result25 = $excludeValidator->validate($excludeData);
 
 echo "✓ Exclude rules test completed:\n";
-echo "  Input fields: ".count($excludeData)."\n";
-echo "  Validated fields: ".count($result25->validated())."\n\n";
+echo '  Input fields: '.count($excludeData)."\n";
+echo '  Validated fields: '.count($result25->validated())."\n\n";
 
 echo "Field-by-field breakdown:\n";
 $validated = $result25->validated();
-echo "  user_role:    " . (isset($validated['user_role']) ? '✓ INCLUDED (required field)' : '✗ EXCLUDED') . "\n";
-echo "  internal_id:  " . (isset($validated['internal_id']) ? '✓ INCLUDED' : '✗ EXCLUDED (exclude - always removed)') . "\n";
-echo "  debug_info:   " . (isset($validated['debug_info']) ? '✓ INCLUDED (user is not guest)' : '✗ EXCLUDED') . "\n";
-echo "  temp_token:   " . (isset($validated['temp_token']) ? '✓ INCLUDED (no permanent_token)' : '✗ EXCLUDED') . "\n";
+echo '  user_role:    '.(isset($validated['user_role']) ? '✓ INCLUDED (required field)' : '✗ EXCLUDED')."\n";
+echo '  internal_id:  '.(isset($validated['internal_id']) ? '✓ INCLUDED' : '✗ EXCLUDED (exclude - always removed)')."\n";
+echo '  debug_info:   '.(isset($validated['debug_info']) ? '✓ INCLUDED (user is not guest)' : '✗ EXCLUDED')."\n";
+echo '  temp_token:   '.(isset($validated['temp_token']) ? '✓ INCLUDED (no permanent_token)' : '✗ EXCLUDED')."\n";
 
 echo "\nExclude rules explained:\n";
 echo "  exclude:          Always remove field from validated data\n";
@@ -978,7 +978,7 @@ echo "  exclude_without:  Remove if another field is absent\n";
 // ============================================
 
 echo "Example 26: Regex Validation\n";
-echo str_repeat("-", 70) . "\n\n";
+echo str_repeat('-', 70)."\n\n";
 
 try {
     $regexValidator = Validator::make([
@@ -1016,18 +1016,18 @@ try {
     }
 } catch (Exception $e) {
     echo "❌ ERROR in Example 26:\n";
-    echo "  " . $e->getMessage() . "\n";
-    echo "  File: " . $e->getFile() . ":" . $e->getLine() . "\n";
+    echo '  '.$e->getMessage()."\n";
+    echo '  File: '.$e->getFile().':'.$e->getLine()."\n";
 }
 
-echo "\n" . str_repeat("=", 70) . "\n\n";
+echo "\n".str_repeat('=', 70)."\n\n";
 
 // ============================================
 // Example 27: Field Comparisons
 // ============================================
 
 echo "Example 27: Numeric Comparisons\n";
-echo str_repeat("-", 70) . "\n\n";
+echo str_repeat('-', 70)."\n\n";
 
 try {
     $comparisonValidator = Validator::make([
@@ -1072,8 +1072,8 @@ try {
     }
 } catch (Exception $e) {
     echo "❌ ERROR in Example 27:\n";
-    echo "  " . $e->getMessage() . "\n";
-    echo "  File: " . $e->getFile() . ":" . $e->getLine() . "\n";
+    echo '  '.$e->getMessage()."\n";
+    echo '  File: '.$e->getFile().':'.$e->getLine()."\n";
 }
 
 // ============================================
@@ -1151,13 +1151,13 @@ echo "\n=== Example 30: Bail Rule (Stop on First Failure) ✨ ===\n\n";
 // Test 1: WITHOUT bail - shows all errors
 echo "Test 1: WITHOUT bail rule\n";
 $validator1 = Validator::make([
-    'email' => ['required', 'email', 'max:255']
+    'email' => ['required', 'email', 'max:255'],
 ]);
 
-$result1 = $validator1->validate(['email' => 'not-an-email-way-too-long-string-that-exceeds-255-characters' . str_repeat('x', 300)]);
+$result1 = $validator1->validate(['email' => 'not-an-email-way-too-long-string-that-exceeds-255-characters'.str_repeat('x', 300)]);
 
 if ($result1->fails()) {
-    echo "  Errors found: " . count($result1->errors()['email']) . "\n";
+    echo '  Errors found: '.count($result1->errors()['email'])."\n";
     foreach ($result1->errors()['email'] as $error) {
         echo "    - {$error}\n";
     }
@@ -1167,13 +1167,13 @@ if ($result1->fails()) {
 // Test 2: WITH bail - stops at first error
 echo "\nTest 2: WITH bail rule\n";
 $validator2 = Validator::make([
-    'email' => ['bail', 'required', 'email', 'max:255']
+    'email' => ['bail', 'required', 'email', 'max:255'],
 ]);
 
 $result2 = $validator2->validate(['email' => '']);
 
 if ($result2->fails()) {
-    echo "  Errors found: " . count($result2->errors()['email']) . "\n";
+    echo '  Errors found: '.count($result2->errors()['email'])."\n";
     foreach ($result2->errors()['email'] as $error) {
         echo "    - {$error}\n";
     }

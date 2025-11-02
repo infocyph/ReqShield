@@ -31,11 +31,12 @@ class DigitsBetween extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_numeric($value)) {
+        if (!is_numeric($value)) {
             return false;
         }
-        $length = strlen((string) $value);
+        $length = strlen((string)$value);
 
         return $length >= $this->min && $length <= $this->max;
     }
+
 }

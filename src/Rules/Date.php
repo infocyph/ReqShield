@@ -26,7 +26,7 @@ class Date extends BaseRule
             return true;
         }
 
-        if (! is_string($value)) {
+        if (!is_string($value)) {
             return false;
         }
 
@@ -38,4 +38,5 @@ class Date extends BaseRule
             return false;
         }
     }
+
 }

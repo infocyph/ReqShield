@@ -44,17 +44,19 @@ class DoesntContain extends BaseRule
     }
 
     /**
-     * Check if value is a string and doesn't contain any of the specified substrings
+     * Check if value is a string and doesn't contain any of the specified
+     * substrings
      *
      * @param mixed $value Field value to validate
      * @param string $field Field name
      * @param array $data All validation data
+     *
      * @return bool True if valid (doesn't contain any values), false otherwise
      */
     public function passes(mixed $value, string $field, array $data): bool
     {
         // Must be a string
-        if (! is_string($value)) {
+        if (!is_string($value)) {
             return false;
         }
 
@@ -62,7 +64,8 @@ class DoesntContain extends BaseRule
         // Returns true only if ALL checks pass (value doesn't contain any needle)
         return array_all(
             $this->values,
-            fn ($needle) => ! str_contains($value, (string) $needle)
+            fn ($needle) => !str_contains($value, (string)$needle),
         );
     }
+
 }

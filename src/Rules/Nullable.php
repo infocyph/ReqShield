@@ -25,4 +25,5 @@ class Nullable extends BaseRule
         // Always passes
         return true;
     }
+
 }

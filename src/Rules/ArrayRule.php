@@ -24,4 +24,5 @@ class ArrayRule extends BaseRule
     {
         return is_array($value);
     }
+
 }

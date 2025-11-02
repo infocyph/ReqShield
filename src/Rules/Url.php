@@ -22,10 +22,11 @@ class Url extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_string($value)) {
+        if (!is_string($value)) {
             return false;
         }
 
         return filter_var($value, FILTER_VALIDATE_URL) !== false;
     }
+
 }

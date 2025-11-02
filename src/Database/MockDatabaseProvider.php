@@ -36,7 +36,9 @@ class MockDatabaseProvider implements DatabaseProvider
     public function addData(string $table, array $rows): void
     {
         if (!is_array($rows) || empty($rows)) {
-            throw new \InvalidArgumentException("Rows must be a non-empty array");
+            throw new \InvalidArgumentException(
+                "Rows must be a non-empty array",
+            );
         }
         $this->data[$table] = $rows;
     }
@@ -48,7 +50,7 @@ class MockDatabaseProvider implements DatabaseProvider
     {
         $missing = [];
 
-        if (! isset($this->data[$table])) {
+        if (!isset($this->data[$table])) {
             return array_values($checks);
         }
 
@@ -60,7 +62,7 @@ class MockDatabaseProvider implements DatabaseProvider
                     break;
                 }
             }
-            if (! $found) {
+            if (!$found) {
                 $missing[] = $value;
             }
         }
@@ -75,7 +77,7 @@ class MockDatabaseProvider implements DatabaseProvider
     {
         $nonUnique = [];
 
-        if (! isset($this->data[$table])) {
+        if (!isset($this->data[$table])) {
             return $nonUnique;
         }
 
@@ -94,8 +96,11 @@ class MockDatabaseProvider implements DatabaseProvider
     /**
      * Check if a composite key is unique.
      */
-    public function compositeUnique(string $table, array $columns, ?int $ignoreId = null): bool
-    {
+    public function compositeUnique(
+        string $table,
+        array $columns,
+        ?int $ignoreId = null,
+    ): bool {
         if (!isset($this->data[$table])) {
             return true; // No data, so it's unique
         }
@@ -105,7 +110,13 @@ class MockDatabaseProvider implements DatabaseProvider
             if ($ignoreId && isset($row['id']) && $row['id'] === $ignoreId) {
                 continue;
             }
-            $allMatch = array_all($columns, fn ($value, $column) => !(!isset($row[$column]) || $row[$column] !== $value));
+            $allMatch = array_all(
+                $columns,
+                fn (
+                    $value,
+                    $column,
+                ) => !(!isset($row[$column]) || $row[$column] !== $value),
+            );
 
             if ($allMatch) {
                 return false; // Found a matching row, not unique
@@ -118,11 +129,15 @@ class MockDatabaseProvider implements DatabaseProvider
     /**
      * Check if a value exists in a table.
      *
-     * @param  mixed  $value
+     * @param mixed $value
      */
-    public function exists(string $table, string $column, $value, ?int $ignoreId = null): bool
-    {
-        if (! isset($this->data[$table])) {
+    public function exists(
+        string $table,
+        string $column,
+        $value,
+        ?int $ignoreId = null,
+    ): bool {
+        if (!isset($this->data[$table])) {
             return false;
         }
 
@@ -151,7 +166,7 @@ class MockDatabaseProvider implements DatabaseProvider
         preg_match('/FROM\s+(\w+)/i', $query, $matches);
         $table = $matches[1] ?? null;
 
-        if (! $table || ! isset($this->data[$table])) {
+        if (!$table || !isset($this->data[$table])) {
             return [];
         }
 
@@ -169,4 +184,5 @@ class MockDatabaseProvider implements DatabaseProvider
 
         return $results;
     }
+
 }

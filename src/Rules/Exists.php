@@ -54,7 +54,7 @@ class Exists extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         // This will be handled by the batch executor
-        if (! $this->db) {
+        if (!$this->db) {
             return true; // Skip if no DB provider
         }
 
@@ -65,4 +65,5 @@ class Exists extends BaseRule
     {
         $this->db = $db;
     }
+
 }

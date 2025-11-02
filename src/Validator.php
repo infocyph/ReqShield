@@ -38,34 +38,45 @@ use Infocyph\ReqShield\Support\ValidationResult;
 class Validator
 {
     protected BatchExecutor $batchExecutor;
+
     protected SchemaCompiler $compiler;
+
     protected array $customMessages = [];
+
     protected bool $failFast = true;
+
     protected array $fieldAliases = [];
+
     protected bool $nestedValidation = false;
+
     protected array $schema;
+
     protected bool $stopOnFirstError = false;
+
     protected bool $throwOnFailure = false;
 
     public function __construct(array $rules, ?DatabaseProvider $db = null)
     {
         // Validate rules format
         if (empty($rules)) {
-            throw InvalidRuleException::invalidFormat('rules', 'Rules array cannot be empty');
+            throw InvalidRuleException::invalidFormat(
+                'rules',
+                'Rules array cannot be empty',
+            );
         }
 
         foreach ($rules as $field => $rule) {
             if (!is_string($field)) {
                 throw InvalidRuleException::invalidFormat(
                     (string)$field,
-                    'Field names must be strings'
+                    'Field names must be strings',
                 );
             }
 
             if (!is_string($rule) && !is_array($rule)) {
                 throw InvalidRuleException::invalidFormat(
                     $field,
-                    'Rules must be string or array'
+                    'Rules must be string or array',
                 );
             }
         }
@@ -75,8 +86,10 @@ class Validator
         $this->batchExecutor = new BatchExecutor($db);
     }
 
-    public static function make(array $rules, ?DatabaseProvider $db = null): self
-    {
+    public static function make(
+        array $rules,
+        ?DatabaseProvider $db = null,
+    ): self {
         return new static($rules, $db);
     }
 
@@ -116,7 +129,9 @@ class Validator
      * IMPROVED: Better documentation
      *
      * @param string $name Rule name as used in validation strings
-     * @param string $class Fully qualified class name implementing Rule interface
+     * @param string $class Fully qualified class name implementing Rule
+     *     interface
+     *
      * @return self
      */
     public function registerRule(string $name, string $class): self
@@ -142,6 +157,7 @@ class Validator
      * IMPROVED: Uses new setBatch() method for better performance
      *
      * @param array $aliases Map of field names to display names
+     *
      * @return self
      */
     public function setFieldAliases(array $aliases): self
@@ -161,6 +177,7 @@ class Validator
      * Set whether to throw exception on validation failure.
      *
      * @param bool $throw True to throw ValidationException on failure
+     *
      * @return self
      */
     public function throwOnFailure(bool $throw = true): self
@@ -179,8 +196,10 @@ class Validator
      * - Better performance with optimized field processing
      *
      * @param array $data Data to validate
+     *
      * @return ValidationResult
-     * @throws ValidationException When validation fails and throwOnFailure is enabled
+     * @throws ValidationException When validation fails and throwOnFailure is
+     *     enabled
      */
     public function validate(array $data): ValidationResult
     {
@@ -209,7 +228,13 @@ class Validator
             }
 
             // Process field through all validation phases
-            if (!$this->processFieldValidation($field, $value, $node, $data, $context)) {
+            if (!$this->processFieldValidation(
+                $field,
+                $value,
+                $node,
+                $data,
+                $context,
+            )) {
                 if ($this->stopOnFirstError) {
                     break;
                 }
@@ -219,11 +244,18 @@ class Validator
         // Execute batched expensive rules if needed
         $this->executeBatchedRules($context);
 
-        $result = new ValidationResult($context['errors'], $context['validated']);
+        $result = new ValidationResult(
+            $context['errors'],
+            $context['validated'],
+        );
 
         // IMPROVED: Handle throwOnFailure using ValidationException
         if ($this->throwOnFailure && $result->fails()) {
-            throw new ValidationException('Validation failed', $context['errors'], 422);
+            throw new ValidationException(
+                'Validation failed',
+                $context['errors'],
+                422,
+            );
         }
 
         return $result;
@@ -271,7 +303,10 @@ class Validator
             return;
         }
 
-        $this->batchExecutor->executeBatch($context['expensiveBatch'], $context['errors']);
+        $this->batchExecutor->executeBatch(
+            $context['expensiveBatch'],
+            $context['errors'],
+        );
 
         // Remove validated data for fields with errors from expensive checks
         if (!empty($context['errors'])) {
@@ -290,6 +325,7 @@ class Validator
      * fixing the issue where missing required fields were silently ignored.
      *
      * @param array $data Input data
+     *
      * @return array List of field names to validate
      */
     protected function getFieldsToValidate(array $data): array
@@ -330,11 +366,15 @@ class Validator
      * becomes: ['user.email' => 'test@example.com']
      *
      * @param array $data Nested data
+     *
      * @return array Flattened data with dot notation keys
      */
     protected function prepareNestedData(array $data): array
     {
-        $hasNestedRules = array_any(array_keys($this->schema), fn ($field) => str_contains($field, '.'));
+        $hasNestedRules = array_any(
+            array_keys($this->schema),
+            fn ($field) => str_contains($field, '.'),
+        );
         if (!$hasNestedRules) {
             return $data;
         }
@@ -357,6 +397,7 @@ class Validator
      * @param ValidationNode $node Validation node with rules
      * @param array $data All input data
      * @param array $context Validation context (passed by reference)
+     *
      * @return bool True if validation passed, false otherwise
      */
     protected function processFieldValidation(
@@ -369,14 +410,26 @@ class Validator
         $hasError = false;
 
         // Phase 1: Cheap rules (cost < 50)
-        if (!$this->validatePhase($node->cheapRules, $value, $field, $data, $context['errors'])) {
+        if (!$this->validatePhase(
+            $node->cheapRules,
+            $value,
+            $field,
+            $data,
+            $context['errors'],
+        )) {
             $hasError = true;
         }
 
         // Phase 2: Medium rules (cost 50-99)
         // OPTIMIZED: Skip if already failed and failFast is enabled
         if (!$hasError || !$this->failFast) {
-            if (!$this->validatePhase($node->mediumRules, $value, $field, $data, $context['errors'])) {
+            if (!$this->validatePhase(
+                $node->mediumRules,
+                $value,
+                $field,
+                $data,
+                $context['errors'],
+            )) {
                 $hasError = true;
             }
         }
@@ -384,7 +437,12 @@ class Validator
         // Phase 3: Collect expensive rules for batching
         // OPTIMIZED: Skip if already failed and failFast is enabled
         if (!$hasError || !$this->failFast) {
-            $this->collectExpensiveRules($node->expensiveRules, $value, $field, $context['expensiveBatch']);
+            $this->collectExpensiveRules(
+                $node->expensiveRules,
+                $value,
+                $field,
+                $context['expensiveBatch'],
+            );
         }
 
         // Mark field as validated if no errors
@@ -402,10 +460,13 @@ class Validator
      *
      * @param ValidationNode $node Validation node
      * @param mixed $value Field value
+     *
      * @return bool True if should skip validation
      */
-    protected function shouldSkipOptionalField(ValidationNode $node, mixed $value): bool
-    {
+    protected function shouldSkipOptionalField(
+        ValidationNode $node,
+        mixed $value,
+    ): bool {
         if (!$node->isOptional) {
             return false;
         }
@@ -429,6 +490,7 @@ class Validator
      * @param string $field Field name
      * @param array $data All input data
      * @param array $errors Errors array (passed by reference)
+     *
      * @return bool True if all rules passed, false otherwise
      */
     protected function validatePhase(
@@ -450,7 +512,9 @@ class Validator
             }
 
             // Rule failed - add error
-            $message = $this->customMessages[$field] ?? $rule->message(FieldAlias::get($field));
+            $message = $this->customMessages[$field] ?? $rule->message(
+                FieldAlias::get($field),
+            );
 
             // Initialize error array if needed
             if (!isset($errors[$field])) {
@@ -468,4 +532,5 @@ class Validator
 
         return !$hasError;
     }
+
 }

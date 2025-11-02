@@ -35,6 +35,7 @@ class MissingUnless extends BaseRule
             return true;
         }
 
-        return ! isset($data[$field]) || $this->isEmpty($value);
+        return !isset($data[$field]) || $this->isEmpty($value);
     }
+
 }

@@ -6,8 +6,10 @@ class ValidationFailedException extends ValidationException
 {
     protected array $errors;
 
-    public function __construct(array $errors, string $message = 'Validation failed')
-    {
+    public function __construct(
+        array $errors,
+        string $message = 'Validation failed',
+    ) {
         parent::__construct($message);
         $this->errors = $errors;
     }
@@ -16,4 +18,5 @@ class ValidationFailedException extends ValidationException
     {
         return $this->errors;
     }
+
 }

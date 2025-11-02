@@ -24,4 +24,5 @@ class Boolean extends BaseRule
     {
         return in_array($value, [true, false, 0, 1, '0', '1'], true);
     }
+
 }

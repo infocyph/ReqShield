@@ -24,4 +24,5 @@ class Numeric extends BaseRule
     {
         return is_numeric($value);
     }
+
 }

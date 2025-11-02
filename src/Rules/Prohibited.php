@@ -24,4 +24,5 @@ class Prohibited extends BaseRule
     {
         return $this->isEmpty($value);
     }
+
 }

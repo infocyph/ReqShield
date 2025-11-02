@@ -28,4 +28,5 @@ class Size extends BaseRule
     {
         return $this->getSize($value) === $this->size;
     }
+
 }

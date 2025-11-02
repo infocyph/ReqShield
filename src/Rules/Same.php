@@ -31,4 +31,5 @@ class Same extends BaseRule
     {
         return isset($data[$this->otherField]) && $value === $data[$this->otherField];
     }
+
 }

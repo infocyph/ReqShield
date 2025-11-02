@@ -29,6 +29,7 @@ class NotIn extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return ! in_array($value, $this->values, true);
+        return !in_array($value, $this->values, true);
     }
+
 }

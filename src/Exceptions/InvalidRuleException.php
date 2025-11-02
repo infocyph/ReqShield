@@ -7,8 +7,10 @@ class InvalidRuleException extends ValidationException
     /**
      * Create exception for invalid rule format.
      */
-    public static function invalidFormat(string $rule, string $reason = ''): self
-    {
+    public static function invalidFormat(
+        string $rule,
+        string $reason = '',
+    ): self {
         $message = "Invalid rule format: '{$rule}'";
         if ($reason) {
             $message .= ". {$reason}";
@@ -31,4 +33,5 @@ class InvalidRuleException extends ValidationException
     {
         return new self("Unknown validation rule: '{$ruleName}'");
     }
+
 }

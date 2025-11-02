@@ -24,4 +24,5 @@ class IntegerRule extends BaseRule
     {
         return filter_var($value, FILTER_VALIDATE_INT) !== false;
     }
+
 }

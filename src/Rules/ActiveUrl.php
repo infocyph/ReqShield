@@ -22,17 +22,21 @@ class ActiveUrl extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_string($value)) {
+        if (!is_string($value)) {
             return false;
         }
 
         $url = parse_url($value);
 
-        if (! isset($url['host'])) {
+        if (!isset($url['host'])) {
             return false;
         }
 
         // Check if host has DNS record
-        return checkdnsrr($url['host'], 'A') || checkdnsrr($url['host'], 'AAAA');
+        return checkdnsrr($url['host'], 'A') || checkdnsrr(
+            $url['host'],
+            'AAAA',
+        );
     }
+
 }

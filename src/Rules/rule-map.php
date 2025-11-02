@@ -5,9 +5,9 @@ declare(strict_types=1);
 /**
  * Rule Map Configuration
  *
- * This file contains the mapping of rule names (as strings) to their corresponding
- * Rule class implementations. This allows for cleaner code in SchemaCompiler and
- * makes it easy to add, remove, or modify rule mappings.
+ * This file contains the mapping of rule names (as strings) to their
+ * corresponding Rule class implementations. This allows for cleaner code in
+ * SchemaCompiler and makes it easy to add, remove, or modify rule mappings.
  *
  * Categories:
  * - Basic: Type checks and fundamental validations

@@ -25,7 +25,8 @@ class Accepted extends BaseRule
         return in_array(
             $value,
             ['yes', 'on', '1', 1, true, 'true'],
-            true
+            true,
         );
     }
+
 }

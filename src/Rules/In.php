@@ -31,4 +31,5 @@ class In extends BaseRule
     {
         return in_array($value, $this->values, true);
     }
+
 }

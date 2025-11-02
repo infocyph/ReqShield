@@ -24,4 +24,5 @@ class StringRule extends BaseRule
     {
         return is_string($value);
     }
+
 }

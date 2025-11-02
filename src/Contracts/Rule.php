@@ -28,16 +28,17 @@ interface Rule
     /**
      * Get the validation error message.
      *
-     * @param  string  $field  The field name
+     * @param string $field The field name
      */
     public function message(string $field): string;
 
     /**
      * Determine if the validation rule passes.
      *
-     * @param  mixed  $value  The value being validated
-     * @param  string  $field  The field name
-     * @param  array  $data  All data being validated
+     * @param mixed $value The value being validated
+     * @param string $field The field name
+     * @param array $data All data being validated
      */
     public function passes(mixed $value, string $field, array $data): bool;
+
 }

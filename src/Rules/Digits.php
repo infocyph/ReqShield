@@ -28,6 +28,7 @@ class Digits extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_numeric($value) && strlen((string) $value) === $this->length;
+        return is_numeric($value) && strlen((string)$value) === $this->length;
     }
+
 }

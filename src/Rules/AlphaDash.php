@@ -6,7 +6,8 @@ namespace Infocyph\ReqShield\Rules;
 
 /**
  * AlphaDash Rule - Cost: 15
- * Validates that a value contains only alphanumeric characters, dashes, and underscores.
+ * Validates that a value contains only alphanumeric characters, dashes, and
+ * underscores.
  */
 class AlphaDash extends BaseRule
 {
@@ -22,6 +23,10 @@ class AlphaDash extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_string($value) && preg_match('/^[a-zA-Z0-9_-]+$/', $value) === 1;
+        return is_string($value) && preg_match(
+            '/^[a-zA-Z0-9_-]+$/',
+            $value,
+        ) === 1;
     }
+
 }

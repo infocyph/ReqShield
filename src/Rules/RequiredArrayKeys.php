@@ -23,15 +23,22 @@ class RequiredArrayKeys extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must have keys: ".implode(', ', $this->keys).'.';
+        return "The {$field} must have keys: " . implode(
+            ', ',
+            $this->keys,
+        ) . '.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_array($value)) {
+        if (!is_array($value)) {
             return false;
         }
 
-        return array_all($this->keys, fn ($key) => array_key_exists($key, $value));
+        return array_all(
+            $this->keys,
+            fn ($key) => array_key_exists($key, $value),
+        );
     }
+
 }

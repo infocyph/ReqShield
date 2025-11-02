@@ -23,4 +23,5 @@ class Bail extends BaseRule
     {
         return true; // Always passes, used as marker for stopping validation
     }
+
 }

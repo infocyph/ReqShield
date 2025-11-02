@@ -32,7 +32,7 @@ class ValidationException extends Exception
         string $message = 'Validation failed',
         array $errors = [],
         int $code = 0,
-        ?\Throwable $previous = null
+        ?\Throwable $previous = null,
     ) {
         parent::__construct($message, $code, $previous);
         $this->errors = $errors;
@@ -46,7 +46,8 @@ class ValidationException extends Exception
     public function __toString(): string
     {
         $errorCount = $this->getErrorCount();
-        $message = $this->getMessage() . " ({$errorCount} field(s) with errors)";
+        $message = $this->getMessage(
+        ) . " ({$errorCount} field(s) with errors)";
 
         if (!empty($this->errors)) {
             $message .= "\n" . implode("\n", $this->getAllMessages());
@@ -95,6 +96,7 @@ class ValidationException extends Exception
      * Get errors for a specific field.
      *
      * @param string $field Field name
+     *
      * @return array<string>
      */
     public function getFieldErrors(string $field): array
@@ -106,6 +108,7 @@ class ValidationException extends Exception
      * Get first error for a specific field.
      *
      * @param string $field Field name
+     *
      * @return string|null
      */
     public function getFirstFieldError(string $field): ?string
@@ -117,10 +120,12 @@ class ValidationException extends Exception
      * Check if a field has errors.
      *
      * @param string $field Field name
+     *
      * @return bool
      */
     public function hasFieldError(string $field): bool
     {
         return isset($this->errors[$field]);
     }
+
 }

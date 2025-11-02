@@ -39,7 +39,7 @@ class Unique extends BaseRule
         ?int $ignoreId = null,
         ?string $idColumn = 'id',
         bool $withTrashed = false,
-        string $softDeleteColumn = 'deleted_at'
+        string $softDeleteColumn = 'deleted_at',
     ) {
         $this->table = $table;
         $this->column = $column;
@@ -89,13 +89,18 @@ class Unique extends BaseRule
     {
         // This will be handled by the batch executor
         // Individual execution is only for non-batched scenarios
-        if (! $this->db) {
+        if (!$this->db) {
             return true; // Skip if no DB provider
         }
 
         $column = $this->column ?? $field;
 
-        return ! $this->db->exists($this->table, $column, $value, $this->ignoreId);
+        return !$this->db->exists(
+            $this->table,
+            $column,
+            $value,
+            $this->ignoreId,
+        );
     }
 
     public function setDatabaseProvider(DatabaseProvider $db): void
@@ -106,10 +111,15 @@ class Unique extends BaseRule
     /**
      * Check composite unique constraint.
      */
-    protected function checkCompositeUnique(mixed $value, string $field, array $data): bool
-    {
-        if (! $this->db) {
-            throw new \RuntimeException('Database provider is required for unique rule');
+    protected function checkCompositeUnique(
+        mixed $value,
+        string $field,
+        array $data,
+    ): bool {
+        if (!$this->db) {
+            throw new \RuntimeException(
+                'Database provider is required for unique rule',
+            );
         }
 
         // Build column => value map
@@ -125,6 +135,11 @@ class Unique extends BaseRule
             }
         }
 
-        return $this->db->compositeUnique($this->table, $columns, $this->ignoreId);
+        return $this->db->compositeUnique(
+            $this->table,
+            $columns,
+            $this->ignoreId,
+        );
     }
+
 }

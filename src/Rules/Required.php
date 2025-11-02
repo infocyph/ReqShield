@@ -31,7 +31,6 @@ class Required extends BaseRule
         }
 
         if ((is_array($value) || is_countable($value)) && count($value) === 0) {
-
             // Check for uploaded files in $_FILES superglobal
             if (isset($_FILES[$field])) {
                 $file = $_FILES[$field];
@@ -47,7 +46,7 @@ class Required extends BaseRule
 
             // Check for objects with __toString method
             if (is_object($value) && method_exists($value, '__toString')) {
-                $stringValue = (string) $value;
+                $stringValue = (string)$value;
                 return $stringValue !== '' && trim($stringValue) !== '';
             }
 
@@ -61,4 +60,5 @@ class Required extends BaseRule
 
         return true;
     }
+
 }

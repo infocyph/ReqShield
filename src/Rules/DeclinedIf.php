@@ -12,7 +12,7 @@ class DeclinedIf extends BaseRule
 {
     public function __construct(
         protected string $otherField,
-        protected mixed $value
+        protected mixed $value,
     ) {
     }
 
@@ -29,10 +29,11 @@ class DeclinedIf extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         // If condition not met, field can be anything
-        if (! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
+        if (!isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
             return true;
         }
 
         return in_array($value, ['no', 'off', '0', 0, false, 'false'], true);
     }
+
 }

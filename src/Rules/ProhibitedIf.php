@@ -12,7 +12,7 @@ class ProhibitedIf extends BaseRule
 {
     public function __construct(
         protected string $otherField,
-        protected mixed $value
+        protected mixed $value,
     ) {
     }
 
@@ -29,11 +29,12 @@ class ProhibitedIf extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         // If condition is not met, field is allowed
-        if (! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
+        if (!isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
             return true;
         }
 
         // Condition is met, field must be empty
         return $this->isEmpty($value);
     }
+
 }

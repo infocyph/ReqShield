@@ -16,7 +16,7 @@ class ValidationResult
 
     public function __construct(
         protected array $errors,
-        protected array $validated = []
+        protected array $validated = [],
     ) {
         $this->messageBag = new MessageBag($errors);
     }
@@ -90,7 +90,7 @@ class ValidationResult
      */
     public function fails(): bool
     {
-        return ! empty($this->errors);
+        return !empty($this->errors);
     }
 
     /**
@@ -196,7 +196,7 @@ class ValidationResult
         $safe = $this->validated;
 
         foreach ($additionalFields as $field) {
-            if (! isset($safe[$field]) && ! $this->hasError($field)) {
+            if (!isset($safe[$field]) && !$this->hasError($field)) {
                 $safe[$field] = null;
             }
         }
@@ -213,7 +213,7 @@ class ValidationResult
         if ($this->fails()) {
             throw new \Infocyph\ReqShield\Exceptions\ValidationException(
                 'Validation failed',
-                $this->errors
+                $this->errors,
             );
         }
 
@@ -238,7 +238,7 @@ class ValidationResult
      */
     public function toDTO(): object
     {
-        return (object) [
+        return (object)[
             'success' => $this->passes(),
             'errors' => $this->errors,
             'data' => $this->validated,
@@ -287,4 +287,5 @@ class ValidationResult
 
         return $this;
     }
+
 }

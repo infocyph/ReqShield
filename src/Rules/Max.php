@@ -31,4 +31,5 @@ class Max extends BaseRule
     {
         return $this->getSize($value) <= $this->max;
     }
+
 }

@@ -61,7 +61,11 @@ return [
     'html' => ['text/html'],
     'htm' => ['text/html'],
     'css' => ['text/css'],
-    'js' => ['text/javascript', 'application/javascript', 'application/x-javascript'],
+    'js' => [
+        'text/javascript',
+        'application/javascript',
+        'application/x-javascript',
+    ],
     'json' => ['application/json'],
     'xml' => ['application/xml', 'text/xml'],
 
@@ -81,7 +85,11 @@ return [
     'sql' => ['application/sql', 'text/x-sql'],
 
     // Archives
-    'zip' => ['application/zip', 'application/x-zip', 'application/x-zip-compressed'],
+    'zip' => [
+        'application/zip',
+        'application/x-zip',
+        'application/x-zip-compressed',
+    ],
     'rar' => ['application/x-rar-compressed', 'application/x-rar'],
     'tar' => ['application/x-tar'],
     'gz' => ['application/gzip', 'application/x-gzip'],

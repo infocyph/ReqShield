@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class RequiredIfDeclined extends BaseRule
 {
     protected string $otherField;
+
     public function __construct(string $otherField)
     {
         $this->otherField = $otherField;
@@ -28,9 +29,14 @@ class RequiredIfDeclined extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         $declined = ['no', 'off', '0', 0, false, 'false'];
-        if (!isset($data[$this->otherField]) || !in_array($data[$this->otherField], $declined, true)) {
+        if (!isset($data[$this->otherField]) || !in_array(
+            $data[$this->otherField],
+            $declined,
+            true,
+        )) {
             return true;
         }
         return !$this->isEmpty($value);
     }
+
 }

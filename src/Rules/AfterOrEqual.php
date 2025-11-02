@@ -29,9 +29,10 @@ class AfterOrEqual extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         try {
-            return new \DateTime((string) $value) >= new \DateTime($this->date);
+            return new \DateTime((string)$value) >= new \DateTime($this->date);
         } catch (\Exception) {
             return false;
         }
     }
+
 }

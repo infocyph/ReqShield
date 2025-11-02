@@ -24,4 +24,5 @@ class Declined extends BaseRule
     {
         return in_array($value, ['no', 'off', '0', 0, false, 'false'], true);
     }
+
 }

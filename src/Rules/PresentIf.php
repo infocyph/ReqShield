@@ -31,10 +31,11 @@ class PresentIf extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
+        if (!isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
             return true;
         }
 
         return isset($data[$field]);
     }
+
 }

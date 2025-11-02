@@ -23,4 +23,5 @@ class Ascii extends BaseRule
     {
         return is_string($value) && mb_check_encoding($value, 'ASCII');
     }
+
 }

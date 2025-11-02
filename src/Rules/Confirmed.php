@@ -22,8 +22,9 @@ class Confirmed extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $confirmationField = $field.'_confirmation';
+        $confirmationField = $field . '_confirmation';
 
         return isset($data[$confirmationField]) && $value === $data[$confirmationField];
     }
+
 }

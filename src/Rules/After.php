@@ -35,4 +35,5 @@ class After extends BaseRule
             return false;
         }
     }
+
 }

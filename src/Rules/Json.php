@@ -24,4 +24,5 @@ class Json extends BaseRule
     {
         return is_string($value) && json_validate($value);
     }
+
 }

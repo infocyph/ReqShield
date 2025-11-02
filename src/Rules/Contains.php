@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class Contains extends BaseRule
 {
     protected mixed $needle;
+
     public function __construct(mixed $needle)
     {
         $this->needle = $needle;
@@ -29,4 +30,5 @@ class Contains extends BaseRule
     {
         return is_array($value) && in_array($this->needle, $value, true);
     }
+
 }

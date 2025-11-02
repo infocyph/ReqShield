@@ -10,7 +10,9 @@ namespace Infocyph\ReqShield\Rules;
 class ProhibitedUnless extends BaseRule
 {
     protected string $otherField;
+
     protected mixed $value;
+
     public function __construct(string $otherField, mixed $value)
     {
         $this->otherField = $otherField;
@@ -34,4 +36,5 @@ class ProhibitedUnless extends BaseRule
         }
         return $this->isEmpty($value);
     }
+
 }

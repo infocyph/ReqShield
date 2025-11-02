@@ -31,6 +31,7 @@ class ExcludeIf extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return ! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value; // Exclude field
+        return !isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value; // Exclude field
     }
+
 }

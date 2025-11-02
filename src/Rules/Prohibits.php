@@ -23,7 +23,10 @@ class Prohibits extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} prohibits ".implode(', ', $this->fields).' from being present.';
+        return "The {$field} prohibits " . implode(
+            ', ',
+            $this->fields,
+        ) . ' from being present.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
@@ -32,6 +35,10 @@ class Prohibits extends BaseRule
             return true;
         }
 
-        return array_all($this->fields, fn ($f) => ! (isset($data[$f]) && ! $this->isEmpty($data[$f])));
+        return array_all(
+            $this->fields,
+            fn ($f) => !(isset($data[$f]) && !$this->isEmpty($data[$f])),
+        );
     }
+
 }

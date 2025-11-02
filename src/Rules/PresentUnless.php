@@ -10,7 +10,9 @@ namespace Infocyph\ReqShield\Rules;
 class PresentUnless extends BaseRule
 {
     protected string $otherField;
+
     protected mixed $value;
+
     public function __construct(string $otherField, mixed $value)
     {
         $this->otherField = $otherField;
@@ -34,4 +36,5 @@ class PresentUnless extends BaseRule
         }
         return isset($data[$field]);
     }
+
 }

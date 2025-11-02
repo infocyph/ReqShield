@@ -10,6 +10,7 @@ namespace Infocyph\ReqShield\Rules;
 class InArray extends BaseRule
 {
     protected string $otherField;
+
     public function __construct(string $otherField)
     {
         $this->otherField = $otherField;
@@ -31,4 +32,5 @@ class InArray extends BaseRule
             && is_array($data[$this->otherField])
             && in_array($value, $data[$this->otherField], true);
     }
+
 }

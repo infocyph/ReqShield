@@ -31,4 +31,5 @@ class Min extends BaseRule
     {
         return $this->getSize($value) >= $this->min;
     }
+
 }

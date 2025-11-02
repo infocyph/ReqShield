@@ -24,4 +24,5 @@ class Alpha extends BaseRule
     {
         return is_string($value) && preg_match('/^[a-zA-Z]+$/', $value) === 1;
     }
+
 }

@@ -7,7 +7,8 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * Mimes Rule - Cost: 15
  *
- * Validates file MIME types by mapping file extensions to their corresponding MIME types.
+ * Validates file MIME types by mapping file extensions to their corresponding
+ * MIME types.
  *
  * Usage:
  *   'document' => 'mimes:pdf,doc,docx'
@@ -23,6 +24,7 @@ class Mimes extends BaseRule
      * Loaded from mime-types.php configuration file
      */
     protected static ?array $mimeMap = null;
+
     protected array $types;
 
     public function __construct(string ...$types)
@@ -66,12 +68,15 @@ class Mimes extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be one of these types: ".implode(', ', $this->types).'.';
+        return "The {$field} must be one of these types: " . implode(
+            ', ',
+            $this->types,
+        ) . '.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_array($value) || ! isset($value['type'])) {
+        if (!is_array($value) || !isset($value['type'])) {
             return false;
         }
 
@@ -81,7 +86,9 @@ class Mimes extends BaseRule
         foreach ($this->types as $extension) {
             // Get allowed MIME types for this extension
             // If extension not in map, treat it as a literal MIME type (backward compatibility)
-            $allowedMimes = self::$mimeMap[strtolower($extension)] ?? [$extension];
+            $allowedMimes = self::$mimeMap[strtolower(
+                $extension,
+            )] ?? [$extension];
 
             // Check if file's MIME type matches any of the allowed MIME types
             if (in_array($fileMimeType, $allowedMimes, true)) {
@@ -104,4 +111,5 @@ class Mimes extends BaseRule
     {
         require __DIR__ . '/mime-types.php';
     }
+
 }

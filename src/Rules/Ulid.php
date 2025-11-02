@@ -21,6 +21,10 @@ class Ulid extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_string($value) && preg_match('/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/', $value) === 1;
+        return is_string($value) && preg_match(
+            '/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/',
+            $value,
+        ) === 1;
     }
+
 }

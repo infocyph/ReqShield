@@ -42,14 +42,14 @@ class Decimal extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_numeric($value)) {
+        if (!is_numeric($value)) {
             return false;
         }
 
-        $stringValue = (string) $value;
+        $stringValue = (string)$value;
 
         // Must have a decimal point
-        if (! str_contains($stringValue, '.')) {
+        if (!str_contains($stringValue, '.')) {
             return false;
         }
 
@@ -66,4 +66,5 @@ class Decimal extends BaseRule
 
         return true;
     }
+
 }

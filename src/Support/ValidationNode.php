@@ -83,7 +83,8 @@ class ValidationNode
 
     /**
      * Get all rules (for debugging/inspection).
-     * NOTE: Uses array_merge but only called for debugging/stats - not in hot path
+     * NOTE: Uses array_merge but only called for debugging/stats - not in hot
+     * path
      *
      * @return Rule[]
      */
@@ -92,7 +93,7 @@ class ValidationNode
         return array_merge(
             $this->cheapRules,
             $this->mediumRules,
-            $this->expensiveRules
+            $this->expensiveRules,
         );
     }
 
@@ -110,7 +111,9 @@ class ValidationNode
      */
     public function getRuleCount(): int
     {
-        return count($this->cheapRules) + count($this->mediumRules) + count($this->expensiveRules);
+        return count($this->cheapRules) + count($this->mediumRules) + count(
+            $this->expensiveRules,
+        );
     }
 
     /**
@@ -140,14 +143,16 @@ class ValidationNode
             'total_rules' => $this->getRuleCount(),
             'is_optional' => $this->isOptional,
             'has_children' => $this->hasChildren(),
-            'children_count' => $this->hasChildren() ? count($this->children) : 0,
+            'children_count' => $this->hasChildren() ? count(
+                $this->children,
+            ) : 0,
         ];
 
         // Add detailed rule names for debugging
         if ($this->getRuleCount() > 0) {
             $stats['rule_types'] = array_map(
                 fn ($rule) => new \ReflectionClass($rule)->getShortName(),
-                $this->getAllRules()
+                $this->getAllRules(),
             );
         }
 
@@ -167,7 +172,7 @@ class ValidationNode
      */
     public function hasChildren(): bool
     {
-        return ! empty($this->children);
+        return !empty($this->children);
     }
 
     /**
@@ -175,7 +180,7 @@ class ValidationNode
      */
     public function hasExpensiveRules(): bool
     {
-        return ! empty($this->expensiveRules);
+        return !empty($this->expensiveRules);
     }
 
     /**
@@ -199,4 +204,5 @@ class ValidationNode
         usort($this->mediumRules, fn ($a, $b) => $a->cost() <=> $b->cost());
         usort($this->expensiveRules, fn ($a, $b) => $a->cost() <=> $b->cost());
     }
+
 }

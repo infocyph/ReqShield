@@ -35,4 +35,5 @@ class Before extends BaseRule
             return false;
         }
     }
+
 }

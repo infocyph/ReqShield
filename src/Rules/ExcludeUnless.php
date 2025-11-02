@@ -33,4 +33,5 @@ class ExcludeUnless extends BaseRule
     {
         return isset($data[$this->otherField]) && $data[$this->otherField] === $this->value;
     }
+
 }

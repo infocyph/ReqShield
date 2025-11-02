@@ -42,7 +42,7 @@ class Ip extends BaseRule
     protected bool $publicOnly = false;
 
     /**
-     * @param  string|null  $options  Comma-separated options (e.g., "v4,public")
+     * @param string|null $options Comma-separated options (e.g., "v4,public")
      */
     public function __construct(?string $options = null)
     {
@@ -106,7 +106,7 @@ class Ip extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         // Fast type check
-        if (! is_string($value)) {
+        if (!is_string($value)) {
             return false;
         }
 
@@ -132,12 +132,12 @@ class Ip extends BaseRule
     protected function buildFlags(): void
     {
         // IPv4 only
-        if ($this->ipv4Only && ! $this->ipv6Only) {
+        if ($this->ipv4Only && !$this->ipv6Only) {
             $this->flags |= FILTER_FLAG_IPV4;
         }
 
         // IPv6 only
-        if ($this->ipv6Only && ! $this->ipv4Only) {
+        if ($this->ipv6Only && !$this->ipv4Only) {
             $this->flags |= FILTER_FLAG_IPV6;
         }
 
@@ -199,4 +199,5 @@ class Ip extends BaseRule
             };
         }
     }
+
 }

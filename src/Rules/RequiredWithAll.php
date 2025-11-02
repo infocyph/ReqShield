@@ -24,16 +24,25 @@ class RequiredWithAll extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} field is required when " . implode(', ', $this->fields) . ' are present.';
+        return "The {$field} field is required when " . implode(
+            ', ',
+            $this->fields,
+        ) . ' are present.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $hasAllFields = array_all($this->fields, fn ($otherField) => !(!isset($data[$otherField]) || $this->isEmpty($data[$otherField])));
+        $hasAllFields = array_all(
+            $this->fields,
+            fn ($otherField) => !(!isset($data[$otherField]) || $this->isEmpty(
+                $data[$otherField],
+            )),
+        );
         if (!$hasAllFields) {
             return true;
         }
 
         return !$this->isEmpty($value);
     }
+
 }

@@ -11,6 +11,7 @@ namespace Infocyph\ReqShield\Rules;
 class Between extends BaseRule
 {
     protected $max;
+
     protected $min;
 
     public function __construct($min, $max)
@@ -34,4 +35,5 @@ class Between extends BaseRule
         $size = $this->getSize($value);
         return $size >= $this->min && $size <= $this->max;
     }
+
 }

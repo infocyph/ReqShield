@@ -12,7 +12,7 @@ class AcceptedIf extends BaseRule
 {
     public function __construct(
         protected string $otherField,
-        protected mixed $value
+        protected mixed $value,
     ) {
     }
 
@@ -28,10 +28,11 @@ class AcceptedIf extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
+        if (!isset($data[$this->otherField]) || $data[$this->otherField] !== $this->value) {
             return true;
         }
 
         return in_array($value, ['yes', 'on', '1', 1, true, 'true'], true);
     }
+
 }

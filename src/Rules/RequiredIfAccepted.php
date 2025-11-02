@@ -29,10 +29,15 @@ class RequiredIfAccepted extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         $acceptable = ['yes', 'on', '1', 1, true, 'true'];
-        if (! isset($data[$this->otherField]) || ! in_array($data[$this->otherField], $acceptable, true)) {
+        if (!isset($data[$this->otherField]) || !in_array(
+            $data[$this->otherField],
+            $acceptable,
+            true,
+        )) {
             return true;
         }
 
-        return ! $this->isEmpty($value);
+        return !$this->isEmpty($value);
     }
+
 }

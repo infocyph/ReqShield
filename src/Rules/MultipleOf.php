@@ -28,10 +28,11 @@ class MultipleOf extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_numeric($value)) {
+        if (!is_numeric($value)) {
             return false;
         }
 
-        return fmod((float) $value, (float) $this->divisor) === 0.0;
+        return fmod((float)$value, (float)$this->divisor) === 0.0;
     }
+
 }

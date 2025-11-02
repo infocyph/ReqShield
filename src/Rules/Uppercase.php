@@ -28,4 +28,5 @@ class Uppercase extends BaseRule
 
         return $value === mb_strtoupper($value);
     }
+
 }
