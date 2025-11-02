@@ -5,34 +5,79 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Support;
 
 /**
- * NestedValidator - Handles validation of nested arrays and complex structures.
+/**
+ * Handles validation of nested arrays and complex data structures using dot notation.
  *
- * Supports dot notation for nested validation rules:
- * - 'user.email' => validates $data['user']['email']
- * - 'users.*.email' => validates email for each item in users array
- * - 'addresses.0.city' => validates city in first address
+ * This class provides functionality to validate nested arrays and objects using
+ * a simple dot notation syntax. It supports wildcards for array validation and
+ * handles complex nested structures efficiently.
  *
- * IMPROVED: Better performance with reduced array operations
- * FIXED: Removed duplicate methods, optimized flattenData
+ * ### Key Features:
+ * - Dot notation for nested validation (e.g., 'user.profile.name')
+ * - Wildcard support for array validation (e.g., 'users.*.email')
+ * - Numeric indices for specific array items (e.g., 'addresses.0.city')
+ * - Optimized for performance with minimal array operations
  *
- * @example
+ * @example Basic Usage
+ * $validator = new NestedValidator();
  * $rules = [
  *     'user.name' => 'required|string|min:3',
  *     'user.email' => 'required|email',
  *     'contacts.*.email' => 'required|email',
- *     'contacts.*.phone' => 'required|phone'
+ *     'contacts.*.phone' => 'required|phone',
+ *     'addresses.0.city' => 'required|string'
  * ];
+ *
+ * $data = [
+ *     'user' => [
+ *         'name' => 'John',
+ *         'email' => 'john@example.com'
+ *     ],
+ *     'contacts' => [
+ *         ['email' => 'contact1@example.com', 'phone' => '1234567890'],
+ *         ['email' => 'contact2@example.com', 'phone' => '0987654321']
+ *     ]
+ * ];
+ *
+ * $result = $validator->validate($data, $rules);
+ *
+ * @package Infocyph\ReqShield\Support
  */
 class NestedValidator
 {
     /**
-     * Expand wildcard rules for array validation.
-     * IMPROVED: More efficient array operations
+     * Expands wildcard rules in validation rules to target specific array indices.
      *
-     * @param array $data The data to validate
-     * @param array $parsedRules Parsed rules from parseRules()
+     * This method processes validation rules containing wildcards ('*') and expands
+     * them to target each element in the corresponding array. For example, a rule
+     * for 'users.*.email' will be expanded to 'users.0.email', 'users.1.email', etc.
      *
-     * @return array Expanded rules without wildcards
+     * @param array $data The input data being validated
+     * @param array<string,array{is_wildcard:bool,segments:array,rule:mixed}> $parsedRules
+     *        Parsed validation rules with metadata about wildcards
+     * @return array<string,mixed> Expanded validation rules with wildcards replaced by actual indices
+     *
+     * @example
+     * $data = [
+     *     'contacts' => [
+     *         ['email' => 'a@example.com'],
+     *         ['email' => 'b@example.com']
+     *     ]
+     * ];
+     * $parsedRules = [
+     *     'contacts.*.email' => [
+     *         'is_wildcard' => true,
+     *         'segments' => ['contacts', '*', 'email'],
+     *         'rule' => 'required|email'
+     *     ]
+     * ];
+     * $expanded = NestedValidator::expandWildcards($data, $parsedRules);
+     * // Returns: [
+     * //     'contacts.0.email' => 'required|email',
+     * //     'contacts.1.email' => 'required|email'
+     * // ]
+     *
+     * @see NestedValidator::parseRules() For the expected format of $parsedRules
      */
     public static function expandWildcards(
         array $data,
@@ -95,13 +140,33 @@ class NestedValidator
     }
 
     /**
-     * Extract nested value from data using dot notation.
-     * IMPROVED: Early returns for better performance
+     * Extracts a value from a nested array using dot notation.
      *
-     * @param array $data The data array
-     * @param string $path Dot notation path
+     * This method provides a way to access deeply nested array values using
+     * a simple dot notation path. It's optimized with early returns for
+     * better performance with large data structures.
      *
-     * @return mixed The value at the path or null
+     * @param array $data The input array containing the data
+     * @param string $path Dot-notation path to the desired value (e.g., 'user.profile.name')
+     * @return mixed The value at the specified path, or null if the path doesn't exist
+     *
+     * @example
+     * $data = [
+     *     'user' => [
+     *         'profile' => [
+     *             'name' => 'John',
+     *             'email' => 'john@example.com'
+     *         ]
+     *     ]
+     * ];
+     *
+     * // Returns 'John'
+     * $name = NestedValidator::extractValue($data, 'user.profile.name');
+     *
+     * // Returns null (non-existent path)
+     * $missing = NestedValidator::extractValue($data, 'user.address.city');
+     *
+     * @see NestedValidator::flattenData() For converting nested arrays to dot notation
      */
     public static function extractValue(array $data, string $path): mixed
     {
@@ -124,18 +189,42 @@ class NestedValidator
     }
 
     /**
-     * Flatten nested array into dot notation keys.
-     * IMPROVED: Optimized to avoid array_merge in loops
+     * Converts a nested array structure into a flat array with dot notation keys.
      *
-     * Example:
-     * Input: ['user' => ['email' => 'test@example.com', 'profile' => ['age' =>
-     * 25]]] Output: ['user.email' => 'test@example.com', 'user.profile.age' =>
-     * 25]
+     * This method recursively processes an array and creates a flat representation
+     * where nested keys are combined using dot notation. It's optimized to avoid
+     * array_merge in loops for better performance with large datasets.
      *
-     * @param array $data Nested array to flatten
-     * @param string $prefix Current prefix (used for recursion)
+     * @param array $data The nested array to flatten
+     * @param string $prefix Internal use for recursion, leave empty when calling
+     * @return array<string,mixed> Flattened array with dot notation keys
      *
-     * @return array Flattened array with dot notation keys
+     * @example
+     * $nested = [
+     *     'user' => [
+     *         'name' => 'John',
+     *         'profile' => [
+     *             'age' => 30,
+     *             'email' => 'john@example.com'
+     *         ]
+     *     ],
+     *     'settings' => [
+     *         'notifications' => true,
+     *         'theme' => 'dark'
+     *     ]
+     * ];
+     *
+     * $flattened = NestedValidator::flattenData($nested);
+     * // Returns:
+     * // [
+     * //     'user.name' => 'John',
+     * //     'user.profile.age' => 30,
+     * //     'user.profile.email' => 'john@example.com',
+     * //     'settings.notifications' => true,
+     * //     'settings.theme' => 'dark'
+     * // ]
+     *
+     * @see NestedValidator::extractValue() For the reverse operation (getting a value by dot notation)
      */
     public static function flattenData(array $data, string $prefix = ''): array
     {

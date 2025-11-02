@@ -179,7 +179,25 @@ class SchemaCompiler
     }
 
     /**
-     * Parse a rule from various formats.
+     * Parses a validation rule from various formats into a Rule object.
+     *
+     * This method handles different rule formats:
+     * - Rule objects (passed through directly)
+     * - String rules (e.g., 'required', 'min:3')
+     *
+     * @param mixed $rule The rule to parse (string or Rule object)
+     * @return Rule The parsed rule instance
+     * @throws InvalidRuleException If the rule format is invalid
+     *
+     * @example
+     * // Using string rule
+     * $rule = $this->parseRule('required');
+     *
+     * // Using Rule object
+     * $rule = $this->parseRule(new RequiredRule());
+     *
+     * @see parseStringRule() For handling string-based rules
+     * @see createRuleInstance() For creating rule instances from names
      */
     protected function parseRule(mixed $rule): Rule
     {
@@ -199,7 +217,25 @@ class SchemaCompiler
     }
 
     /**
-     * Parse rule string into name and parameters.
+     * Splits a rule string into its name and parameters.
+     *
+     * Handles special cases for rules like 'regex' where parameters
+     * should not be split on commas.
+     *
+     * @param string $rule The rule string to parse (e.g., 'min:3', 'in:1,2,3')
+     * @return array{string, string[]} Tuple containing [ruleName, parameters[]]
+     *
+     * @example
+     * // Returns ['min', ['3']]
+     * $this->parseRuleString('min:3');
+     *
+     * // Returns ['in', ['1', '2', '3']]
+     * $this->parseRuleString('in:1,2,3');
+     *
+     * // Returns ['regex', ['/^[a-z]+$/i']] (special case, no comma splitting)
+     * $this->parseRuleString('regex:/^[a-z]+$/i');
+     *
+     * @see parseStringRule() For creating a Rule instance from the parsed string
      */
     protected function parseRuleString(string $rule): array
     {
@@ -217,8 +253,30 @@ class SchemaCompiler
     }
 
     /**
-     * Parse string rule (e.g., "min:18", "unique:users,email,5").
-     * SIMPLIFIED: Just parse and pass to createRuleInstance.
+     * Parses a string-based validation rule into a Rule instance.
+     *
+     * This is the main entry point for processing string rules like:
+     * - 'required'
+     * - 'min:18'
+     * - 'unique:users,email,5'
+     * - 'regex:/^[a-z]+$/i'
+     *
+     * @param string $rule The rule string to parse
+     * @return Rule The instantiated rule object
+     * @throws InvalidRuleException If the rule is unknown or invalid
+     *
+     * @example
+     * // Returns a RequiredRule instance
+     * $rule = $this->parseStringRule('required');
+     *
+     * // Returns a MinRule instance with parameter 18
+     * $rule = $this->parseStringRule('min:18');
+     *
+     * // Returns a UniqueRule instance with table and column parameters
+     * $rule = $this->parseStringRule('unique:users,email');
+     *
+     * @see parseRuleString() For splitting the rule into components
+     * @see createRuleInstance() For instantiating the rule class
      */
     protected function parseStringRule(string $rule): Rule
     {

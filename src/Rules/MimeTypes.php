@@ -23,15 +23,13 @@ class MimeTypes extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must have one of these MIME types: " . implode(
-            ', ',
-            $this->types,
-        ) . '.';
+        return "The {$field} must have one of these MIME types: ".
+            implode(', ', $this->types).'.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['tmp_name'])) {
+        if (! is_array($value) || ! isset($value['tmp_name'])) {
             return false;
         }
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -40,5 +38,4 @@ class MimeTypes extends BaseRule
 
         return in_array($mime, $this->types, true);
     }
-
 }

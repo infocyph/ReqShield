@@ -71,8 +71,22 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
     }
 
     /**
-     * Add a message to the bag
-     * OPTIMIZED: Invalidate caches only when needed
+     * Adds a message to the message bag under the specified key.
+     *
+     * If the key doesn't exist, it will be created. This method automatically
+     * invalidates any cached data to ensure consistency.
+     *
+     * @param string $key The key under which to store the message
+     * @param string $message The message to add
+     * @return self Returns $this for method chaining
+     *
+     * @example
+     * $bag = new MessageBag();
+     * $bag->add('username', 'Username is required');
+     * $bag->add('email', 'Email is invalid');
+     *
+     * @see MessageBag::addMany() For adding multiple messages at once
+     * @see MessageBag::set() For replacing all messages for a key
      */
     public function add(string $key, string $message): self
     {
@@ -89,8 +103,23 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
     }
 
     /**
-     * Add multiple messages at once
-     * OPTIMIZED: Batch operation to minimize cache invalidations
+     * Adds multiple messages to the message bag under the specified key.
+     *
+     * More efficient than multiple add() calls as it only invalidates caches once.
+     * If the key doesn't exist, it will be created.
+     *
+     * @param string $key The key under which to store the messages
+     * @param string[] $messages Array of messages to add
+     * @return self Returns $this for method chaining
+     *
+     * @example
+     * $bag = new MessageBag();
+     * $bag->addMany('username', [
+     *     'Username is required',
+     *     'Username must be at least 3 characters'
+     * ]);
+     *
+     * @see MessageBag::add() For adding a single message
      */
     public function addMany(string $key, array $messages): self
     {
@@ -111,7 +140,22 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
     }
 
     /**
-     * Get all messages
+     * Retrieves all messages from the bag.
+     *
+     * Returns an associative array where keys are message keys and values are
+     * arrays of messages for each key.
+     *
+     * @return array<string,string[]> Array of messages grouped by their keys
+     *
+     * @example
+     * $messages = [
+     *     'username' => ['Username is required'],
+     *     'email' => ['Email is invalid', 'Email already exists']
+     * ];
+     * $bag = new MessageBag($messages);
+     * $all = $bag->all(); // Returns the full messages array
+     *
+     * @see MessageBag::flatten() To get all messages as a flat array
      */
     public function all(): array
     {

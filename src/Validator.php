@@ -15,25 +15,36 @@ use Infocyph\ReqShield\Support\ValidationNode;
 use Infocyph\ReqShield\Support\ValidationResult;
 
 /**
- * Validator
+ * High-performance validation engine with cost-based rule execution and comprehensive features.
  *
- * High-performance validation engine using cost-based rule execution.
+ * This class provides a robust validation system with performance optimizations and a clean API.
+ * It supports complex validation scenarios including nested data, conditional rules, and custom validators.
  *
- * Features:
- * - Single-pass validation
- * - Rules grouped by cost (cheap → medium → expensive)
- * - Batched database queries
- * - Fail-fast optimization
- * - Nested field support with dot notation
- * - Required field detection
+ * Key Features:
+ * - Cost-based rule execution (cheap → medium → expensive)
+ * - Batched database queries for efficient validation
+ * - Nested validation with dot notation support
+ * - Comprehensive error handling and reporting
+ * - Extensible through custom validation rules
+ * - Type-safe with strict type hints
  *
- * IMPROVED:
- * - Fixed required field detection
- * - Implemented nested validation support
- * - Better error handling with throwOnFailure
- * - Optimized phase processing with early skips
- * - Reduced isset() calls for better performance
- * - Uses enhanced Support classes properly
+ * Performance Optimizations:
+ * - Single-pass validation design
+ * - Rule categorization by execution cost
+ * - Minimal memory overhead
+ * - Efficient error collection and reporting
+ *
+ * @package Infocyph\ReqShield
+ * @since 1.0.0
+ *
+ * @method static self make(array $rules, ?DatabaseProvider $db = null) Create a new validator instance.
+ * @method self enableNestedValidation() Enable nested validation with dot notation.
+ * @method self setFailFast(bool $failFast) Enable or disable fail-fast mode.
+ * @method self throwOnFailure(bool $throw = true) Configure whether to throw exceptions on validation failure.
+ * @method ValidationResult validate(array $data) Validate the provided data against the rules.
+ * @method self registerRule(string $name, string $class) Register a custom validation rule.
+ * @method self setFieldAliases(array $aliases) Set human-readable field names for error messages.
+ * @method self setCustomMessages(array $messages) Set custom error messages for validation rules.
  */
 class Validator
 {
@@ -146,6 +157,32 @@ class Validator
         return $this;
     }
 
+    /**
+     * Configures the validator to stop validation after the first error.
+     *
+     * When enabled, the validator will stop processing rules for a field as soon as
+     * it encounters the first validation error. This can significantly improve
+     * performance by skipping unnecessary validation rules.
+     *
+     * @param bool $failFast Whether to enable fail-fast mode (default: true)
+     * @return self Returns the current validator instance for method chaining
+     *
+     * @example
+     * // Enable fail-fast (default behavior)
+     * $validator->setFailFast(true);
+     *
+     * // Disable to collect all validation errors
+     * $validator->setFailFast(false);
+     *
+     * // Chaining example
+     * $result = $validator
+     *     ->setFailFast(true)
+     *     ->setStopOnFirstError(true)
+     *     ->validate($data);
+     *
+     * @see Validator::setStopOnFirstError() To control stopping after the first field with errors
+     * @see Validator::validate() To perform the validation
+     */
     public function setFailFast(bool $failFast): self
     {
         $this->failFast = $failFast;

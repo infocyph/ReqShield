@@ -39,8 +39,6 @@ class Mimes extends BaseRule
 
     /**
      * Clear the cached MIME type mappings (useful for testing)
-     *
-     * @return void
      */
     public static function clearMimeMap(): void
     {
@@ -49,8 +47,6 @@ class Mimes extends BaseRule
 
     /**
      * Get the MIME type mapping array (for testing/debugging)
-     *
-     * @return array
      */
     public static function getMimeMap(): array
     {
@@ -68,15 +64,15 @@ class Mimes extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be one of these types: " . implode(
+        return "The {$field} must be one of these types: ".implode(
             ', ',
             $this->types,
-        ) . '.';
+        ).'.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['type'])) {
+        if (! is_array($value) || ! isset($value['type'])) {
             return false;
         }
 
@@ -95,7 +91,6 @@ class Mimes extends BaseRule
                 return true;
             }
         }
-
         return false;
     }
 
@@ -109,7 +104,6 @@ class Mimes extends BaseRule
      */
     protected static function loadMimeTypes(): void
     {
-        require __DIR__ . '/mime-types.php';
+        self::$mimeMap = require __DIR__.'/mime-types.php';
     }
-
 }

@@ -5,16 +5,26 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield;
 
 /**
- * Sanitizer
+ * Comprehensive input sanitization with high-performance optimizations.
  *
- * High-performance input sanitization with comprehensive methods.
- * ENHANCED: Extended with more sanitization methods for broader coverage
+ * This class provides a wide range of static methods for sanitizing and normalizing
+ * various types of input data. It's designed for security, performance, and ease of use.
  *
- * Optimized for PHP 8.4+ with modern features:
- * - Type-specific fast paths
- * - Minimal function calls
- * - Cached regex patterns
- * - Match expressions for performance
+ * Key Features:
+ * - Type-safe sanitization with strict type hints
+ * - Comprehensive coverage of common sanitization needs
+ * - Optimized for high performance with minimal overhead
+ * - Consistent behavior across different input types
+ * - Built-in protection against common security issues (XSS, SQL injection, etc.)
+ *
+ * Performance Optimizations:
+ * - Type-specific fast paths for common input types
+ * - Cached regular expression patterns
+ * - Minimal function calls and memory usage
+ * - Efficient string operations
+ *
+ * @package Infocyph\ReqShield
+ * @since 1.0.0
  */
 class Sanitizer
 {
@@ -228,7 +238,19 @@ class Sanitizer
     // ============================================
 
     /**
-     * Clear pattern cache (for testing)
+     * Clears the internal pattern cache used for regular expressions.
+     *
+     * This method is primarily intended for testing purposes to ensure consistent
+     * behavior between test cases. In production, the cache improves performance
+     * by avoiding recompilation of frequently used patterns.
+     *
+     * @return void
+     *
+     * @example
+     * // In test setup
+     * Sanitizer::clearCache();
+     *
+     * @internal This method is not part of the public API and may change without notice.
      */
     public static function clearCache(): void
     {
@@ -236,7 +258,28 @@ class Sanitizer
     }
 
     /**
-     * Sanitize currency (remove symbols, keep number)
+     * Sanitizes a currency value by removing all non-numeric characters.
+     *
+     * This method handles various currency formats, including those with:
+     * - Currency symbols (e.g., $, €, £, ¥)
+     - Thousands separators (e.g., 1,000.00 or 1.000,00)
+     - Negative values (with leading minus sign)
+     - European-style decimal separators (comma as decimal point)
+     *
+     * @param mixed $value The input value to sanitize (string, int, or float)
+     * @return float The sanitized numeric value as a float
+     *
+     * @example
+     * // Basic usage
+     * Sanitizer::currency('$1,234.56'); // returns 1234.56
+     * Sanitizer::currency('1.234,56€'); // returns 1234.56
+     * Sanitizer::currency('-$500.75');  // returns -500.75
+     *
+     * // With non-string input
+     * Sanitizer::currency(1234.56);     // returns 1234.56
+     * Sanitizer::currency(null);        // returns 0.0
+     *
+     * @see formatCurrency() For formatting a number as a currency string
      */
     public static function currency(mixed $value): float
     {
