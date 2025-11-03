@@ -34,9 +34,10 @@ class RequiredWith extends BaseRule
     {
         $hasAnyField = array_any(
             $this->fields,
-            fn ($otherField) => isset($data[$otherField]) && !$this->isEmpty(
-                $data[$otherField],
-            ),
+            fn ($otherField)
+              => isset($data[$otherField]) && !$this->isEmpty(
+                  $data[$otherField],
+              ),
         );
         if (!$hasAnyField) {
             return true;

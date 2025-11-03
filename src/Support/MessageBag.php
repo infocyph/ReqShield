@@ -78,15 +78,16 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
      *
      * @param string $key The key under which to store the message
      * @param string $message The message to add
+     *
      * @return self Returns $this for method chaining
      *
+     * @see MessageBag::addMany() For adding multiple messages at once
+     * @see MessageBag::set() For replacing all messages for a key
      * @example
      * $bag = new MessageBag();
      * $bag->add('username', 'Username is required');
      * $bag->add('email', 'Email is invalid');
      *
-     * @see MessageBag::addMany() For adding multiple messages at once
-     * @see MessageBag::set() For replacing all messages for a key
      */
     public function add(string $key, string $message): self
     {
@@ -105,13 +106,15 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
     /**
      * Adds multiple messages to the message bag under the specified key.
      *
-     * More efficient than multiple add() calls as it only invalidates caches once.
-     * If the key doesn't exist, it will be created.
+     * More efficient than multiple add() calls as it only invalidates caches
+     * once. If the key doesn't exist, it will be created.
      *
      * @param string $key The key under which to store the messages
      * @param string[] $messages Array of messages to add
+     *
      * @return self Returns $this for method chaining
      *
+     * @see MessageBag::add() For adding a single message
      * @example
      * $bag = new MessageBag();
      * $bag->addMany('username', [
@@ -119,7 +122,6 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
      *     'Username must be at least 3 characters'
      * ]);
      *
-     * @see MessageBag::add() For adding a single message
      */
     public function addMany(string $key, array $messages): self
     {
@@ -147,6 +149,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
      *
      * @return array<string,string[]> Array of messages grouped by their keys
      *
+     * @see MessageBag::flatten() To get all messages as a flat array
      * @example
      * $messages = [
      *     'username' => ['Username is required'],
@@ -155,7 +158,6 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
      * $bag = new MessageBag($messages);
      * $all = $bag->all(); // Returns the full messages array
      *
-     * @see MessageBag::flatten() To get all messages as a flat array
      */
     public function all(): array
     {
@@ -498,7 +500,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
                 $output .= str_replace(
                     [':key', ':message'],
                     [$key, $message],
-                    $messageFormat
+                    $messageFormat,
                 ) . $separator;
             }
 
@@ -577,7 +579,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
                 $output .= str_replace(
                     [':key', ':message'],
                     [$key, $message],
-                    $format
+                    $format,
                 );
                 $isFirst = false;
             }

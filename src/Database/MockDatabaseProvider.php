@@ -115,7 +115,8 @@ class MockDatabaseProvider implements DatabaseProvider
                 fn (
                     $value,
                     $column,
-                ) => !(!isset($row[$column]) || $row[$column] !== $value),
+                )
+                  => !(!isset($row[$column]) || $row[$column] !== $value),
             );
 
             if ($allMatch) {

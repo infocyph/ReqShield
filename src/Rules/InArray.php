@@ -29,8 +29,8 @@ class InArray extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         return isset($data[$this->otherField])
-            && is_array($data[$this->otherField])
-            && in_array($value, $data[$this->otherField], true);
+          && is_array($data[$this->otherField])
+          && in_array($value, $data[$this->otherField], true);
     }
 
 }

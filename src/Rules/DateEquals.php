@@ -30,9 +30,9 @@ class DateEquals extends BaseRule
     {
         try {
             return new \DateTime((string)$value)
-                    ->format('Y-m-d') ===
-                new \DateTime($data[$this->date] ?? $this->date)
-                    ->format('Y-m-d');
+                ->format('Y-m-d') ===
+              new \DateTime($data[$this->date] ?? $this->date)
+                ->format('Y-m-d');
         } catch (\Exception) {
             return false;
         }

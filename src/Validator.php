@@ -15,10 +15,12 @@ use Infocyph\ReqShield\Support\ValidationNode;
 use Infocyph\ReqShield\Support\ValidationResult;
 
 /**
- * High-performance validation engine with cost-based rule execution and comprehensive features.
+ * High-performance validation engine with cost-based rule execution and
+ * comprehensive features.
  *
- * This class provides a robust validation system with performance optimizations and a clean API.
- * It supports complex validation scenarios including nested data, conditional rules, and custom validators.
+ * This class provides a robust validation system with performance
+ * optimizations and a clean API. It supports complex validation scenarios
+ * including nested data, conditional rules, and custom validators.
  *
  * Key Features:
  * - Cost-based rule execution (cheap → medium → expensive)
@@ -33,18 +35,6 @@ use Infocyph\ReqShield\Support\ValidationResult;
  * - Rule categorization by execution cost
  * - Minimal memory overhead
  * - Efficient error collection and reporting
- *
- * @package Infocyph\ReqShield
- * @since 1.0.0
- *
- * @method static self make(array $rules, ?DatabaseProvider $db = null) Create a new validator instance.
- * @method self enableNestedValidation() Enable nested validation with dot notation.
- * @method self setFailFast(bool $failFast) Enable or disable fail-fast mode.
- * @method self throwOnFailure(bool $throw = true) Configure whether to throw exceptions on validation failure.
- * @method ValidationResult validate(array $data) Validate the provided data against the rules.
- * @method self registerRule(string $name, string $class) Register a custom validation rule.
- * @method self setFieldAliases(array $aliases) Set human-readable field names for error messages.
- * @method self setCustomMessages(array $messages) Set custom error messages for validation rules.
  */
 class Validator
 {
@@ -65,7 +55,6 @@ class Validator
     protected bool $stopOnFirstError = false;
 
     protected bool $throwOnFailure = false;
-
     public function __construct(array $rules, ?DatabaseProvider $db = null)
     {
         // Validate rules format
@@ -124,8 +113,8 @@ class Validator
     public function getSchemaStats(): array
     {
         $stats = [
-            'total_fields' => count($this->schema),
-            'fields' => [],
+          'total_fields' => count($this->schema),
+          'fields' => [],
         ];
 
         foreach ($this->schema as $field => $node) {
@@ -160,13 +149,17 @@ class Validator
     /**
      * Configures the validator to stop validation after the first error.
      *
-     * When enabled, the validator will stop processing rules for a field as soon as
-     * it encounters the first validation error. This can significantly improve
-     * performance by skipping unnecessary validation rules.
+     * When enabled, the validator will stop processing rules for a field as
+     * soon as it encounters the first validation error. This can significantly
+     * improve performance by skipping unnecessary validation rules.
      *
      * @param bool $failFast Whether to enable fail-fast mode (default: true)
+     *
      * @return self Returns the current validator instance for method chaining
      *
+     * @see Validator::setStopOnFirstError() To control stopping after the
+     *   first field with errors
+     * @see Validator::validate() To perform the validation
      * @example
      * // Enable fail-fast (default behavior)
      * $validator->setFailFast(true);
@@ -180,8 +173,6 @@ class Validator
      *     ->setStopOnFirstError(true)
      *     ->validate($data);
      *
-     * @see Validator::setStopOnFirstError() To control stopping after the first field with errors
-     * @see Validator::validate() To perform the validation
      */
     public function setFailFast(bool $failFast): self
     {
@@ -319,9 +310,9 @@ class Validator
 
         foreach ($rules as $rule) {
             $batch[] = [
-                'rule' => $rule,
-                'value' => $value,
-                'field' => $field,
+              'rule' => $rule,
+              'value' => $value,
+              'field' => $field,
             ];
         }
     }
@@ -336,7 +327,7 @@ class Validator
     {
         // Skip if no expensive rules or validation already failed
         if (empty($context['expensiveBatch'])
-            || (!empty($context['errors']) && $this->stopOnFirstError)) {
+          || (!empty($context['errors']) && $this->stopOnFirstError)) {
             return;
         }
 
@@ -388,9 +379,9 @@ class Validator
     protected function initializeValidationContext(): array
     {
         return [
-            'errors' => [],
-            'validated' => [],
-            'expensiveBatch' => [],
+          'errors' => [],
+          'validated' => [],
+          'expensiveBatch' => [],
         ];
     }
 
@@ -510,8 +501,8 @@ class Validator
 
         // Inline isEmpty for performance (avoid method call overhead)
         return $value === null
-            || ($value === '' || (is_string($value) && trim($value) === ''))
-            || (is_countable($value) && count($value) === 0);
+          || ($value === '' || (is_string($value) && trim($value) === ''))
+          || (is_countable($value) && count($value) === 0);
     }
 
     /**

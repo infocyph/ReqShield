@@ -64,15 +64,15 @@ class Mimes extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must be one of these types: ".implode(
+        return "The {$field} must be one of these types: " . implode(
             ', ',
             $this->types,
-        ).'.';
+        ) . '.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (! is_array($value) || ! isset($value['type'])) {
+        if (!is_array($value) || !isset($value['type'])) {
             return false;
         }
 
@@ -104,6 +104,7 @@ class Mimes extends BaseRule
      */
     protected static function loadMimeTypes(): void
     {
-        self::$mimeMap = require __DIR__.'/mime-types.php';
+        self::$mimeMap = require __DIR__ . '/mime-types.php';
     }
+
 }

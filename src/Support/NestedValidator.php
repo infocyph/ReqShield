@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Support;
 
 /**
-/**
- * Handles validation of nested arrays and complex data structures using dot notation.
+ * /**
+ * Handles validation of nested arrays and complex data structures using dot
+ * notation.
  *
- * This class provides functionality to validate nested arrays and objects using
+ * This class provides functionality to validate nested arrays and objects
+ * using
  * a simple dot notation syntax. It supports wildcards for array validation and
  * handles complex nested structures efficiently.
  *
@@ -46,17 +48,23 @@ namespace Infocyph\ReqShield\Support;
 class NestedValidator
 {
     /**
-     * Expands wildcard rules in validation rules to target specific array indices.
+     * Expands wildcard rules in validation rules to target specific array
+     * indices.
      *
-     * This method processes validation rules containing wildcards ('*') and expands
-     * them to target each element in the corresponding array. For example, a rule
-     * for 'users.*.email' will be expanded to 'users.0.email', 'users.1.email', etc.
+     * This method processes validation rules containing wildcards ('*') and
+     * expands them to target each element in the corresponding array. For
+     * example, a rule for 'users.*.email' will be expanded to 'users.0.email',
+     * 'users.1.email', etc.
      *
      * @param array $data The input data being validated
      * @param array<string,array{is_wildcard:bool,segments:array,rule:mixed}> $parsedRules
      *        Parsed validation rules with metadata about wildcards
-     * @return array<string,mixed> Expanded validation rules with wildcards replaced by actual indices
      *
+     * @return array<string,mixed> Expanded validation rules with wildcards
+     *   replaced by actual indices
+     *
+     * @see NestedValidator::parseRules() For the expected format of
+     *   $parsedRules
      * @example
      * $data = [
      *     'contacts' => [
@@ -77,7 +85,6 @@ class NestedValidator
      * //     'contacts.1.email' => 'required|email'
      * // ]
      *
-     * @see NestedValidator::parseRules() For the expected format of $parsedRules
      */
     public static function expandWildcards(
         array $data,
@@ -100,25 +107,25 @@ class NestedValidator
             }
 
             $pathBeforeWildcard = $wildcardIndex > 0
-                ? implode(
-                    '.',
-                    array_slice($ruleData['segments'], 0, $wildcardIndex),
-                )
-                : '';
+              ? implode(
+                  '.',
+                  array_slice($ruleData['segments'], 0, $wildcardIndex),
+              )
+              : '';
 
             $pathAfterWildcard = $wildcardIndex < count(
                 $ruleData['segments'],
             ) - 1
-                ? implode(
-                    '.',
-                    array_slice($ruleData['segments'], $wildcardIndex + 1),
-                )
-                : '';
+              ? implode(
+                  '.',
+                  array_slice($ruleData['segments'], $wildcardIndex + 1),
+              )
+              : '';
 
             // Get the array to iterate
             $arrayData = $pathBeforeWildcard
-                ? static::extractValue($data, $pathBeforeWildcard)
-                : $data;
+              ? static::extractValue($data, $pathBeforeWildcard)
+              : $data;
 
             if (!is_array($arrayData)) {
                 continue;
@@ -147,9 +154,14 @@ class NestedValidator
      * better performance with large data structures.
      *
      * @param array $data The input array containing the data
-     * @param string $path Dot-notation path to the desired value (e.g., 'user.profile.name')
-     * @return mixed The value at the specified path, or null if the path doesn't exist
+     * @param string $path Dot-notation path to the desired value (e.g.,
+     *   'user.profile.name')
      *
+     * @return mixed The value at the specified path, or null if the path
+     *   doesn't exist
+     *
+     * @see NestedValidator::flattenData() For converting nested arrays to dot
+     *   notation
      * @example
      * $data = [
      *     'user' => [
@@ -166,7 +178,6 @@ class NestedValidator
      * // Returns null (non-existent path)
      * $missing = NestedValidator::extractValue($data, 'user.address.city');
      *
-     * @see NestedValidator::flattenData() For converting nested arrays to dot notation
      */
     public static function extractValue(array $data, string $path): mixed
     {
@@ -189,16 +200,22 @@ class NestedValidator
     }
 
     /**
-     * Converts a nested array structure into a flat array with dot notation keys.
+     * Converts a nested array structure into a flat array with dot notation
+     * keys.
      *
-     * This method recursively processes an array and creates a flat representation
-     * where nested keys are combined using dot notation. It's optimized to avoid
-     * array_merge in loops for better performance with large datasets.
+     * This method recursively processes an array and creates a flat
+     * representation where nested keys are combined using dot notation. It's
+     * optimized to avoid array_merge in loops for better performance with
+     * large datasets.
      *
      * @param array $data The nested array to flatten
-     * @param string $prefix Internal use for recursion, leave empty when calling
+     * @param string $prefix Internal use for recursion, leave empty when
+     *   calling
+     *
      * @return array<string,mixed> Flattened array with dot notation keys
      *
+     * @see NestedValidator::extractValue() For the reverse operation (getting
+     *   a value by dot notation)
      * @example
      * $nested = [
      *     'user' => [
@@ -224,7 +241,6 @@ class NestedValidator
      * //     'settings.theme' => 'dark'
      * // ]
      *
-     * @see NestedValidator::extractValue() For the reverse operation (getting a value by dot notation)
      */
     public static function flattenData(array $data, string $prefix = ''): array
     {
@@ -358,10 +374,10 @@ class NestedValidator
             $hasDot = str_contains($key, '.');
 
             $parsed[$key] = [
-                'path' => $key,
-                'segments' => $hasDot ? explode('.', $key) : [$key],
-                'rule' => $rule,
-                'is_wildcard' => $hasWildcard,
+              'path' => $key,
+              'segments' => $hasDot ? explode('.', $key) : [$key],
+              'rule' => $rule,
+              'is_wildcard' => $hasWildcard,
             ];
         }
 

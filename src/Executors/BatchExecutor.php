@@ -137,12 +137,12 @@ class BatchExecutor
         );
 
         return [
-            'query' => "SELECT {$selectCols} FROM {$escapedTable} WHERE " . implode(
-                ' OR ',
-                $conditions,
-            ),
-            'params' => $params,
-            'checkIndex' => $checkIndex,
+          'query' => "SELECT {$selectCols} FROM {$escapedTable} WHERE " . implode(
+              ' OR ',
+              $conditions,
+          ),
+          'params' => $params,
+          'checkIndex' => $checkIndex,
         ];
     }
 
@@ -153,8 +153,8 @@ class BatchExecutor
     protected function categorizeRulesByTypeAndTable(array $batch): array
     {
         $categorized = [
-            'unique' => [],
-            'exists' => [],
+          'unique' => [],
+          'exists' => [],
         ];
 
         foreach ($batch as $item) {

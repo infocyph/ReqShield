@@ -102,8 +102,8 @@ class SchemaCompiler
                 $param === 'true' => true,
                 $param === 'false' => false,
                 is_numeric($param) => str_contains($param, '.')
-                    ? (float)$param
-                    : (int)$param,
+                  ? (float)$param
+                  : (int)$param,
                 default => $param,
             };
         }, $params);
@@ -186,9 +186,12 @@ class SchemaCompiler
      * - String rules (e.g., 'required', 'min:3')
      *
      * @param mixed $rule The rule to parse (string or Rule object)
+     *
      * @return Rule The parsed rule instance
      * @throws InvalidRuleException If the rule format is invalid
      *
+     * @see parseStringRule() For handling string-based rules
+     * @see createRuleInstance() For creating rule instances from names
      * @example
      * // Using string rule
      * $rule = $this->parseRule('required');
@@ -196,8 +199,6 @@ class SchemaCompiler
      * // Using Rule object
      * $rule = $this->parseRule(new RequiredRule());
      *
-     * @see parseStringRule() For handling string-based rules
-     * @see createRuleInstance() For creating rule instances from names
      */
     protected function parseRule(mixed $rule): Rule
     {
@@ -223,8 +224,12 @@ class SchemaCompiler
      * should not be split on commas.
      *
      * @param string $rule The rule string to parse (e.g., 'min:3', 'in:1,2,3')
-     * @return array{string, string[]} Tuple containing [ruleName, parameters[]]
      *
+     * @return array{string, string[]} Tuple containing [ruleName,
+     *   parameters[]]
+     *
+     * @see parseStringRule() For creating a Rule instance from the parsed
+     *   string
      * @example
      * // Returns ['min', ['3']]
      * $this->parseRuleString('min:3');
@@ -235,7 +240,6 @@ class SchemaCompiler
      * // Returns ['regex', ['/^[a-z]+$/i']] (special case, no comma splitting)
      * $this->parseRuleString('regex:/^[a-z]+$/i');
      *
-     * @see parseStringRule() For creating a Rule instance from the parsed string
      */
     protected function parseRuleString(string $rule): array
     {
@@ -262,9 +266,12 @@ class SchemaCompiler
      * - 'regex:/^[a-z]+$/i'
      *
      * @param string $rule The rule string to parse
+     *
      * @return Rule The instantiated rule object
      * @throws InvalidRuleException If the rule is unknown or invalid
      *
+     * @see parseRuleString() For splitting the rule into components
+     * @see createRuleInstance() For instantiating the rule class
      * @example
      * // Returns a RequiredRule instance
      * $rule = $this->parseStringRule('required');
@@ -275,8 +282,6 @@ class SchemaCompiler
      * // Returns a UniqueRule instance with table and column parameters
      * $rule = $this->parseStringRule('unique:users,email');
      *
-     * @see parseRuleString() For splitting the rule into components
-     * @see createRuleInstance() For instantiating the rule class
      */
     protected function parseStringRule(string $rule): Rule
     {

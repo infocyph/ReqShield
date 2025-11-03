@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Support;
 
 /**
- * Represents the result of a validation operation with comprehensive error handling.
+ * Represents the result of a validation operation with comprehensive error
+ * handling.
  *
- * This class encapsulates the results of data validation, including both validation
- * errors and successfully validated data. It provides a fluent interface for common
- * validation result operations and transformations.
+ * This class encapsulates the results of data validation, including both
+ * validation errors and successfully validated data. It provides a fluent
+ * interface for common validation result operations and transformations.
  *
  * Key features:
  * - Access validated data as object properties or via array access
@@ -97,30 +98,35 @@ class ValidationResult
      */
     public function fails(): bool
     {
-        return ! empty($this->errors);
+        return !empty($this->errors);
     }
 
     /**
      * Filters the validated data using a callback function.
      *
-     * This method allows for flexible filtering of the validated data based on custom
-     * criteria. The callback receives both the value and key of each element.
+     * This method allows for flexible filtering of the validated data based on
+     * custom criteria. The callback receives both the value and key of each
+     * element.
      *
-     * @param  callable  $callback  The callback function to use for filtering.
-     *                              The callback should return true to include the element in the result.
-     *                              Signature: `function(mixed $value, string|int $key): bool`
-     * @return array The filtered array containing only the elements that passed the callback test.
+     * @param callable $callback The callback function to use for filtering.
+     *                              The callback should return true to include
+     *   the element in the result. Signature: `function(mixed $value,
+     *   string|int $key): bool`
      *
+     * @return array The filtered array containing only the elements that
+     *   passed the callback test.
+     *
+     * @see array_filter() The underlying PHP function used for filtering
+     * @see ValidationResult::map() To transform values instead of filtering
+     * @see ValidationResult::only() To filter by specific keys
      * @example
      * // Filter to get only numeric values
      * $numbers = $result->filter(fn($value) => is_numeric($value));
      *
      * // Filter based on both key and value
-     * $filtered = $result->filter(fn($value, $key) => str_starts_with($key, 'user_'));
+     * $filtered = $result->filter(fn($value, $key) => str_starts_with($key,
+     *   'user_'));
      *
-     * @see array_filter() The underlying PHP function used for filtering
-     * @see ValidationResult::map() To transform values instead of filtering
-     * @see ValidationResult::only() To filter by specific keys
      */
     public function filter(callable $callback): array
     {
@@ -221,7 +227,7 @@ class ValidationResult
         $safe = $this->validated;
 
         foreach ($additionalFields as $field) {
-            if (! isset($safe[$field]) && ! $this->hasError($field)) {
+            if (!isset($safe[$field]) && !$this->hasError($field)) {
                 $safe[$field] = null;
             }
         }
@@ -251,9 +257,9 @@ class ValidationResult
     public function toArray(): array
     {
         return [
-            'valid' => $this->passes(),
-            'errors' => $this->errors,
-            'validated' => $this->validated,
+          'valid' => $this->passes(),
+          'errors' => $this->errors,
+          'validated' => $this->validated,
         ];
     }
 
@@ -263,11 +269,11 @@ class ValidationResult
      */
     public function toDTO(): object
     {
-        return (object) [
-            'success' => $this->passes(),
-            'errors' => $this->errors,
-            'data' => $this->validated,
-            'errorCount' => $this->errorCount(),
+        return (object)[
+          'success' => $this->passes(),
+          'errors' => $this->errors,
+          'data' => $this->validated,
+          'errorCount' => $this->errorCount(),
         ];
     }
 
@@ -312,4 +318,5 @@ class ValidationResult
 
         return $this;
     }
+
 }

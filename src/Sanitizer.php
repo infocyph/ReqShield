@@ -135,8 +135,8 @@ class Sanitizer
 
         return array_map(function ($item) {
             return is_array($item)
-                ? self::array($item)
-                : (is_string($item) ? self::string($item) : $item);
+              ? self::array($item)
+              : (is_string($item) ? self::string($item) : $item);
         }, $value);
     }
 
@@ -182,8 +182,8 @@ class Sanitizer
                 self::class,
                 $sanitizer,
             )
-                ? self::$sanitizer($value)
-                : (is_callable($sanitizer) ? $sanitizer($value) : $value);
+              ? self::$sanitizer($value)
+              : (is_callable($sanitizer) ? $sanitizer($value) : $value);
         }, $values);
     }
 
@@ -230,7 +230,7 @@ class Sanitizer
         $value = str_replace(' ', '', $value);
 
         return mb_strtolower(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') .
-            mb_substr($value, 1, null, 'UTF-8');
+          mb_substr($value, 1, null, 'UTF-8');
     }
 
     // ============================================
@@ -262,17 +262,18 @@ class Sanitizer
      *
      * This method handles various currency formats, including those with:
      * - Currency symbols (e.g., $, €, £, ¥)
-     - Thousands separators (e.g., 1,000.00 or 1.000,00)
-     - Negative values (with leading minus sign)
-     - European-style decimal separators (comma as decimal point)
+    - Thousands separators (e.g., 1,000.00 or 1.000,00)
+    - Negative values (with leading minus sign)
+    - European-style decimal separators (comma as decimal point)
      *
      * @param mixed $value The input value to sanitize (string, int, or float)
+     * @param string $format The number format ('USD' for 1,234.56 or 'EUR' for 1.234,56)
      * @return float The sanitized numeric value as a float
      *
      * @example
      * // Basic usage
-     * Sanitizer::currency('$1,234.56'); // returns 1234.56
-     * Sanitizer::currency('1.234,56€'); // returns 1234.56
+     * Sanitizer::currency('$1,234.56', 'USD'); // returns 1234.56
+     * Sanitizer::currency('1.234,56€', 'EUR'); // returns 1234.56
      * Sanitizer::currency('-$500.75');  // returns -500.75
      *
      * // With non-string input
@@ -281,17 +282,23 @@ class Sanitizer
      *
      * @see formatCurrency() For formatting a number as a currency string
      */
-    public static function currency(mixed $value): float
+    public static function currency(mixed $value, string $format = 'USD'): float
     {
         if (!is_string($value)) {
             return is_numeric($value) ? (float)$value : 0.0;
         }
 
-        // Remove currency symbols and whitespace
+        // 1. Remove all non-formatting, non-numeric characters (currency symbols, etc.)
         $value = self::pregReplace('/[^\d.,-]/', '', $value);
-        // Handle comma as decimal separator (European format)
-        $value = str_replace(',', '.', $value);
 
+        // 2. Normalize based on format
+        $value = strtoupper($format) === 'EUR' ? str_replace(
+            ['.', ','],
+            ['', '.'],
+            $value
+        ) : str_replace(',', '', $value);
+
+        // 3. Cast the cleaned string to float
         return (float)$value;
     }
 
@@ -352,10 +359,10 @@ class Sanitizer
             return '';
         }
 
-        // Remove path separators and null bytes
-        $value = str_replace(['/', '\\', "\0"], '', $value);
+        // Remove null bytes (which basename doesn't handle)
+        $value = str_replace("\0", '', basename($value));
 
-        // Keep only safe filename characters
+        // Keep only safe filename characters, replace others with _
         return self::pregReplace(
             '/[^' . self::FILENAME_CHARS . ']/',
             '_',
@@ -452,15 +459,21 @@ class Sanitizer
             return $associative ? [] : null;
         }
 
-        $decoded = json_decode(
-            $value,
-            $associative,
-            512,
-            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-        );
+        // Fix: Wrap in try-catch to handle JSON_THROW_ON_ERROR
+        try {
+            $decoded = json_decode(
+                $value,
+                $associative,
+                512,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+            );
+        } catch (\JsonException $e) {
+            // On error, return the default empty value
+            return $associative ? [] : null;
+        }
 
-        return json_last_error(
-        ) === JSON_ERROR_NONE ? $decoded : ($associative ? [] : null);
+
+        return $decoded;
     }
 
     /**
@@ -469,10 +482,16 @@ class Sanitizer
      */
     public static function jsonEncode(mixed $value): string
     {
-        $encoded = json_encode(
-            $value,
-            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-        );
+        // Fix: Wrap in try-catch to handle JSON_THROW_ON_ERROR
+        try {
+            $encoded = json_encode(
+                $value,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+            );
+        } catch (\JsonException $e) {
+            return ''; // Return empty string on encode failure
+        }
+
 
         return $encoded !== false ? $encoded : '';
     }
@@ -596,16 +615,17 @@ class Sanitizer
         }
 
         $patterns = [
-            '/(\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b|\bunion\b)/i',
-            '/--/',
-            '/\/\*.*?\*\//',
+          '/(\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b|\bunion\b)/i',
+          '/--.*$/',
+          '/\/\*.*?\*\//s',
         ];
 
         foreach ($patterns as $pattern) {
             $value = self::pregReplace($pattern, '', $value);
         }
 
-        return $value;
+        // Trim any trailing whitespace left by comment removal
+        return trim($value);
     }
 
     /**
@@ -646,7 +666,7 @@ class Sanitizer
         }
 
         return mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') .
-            mb_strtolower(mb_substr($value, 1, null, 'UTF-8'), 'UTF-8');
+          mb_strtolower(mb_substr($value, 1, null, 'UTF-8'), 'UTF-8');
     }
 
     // ============================================
@@ -748,6 +768,13 @@ class Sanitizer
     public static function stripUnsafeTags(mixed $value): string
     {
         $safeTags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li'];
+
+        // Fix: First, remove script tags and their content entirely
+        $value = self::pregReplace(
+            '/<script\b[^>]*>.*?<\/script>/is',
+            '',
+            $value ?? ''
+        );
 
         return self::stripTags($value, $safeTags);
     }
@@ -876,5 +903,4 @@ class Sanitizer
 
         return $result ?? $subject;
     }
-
 }

@@ -34,9 +34,10 @@ class RequiredWithout extends BaseRule
     {
         $missingAnyField = array_any(
             $this->fields,
-            fn ($otherField) => !isset($data[$otherField]) || $this->isEmpty(
-                $data[$otherField],
-            ),
+            fn ($otherField)
+              => !isset($data[$otherField]) || $this->isEmpty(
+                  $data[$otherField],
+              ),
         );
         if (!$missingAnyField) {
             return true;

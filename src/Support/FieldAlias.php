@@ -23,15 +23,17 @@ class FieldAlias
     /**
      * Field name aliases storage.
      *
-     * @var array<string,string> Associative array where keys are field names and values are their human-readable aliases
+     * @var array<string,string> Associative array where keys are field names
+     *   and values are their human-readable aliases
      */
     protected static array $aliases = [];
 
     /**
      * Retrieves all defined field aliases.
      *
-     * @return array<string,string> Associative array of all field aliases where keys are field names
-     *                            and values are their corresponding display names
+     * @return array<string,string> Associative array of all field aliases
+     *   where keys are field names and values are their corresponding display
+     *   names
      *
      * @example
      * // Returns ['user_email' => 'Email Address', 'pwd' => 'Password']
@@ -62,13 +64,16 @@ class FieldAlias
      * the field name will be automatically humanized.
      *
      * @param string $field The field name to look up
-     * @return string The display name (alias if exists, otherwise humanized field name)
      *
-     * @example
-     * FieldAlias::get('user_email'); // Returns 'Email Address' if alias exists
-     * FieldAlias::get('first_name'); // Returns 'First Name' (auto-humanized)
+     * @return string The display name (alias if exists, otherwise humanized
+     *   field name)
      *
      * @see FieldAlias::humanize() For the auto-formatting logic
+     * @example
+     * FieldAlias::get('user_email'); // Returns 'Email Address' if alias
+     *   exists
+     * FieldAlias::get('first_name'); // Returns 'First Name' (auto-humanized)
+     *
      */
     public static function get(string $field): string
     {
@@ -78,14 +83,19 @@ class FieldAlias
     /**
      * Retrieves aliases for multiple fields in a single call.
      *
-     * More efficient than multiple get() calls when you need aliases for multiple fields.
+     * More efficient than multiple get() calls when you need aliases for
+     * multiple fields.
      *
      * @param string[] $fields Array of field names to look up
-     * @return array<string,string> Associative array where keys are field names
-     *                            and values are their corresponding display names
+     *
+     * @return array<string,string> Associative array where keys are field
+     *   names
+     *                            and values are their corresponding display
+     *   names
      *
      * @example
-     * $aliases = FieldAlias::getMany(['user_email', 'first_name', 'last_name']);
+     * $aliases = FieldAlias::getMany(['user_email', 'first_name',
+     *   'last_name']);
      * // Returns ['user_email' => 'Email', 'first_name' => 'First Name', ...]
      */
     public static function getMany(array $fields): array
@@ -102,6 +112,7 @@ class FieldAlias
      * Checks if an alias exists for the specified field.
      *
      * @param string $field The field name to check
+     *
      * @return bool True if an explicit alias exists, false otherwise
      *
      * @example
@@ -120,6 +131,7 @@ class FieldAlias
      * If the field has no alias, this method does nothing.
      *
      * @param string $field The field name whose alias should be removed
+     *
      * @return void
      *
      * @example
@@ -133,10 +145,13 @@ class FieldAlias
     /**
      * Removes multiple field aliases in a single operation.
      *
-     * More efficient than multiple remove() calls when you need to remove several aliases.
-     * Non-existent field names in the input array are ignored.
+     * More efficient than multiple remove() calls when you need to remove
+     * several aliases. Non-existent field names in the input array are
+     * ignored.
      *
-     * @param string[] $fields Array of field names whose aliases should be removed
+     * @param string[] $fields Array of field names whose aliases should be
+     *   removed
+     *
      * @return void
      *
      * @example
@@ -153,10 +168,13 @@ class FieldAlias
      * Sets a single field alias or merges multiple aliases.
      *
      * This method provides a flexible way to set one or more field aliases.
-     * When called with an array as the first parameter, it merges all aliases at once.
+     * When called with an array as the first parameter, it merges all aliases
+     * at once.
      *
-     * @param string|array<string,string> $field Field name (string) or associative array of field => alias pairs
+     * @param string|array<string,string> $field Field name (string) or
+     *   associative array of field => alias pairs
      * @param string|null $alias Alias name (required if $field is a string)
+     *
      * @return void
      *
      * @example
@@ -184,12 +202,15 @@ class FieldAlias
     /**
      * Sets multiple field aliases in a single batch operation.
      *
-     * This method is optimized for setting multiple aliases at once and provides
-     * the option to either merge with existing aliases or replace them entirely.
+     * This method is optimized for setting multiple aliases at once and
+     * provides the option to either merge with existing aliases or replace
+     * them entirely.
      *
-     * @param array<string,string> $aliases Associative array of field => alias pairs
-     * @param bool $replace If true, replaces all existing aliases with the new set.
-     *                     If false (default), merges new aliases with existing ones.
+     * @param array<string,string> $aliases Associative array of field => alias
+     *   pairs
+     * @param bool $replace If true, replaces all existing aliases with the new
+     *   set. If false (default), merges new aliases with existing ones.
+     *
      * @return void
      *
      * @example
@@ -197,13 +218,13 @@ class FieldAlias
      * FieldAlias::setBatch([
      *     'user_email' => 'Email Address',
      *     'pwd' => 'Password'
-     ]);
+     * ]);
      *
      * // Replace all existing aliases
      * FieldAlias::setBatch([
      *     'first_name' => 'First Name',
      *     'last_name' => 'Last Name'
-     ], true);
+     * ], true);
      */
     public static function setBatch(array $aliases, bool $replace = false): void
     {
@@ -222,6 +243,7 @@ class FieldAlias
      * hyphens, and dots with spaces and capitalizes each word.
      *
      * @param string $field The field name to humanize
+     *
      * @return string The humanized field name
      *
      * @example
