@@ -5,8 +5,6 @@ use Infocyph\ReqShield\Rules\Callback;
 use Infocyph\ReqShield\Support\FieldAlias;
 use Infocyph\ReqShield\Validator;
 
-// --- Example 2, 3, 5, 7, 16, 17, 19, 21, 22, 30 ---
-
 test('failed validation with aliases returns correct messages', function () {
     $validator = Validator::make([
         'user_email' => 'required|email',

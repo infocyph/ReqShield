@@ -6,7 +6,7 @@ test.php
 composer.lock
 git-story_media
 *~
-*.txt
+./*.txt
 .windsurf
 .vscode
 .phpunit.cache

@@ -48,26 +48,3 @@ function something()
     // ..
 }
 
-/*
-|--------------------------------------------------------------------------
-| Custom Expectations for ReqShield Tests
-|--------------------------------------------------------------------------
-*/
-
-expect()->extend('toBeValidEmail', function () {
-    return $this->toMatch('/^[^\s@]+@[^\s@]+\.[^\s@]+$/');
-});
-
-expect()->extend('toBeValidUrl', function () {
-    return $this->toMatch('/^https?:\/\/.+/');
-});
-
-expect()->extend('toBeValidSlug', function () {
-    return $this->toMatch('/^[a-z0-9]+(?:-[a-z0-9]+)*$/');
-});
-
-expect()->extend('toContainValidationError', function (string $field) {
-    return $this->toHaveKey($field)
-        ->and($this->value[$field])->toBeArray()
-        ->and($this->value[$field])->not->toBeEmpty();
-});
