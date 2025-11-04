@@ -56,8 +56,57 @@ The ``validate()`` method returns a ``ValidationResult`` object, which you can u
 
 See :doc:`handling-results` for more details.
 
-Handling Failures
------------------
+Handling Validation Results
+----------------------------
+
+Checking Pass/Fail
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: php
+
+    if ($result->passes()) {
+        echo "✓ Validation passed!";
+        $validatedData = $result->validated();
+    }
+
+    if ($result->fails()) {
+        echo "✗ Validation failed!";
+        $errors = $result->errors();
+    }
+
+Getting Validated Data
+~~~~~~~~~~~~~~~~~~~~~~
+
+Only the fields that passed validation are included in the validated data.
+
+.. code-block:: php
+
+    $validatedData = $result->validated();
+    // ['email' => 'john@example.com', 'username' => 'johndoe', ...]
+
+Getting Errors
+~~~~~~~~~~~~~~
+
+Errors are returned as an array with field names as keys.
+
+.. code-block:: php
+
+    $errors = $result->errors();
+    /*
+    [
+        'email' => ['The email must be a valid email address.'],
+        'username' => ['The username must be at least 3 characters.']
+    ]
+    */
+
+    // Get errors for a specific field
+    $emailErrors = $result->errors('email');
+
+    // Get the first error for a field
+    $firstError = $result->errors('email')[0] ?? null;
+
+Throwing Exceptions on Failure
+-------------------------------
 
 By default, you check the ``ValidationResult`` object. However, you can instruct the validator to throw an exception on failure using ``throwOnFailure()``.
 
@@ -81,16 +130,20 @@ By default, you check the ``ValidationResult`` object. However, you can instruct
 
     } catch (ValidationException $e) {
         echo "✗ Validation failed:\n";
-        // $e->getErrors() returns the array of errors
+        
+        // Get all errors
         print_r($e->getErrors());
-
+        
         // Get specific error details
-        echo 'Error count: '.$e->getErrorCount()." field(s)\n";
-        echo 'First error for email: '.$e->getFirstFieldError('email')."\n";
+        echo 'Error count: ' . $e->getErrorCount() . " field(s)\n";
+        echo 'First error for email: ' . $e->getFirstFieldError('email') . "\n";
+        
+        // Get HTTP status code (default: 422)
+        echo 'Status code: ' . $e->getCode() . "\n";
     }
 
-Customizing Error Messages
---------------------------
+Customizing Field Names
+-----------------------
 
 You can provide human-readable names for your fields to make error messages clearer using ``setFieldAliases()``.
 
@@ -110,32 +163,248 @@ You can provide human-readable names for your fields to make error messages clea
 
     $result = $validator->validate(['user_email' => 'not-an-email']);
 
-    // The error message will be:
+    // The error message will now be:
     // "The Email Address must be a valid email address."
     print_r($result->errors()['user_email'][0]);
 
-Fail-Fast vs. Bail
-------------------
+Batch Field Aliases
+~~~~~~~~~~~~~~~~~~~
+
+For setting many aliases at once, use the ``FieldAlias`` utility:
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Support\FieldAlias;
+
+    FieldAlias::setBatch([
+        'user_email' => 'Email Address',
+        'user_name' => 'Full Name',
+        'pwd' => 'Password',
+        'pwd_confirm' => 'Password Confirmation',
+    ]);
+
+Custom Error Messages
+---------------------
+
+You can override the default error message for specific fields using ``setCustomMessage()``.
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'email' => 'required|email',
+        'age' => 'required|integer|min:18',
+    ]);
+
+    $validator->setCustomMessage('email', 'Please provide a valid email address.');
+    $validator->setCustomMessage('age', 'You must be at least 18 years old.');
+
+    $result = $validator->validate([
+        'email' => 'invalid',
+        'age' => 15,
+    ]);
+
+    // Custom messages will be used
+    print_r($result->errors());
+
+Fail-Fast vs. Collect All Errors
+---------------------------------
 
 ReqShield is "fail-fast" by default, meaning it stops validating a *single field* as soon as one of its rules fails.
 
-* ``'email' => 'required|email|max:10'``
-    * If ``email`` is empty, it fails on ``required`` and **stops**. It will not check ``email`` or ``max:10``.
-    * This is fast and provides the most relevant error first.
+Default Behavior (Fail-Fast per Field)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can control this behavior in two ways:
+.. code-block:: php
 
-1.  **``setStopOnFirstError(true)``**: This tells the validator to stop validating *all fields* as soon as *any* field fails. This is useful for performance when you only care about the first error.
+    'email' => 'required|email|max:10'
 
-    .. code-block:: php
+- If ``email`` is empty, it fails on ``required`` and **stops**.
+- It will not check ``email`` or ``max:10`` rules.
+- This is fast and provides the most relevant error first.
 
-        $validator->setStopOnFirstError(true);
-        $result = $validator->validate(['field1' => '', 'field2' => '']);
-        // $result->errors() will only contain the error for 'field1'
+Stop on First Field Error
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-2.  **``bail`` Rule**: Add ``bail`` as the *first* rule in a chain to stop validation *for that field* on the first failure. This is the default behavior, but the ``bail`` rule makes it explicit and allows for more control if you want to change the default.
+Use ``setStopOnFirstError(true)`` to stop validating *all fields* as soon as *any* field fails.
 
-    .. code-block:: php
+.. code-block:: php
 
-        // 'bail' ensures validation stops at the first error for this field
-        $rules = ['email' => ['bail', 'required', 'email', 'max:255']];
+    $validator = Validator::make([
+        'field1' => 'required',
+        'field2' => 'required',
+        'field3' => 'required',
+    ])->setStopOnFirstError(true);
+
+    $result = $validator->validate(['field1' => '', 'field2' => '', 'field3' => '']);
+    
+    // Only the error for 'field1' will be present
+    // Validation stops immediately after first field fails
+
+Using the Bail Rule
+~~~~~~~~~~~~~~~~~~~~
+
+Add ``bail`` as a rule to stop validation for that field on the first failure. This is the default behavior, but ``bail`` makes it explicit.
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'email' => ['bail', 'required', 'email', 'max:255'],
+    ]);
+
+Optional Fields
+---------------
+
+Fields are required by default. To make a field optional, use the ``nullable`` rule or omit the ``required`` rule.
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'email' => 'required|email',      // Required
+        'phone' => 'nullable|string',     // Optional, can be null
+        'bio' => 'string|max:500',        // Optional, validates if present
+    ]);
+
+Conditional Validation
+----------------------
+
+You can make fields required based on the presence or value of other fields.
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'payment_method' => 'required|in:card,paypal,bank',
+        'card_number' => 'required_if:payment_method,card',
+        'paypal_email' => 'required_if:payment_method,paypal|email',
+        'bank_account' => 'required_if:payment_method,bank',
+    ]);
+
+See :doc:`rule-reference` for all conditional validation rules.
+
+Complete Example
+----------------
+
+Here's a complete example putting it all together:
+
+.. code-block:: php
+
+    <?php
+
+    use Infocyph\ReqShield\Validator;
+    use Infocyph\ReqShield\Sanitizer;
+    use Infocyph\ReqShield\Exceptions\ValidationException;
+
+    // Step 1: Sanitize input
+    $rawInput = [
+        'email' => '  john@EXAMPLE.com  ',
+        'username' => '  john_doe!  ',
+        'age' => '25.5',
+        'password' => 'secret123',
+        'password_confirmation' => 'secret123',
+    ];
+
+    $cleanInput = [
+        'email' => Sanitizer::email($rawInput['email']),
+        'username' => Sanitizer::alphaDash($rawInput['username']),
+        'age' => Sanitizer::integer($rawInput['age']),
+        'password' => $rawInput['password'],
+        'password_confirmation' => $rawInput['password_confirmation'],
+    ];
+
+    // Step 2: Create validator
+    $validator = Validator::make([
+        'email' => 'required|email|max:255',
+        'username' => 'required|alpha_dash|min:3|max:50',
+        'age' => 'required|integer|min:18|max:120',
+        'password' => 'required|min:8',
+        'password_confirmation' => 'required|same:password',
+    ]);
+
+    // Step 3: Set field aliases
+    $validator->setFieldAliases([
+        'email' => 'Email Address',
+        'username' => 'Username',
+        'age' => 'Age',
+        'password' => 'Password',
+        'password_confirmation' => 'Password Confirmation',
+    ]);
+
+    // Step 4: Validate
+    $result = $validator->validate($cleanInput);
+
+    // Step 5: Handle result
+    if ($result->passes()) {
+        $validatedData = $result->validated();
+        echo "✓ Registration successful!";
+        // Process registration...
+    } else {
+        $errors = $result->errors();
+        echo "✗ Validation failed:\n";
+        foreach ($errors as $field => $messages) {
+            foreach ($messages as $message) {
+                echo "  - {$message}\n";
+            }
+        }
+    }
+
+Performance Optimization
+------------------------
+
+ReqShield is optimized for speed with several built-in features:
+
+Rule Cost Optimization
+~~~~~~~~~~~~~~~~~~~~~~
+
+Rules are automatically sorted by cost (complexity) and executed in optimal order:
+
+- **Cheap rules** (cost < 50): Type checks, empty checks - run first
+- **Medium rules** (cost 50-99): String operations, regex - run second
+- **Expensive rules** (cost 100+): Database queries, API calls - batched and run last
+
+Batch Database Operations
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Database rules (``exists``, ``unique``) are automatically batched to reduce query count:
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'user_id' => 'exists:users,id',
+        'email' => 'unique:users,email',
+        'category_id' => 'exists:categories,id',
+    ]);
+
+    // Instead of 3 separate queries, ReqShield batches them into 2 queries
+    // (one for exists checks, one for unique checks)
+
+Stop on First Error
+~~~~~~~~~~~~~~~~~~~
+
+Use ``setStopOnFirstError(true)`` for maximum performance when you only need to know if validation fails:
+
+.. code-block:: php
+
+    $validator->setStopOnFirstError(true);
+    // Stops validation immediately on first error
+
+Nested Field Optimization
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Nested validation automatically detects if nested rules are present and only flattens data when needed:
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'user.email' => 'required|email',
+        'user.name' => 'required',
+    ])->enableNestedValidation();
+    
+    // Data is automatically flattened only if needed
+
+Next Steps
+----------
+
+- Learn about all available rules in :doc:`rule-reference`
+- Explore sanitization options in :doc:`sanitization`
+- Create custom validation rules in :doc:`custom-rules`
+- Handle validation results in :doc:`handling-results`
+- Work with nested data in :doc:`nested-validation`
