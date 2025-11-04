@@ -3,8 +3,7 @@ Helper Functions
 
 ReqShield includes several global helper functions (loaded via ``composer.json``'s ``files`` autoload) to provide convenient shortcuts for common tasks.
 
-``validator(array $rules, ?DatabaseProvider $db = null): Validator``
---------------------------------------------------------------------
+.. php:function:: validator(array $rules, ?DatabaseProvider $db = null): Validator
 
 Creates a new ``Validator`` instance. This is a shortcut for ``Validator::make()``.
 
