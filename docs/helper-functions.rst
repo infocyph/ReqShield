@@ -13,8 +13,7 @@ Creates a new ``Validator`` instance. This is a shortcut for ``Validator::make()
     $validator = validator(['email' => 'required|email']);
     $result = $validator->validate($data);
 
-``validate(array $rules, array $data, ?DatabaseProvider $db = null): ValidationResult``
---------------------------------------------------------------------------------------
+.. php:function:: validate(array $rules, array $data, ?DatabaseProvider $db = null): ValidationResult
 
 Creates a validator and immediately validates the given data.
 
@@ -26,8 +25,7 @@ Creates a validator and immediately validates the given data.
         // ...
     }
 
-``sanitize(mixed $value, string|array $sanitizers): mixed``
-----------------------------------------------------------
+.. php:function:: sanitize(mixed $value, string|array $sanitizers): mixed
 
 Sanitizes a value using one or more sanitizers from the ``Sanitizer`` class.
 
@@ -43,8 +41,7 @@ Sanitizes a value using one or more sanitizers from the ``Sanitizer`` class.
     // 3. 'john!' (lowercase)
     // 4. 'john' (alphaDash)
 
-``passes(array $rules, array $data, ?DatabaseProvider $db = null): bool``
-------------------------------------------------------------------------
+.. php:function:: passes(array $rules, array $data, ?DatabaseProvider $db = null): bool
 
 A quick check to see if validation passes. Returns ``true`` on success, ``false`` on failure.
 
@@ -56,8 +53,7 @@ A quick check to see if validation passes. Returns ``true`` on success, ``false`
         // Failed
     }
 
-``fails(array $rules, array $data, ?DatabaseProvider $db = null): bool``
-----------------------------------------------------------------------
+.. php:function:: fails(array $rules, array $data, ?DatabaseProvider $db = null): bool
 
 A quick check to see if validation fails. Returns ``true`` on failure, ``false`` on success.
 
