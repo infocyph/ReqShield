@@ -76,7 +76,7 @@ if ($result->passes()) {
 
 ### Sanitization
 
-Always sanitize before validating:
+Sanitize before validating:
 
 ```php
 use Infocyph\ReqShield\Sanitizer;
@@ -170,7 +170,7 @@ ReqShield includes 103 validation rules covering every common scenario:
 ### Array Operations
 `array` • `batch` • `apply`
 
-**[📖 View Complete Sanitizer Reference](https://reqshield.readthedocs.io/en/latest/sanitization.html)**
+**[📖 View Complete Sanitizer Reference](https://docs.infocyph.com/projects/reqshield/en/latest/sanitization.html)**
 
 ---
 
@@ -363,70 +363,9 @@ Nested validation only activates if you use dot notation. No performance cost fo
 
 ---
 
-## 📖 Documentation
-
-Comprehensive documentation is available on ReadTheDocs:
-
-- **[Getting Started](https://reqshield.readthedocs.io/en/latest/basic-usage.html)**
-- **[Complete Rule Reference (103 rules)](https://reqshield.readthedocs.io/en/latest/rule-reference.html)**
-- **[Complete Sanitizer Reference (50+ methods)](https://reqshield.readthedocs.io/en/latest/sanitization.html)**
-- **[Custom Rules](https://reqshield.readthedocs.io/en/latest/custom-rules.html)**
-- **[Nested Validation](https://reqshield.readthedocs.io/en/latest/nested-validation.html)**
-- **[Handling Results](https://reqshield.readthedocs.io/en/latest/handling-results.html)**
-
----
-
-## 🧪 Testing
-
-ReqShield uses [Pest PHP](https://pestphp.com/) for testing:
-
-```bash
-# Run all tests
-composer test
-
-# Run tests with coverage
-composer test:code
-
-# Run code style checks
-composer test:lint
-
-# Run refactoring checks
-composer test:refactor
-
-# Run all checks
-composer tests
-```
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please ensure your code:
-- Follows PSR-12 coding standards
-- Includes tests for new features
-- Updates documentation as needed
-
----
-
 ## 📄 License
 
 ReqShield is open-sourced software licensed under the [MIT license](LICENSE).
-
----
-
-## 👨‍💻 Author
-
-**abmmhasan** (infocyph)
-- Email: abmmhasan@gmail.com
-- GitHub: [@infocyph](https://github.com/infocyph)
 
 ---
 
@@ -436,33 +375,10 @@ If you find ReqShield helpful, please consider giving it a ⭐️ on GitHub!
 
 ---
 
-## 🔗 Related Projects
-
-- **[Laravel Validation](https://laravel.com/docs/validation)** - Inspiration for rule syntax
-- **[Respect/Validation](https://github.com/Respect/Validation)** - Another great PHP validation library
-- **[Symfony Validator](https://symfony.com/doc/current/validation.html)** - Symfony's validation component
-
----
-
-## 🎯 Why ReqShield?
-
-| Feature | ReqShield | Others |
-|---------|-----------|--------|
-| **Rules** | 103 built-in | ~50-80 |
-| **Sanitizers** | 50+ methods | Limited or none |
-| **Database Batching** | ✅ Automatic | ❌ Manual |
-| **Nested Validation** | ✅ Dot notation | ⚠️ Complex |
-| **Performance** | ⚡ Cost-optimized | 🐌 Linear |
-| **PHP Version** | 8.4+ (modern) | 7.x-8.x (legacy) |
-| **PSR-7 Ready** | ✅ Yes | ⚠️ Varies |
-| **Custom Rules** | ✅ Simple & OOP | ⚠️ Complex |
-
----
-
 <div align="center">
 
 **Made with ❤️ for the PHP community**
 
-[Documentation](https://reqshield.readthedocs.io) • [Report Bug](https://github.com/infocyph/reqshield/issues) • [Request Feature](https://github.com/infocyph/reqshield/issues)
+[Documentation](https://docs.infocyph.com/projects/reqshield) • [Report Bug](https://github.com/infocyph/reqshield/issues) • [Request Feature](https://github.com/infocyph/reqshield/issues)
 
 </div>
