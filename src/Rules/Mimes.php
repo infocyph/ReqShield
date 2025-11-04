@@ -4,64 +4,41 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Rules;
 
-/**
- * Mimes Rule - Cost: 15
- *
- * Validates file MIME types by mapping file extensions to their corresponding
- * MIME types.
- *
- * Usage:
- *   'document' => 'mimes:pdf,doc,docx'
- *   'photo' => 'mimes:jpg,png,gif'
- *
- * The rule accepts file extensions and automatically maps them to MIME types
- * using the mime-types.php configuration file.
- */
+use Infocyph\ReqShield\Support\MimeTypeResolver;
+
 class Mimes extends BaseRule
 {
     /**
-     * Cached MIME type mappings
-     * Loaded from mime-types.php configuration file
+     * Allowed file extensions
      */
-    protected static ?array $mimeMap = null;
-
     protected array $types;
 
+    /**
+     * Create a new Mimes rule instance
+     *
+     * @param string ...$types File extensions (without dots)
+     */
     public function __construct(string ...$types)
     {
         $this->types = $types;
-
-        // Load MIME type mappings if not already loaded
-        if (self::$mimeMap === null) {
-            self::loadMimeTypes();
-        }
     }
 
     /**
-     * Clear the cached MIME type mappings (useful for testing)
+     * Get the cost of this rule
+     *
+     * @return int
      */
-    public static function clearMimeMap(): void
-    {
-        self::$mimeMap = null;
-    }
-
-    /**
-     * Get the MIME type mapping array (for testing/debugging)
-     */
-    public static function getMimeMap(): array
-    {
-        if (self::$mimeMap === null) {
-            self::loadMimeTypes();
-        }
-
-        return self::$mimeMap;
-    }
-
     public function cost(): int
     {
         return 15;
     }
 
+    /**
+     * Get the validation error message
+     *
+     * @param string $field Field name
+     * @return string
+     */
     public function message(string $field): string
     {
         return "The {$field} must be one of these types: " . implode(
@@ -70,8 +47,17 @@ class Mimes extends BaseRule
         ) . '.';
     }
 
+    /**
+     * Determine if the validation rule passes
+     *
+     * @param mixed $value File array from $_FILES
+     * @param string $field Field name
+     * @param array $data All validation data
+     * @return bool
+     */
     public function passes(mixed $value, string $field, array $data): bool
     {
+        // Ensure value is a valid file array with MIME type
         if (!is_array($value) || !isset($value['type'])) {
             return false;
         }
@@ -80,31 +66,42 @@ class Mimes extends BaseRule
 
         // Check each extension provided
         foreach ($this->types as $extension) {
-            // Get allowed MIME types for this extension
-            // If extension not in map, treat it as a literal MIME type (backward compatibility)
-            $allowedMimes = self::$mimeMap[strtolower(
-                $extension,
-            )] ?? [$extension];
+            // Get allowed MIME types for this extension using MimeTypeResolver
+            // This only loads the category needed (lazy loading)
+            $allowedMimes = MimeTypeResolver::getMimeTypes($extension);
 
             // Check if file's MIME type matches any of the allowed MIME types
             if (in_array($fileMimeType, $allowedMimes, true)) {
                 return true;
             }
         }
-        return false;
+
+        // If extension is not found in resolver, treat as literal MIME type
+        // This provides backward compatibility
+        return in_array($fileMimeType, $this->types, true);
     }
 
     /**
-     * Load MIME type mappings from configuration file
+     * Get the MIME types for given extensions (for debugging/testing)
      *
-     * Looks for mime-types.php in the following locations:
-     * 1. Same directory as this class file
-     * 2. Project root config directory
-     * 3. Package config directory
+     * @return array Array of extension => MIME types
      */
-    protected static function loadMimeTypes(): void
+    public function getResolvedMimeTypes(): array
     {
-        self::$mimeMap = require __DIR__ . '/mime-types.php';
+        $resolved = [];
+        foreach ($this->types as $extension) {
+            $resolved[$extension] = MimeTypeResolver::getMimeTypes($extension);
+        }
+        return $resolved;
     }
 
+    /**
+     * Clear the MimeTypeResolver cache (useful for testing)
+     *
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        MimeTypeResolver::clearCache();
+    }
 }
