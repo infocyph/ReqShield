@@ -1,6 +1,6 @@
 # 🛡️ ReqShield
 
-[![Security & Standards](https://github.com/infocyph/ReqShield/actions/workflows/build.yml/badge.svg)](https://github.com/infocyph/ReqShield/actions/workflows/build.yml)
+[![Security & Standards](https://github.com/infocyph/ReqShield/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/infocyph/ReqShield/actions/workflows/build.yml)
 ![Packagist Downloads](https://img.shields.io/packagist/dt/infocyph/ReqShield?color=green&link=https%3A%2F%2Fpackagist.org%2Fpackages%2Finfocyph%2FReqShield)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 ![Packagist Version](https://img.shields.io/packagist/v/infocyph/ReqShield)
