@@ -24,6 +24,16 @@ class Mimes extends BaseRule
     }
 
     /**
+     * Clear the MimeTypeResolver cache (useful for testing)
+     *
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        MimeTypeResolver::clearCache();
+    }
+
+    /**
      * Get the cost of this rule
      *
      * @return int
@@ -31,6 +41,20 @@ class Mimes extends BaseRule
     public function cost(): int
     {
         return 15;
+    }
+
+    /**
+     * Get the MIME types for given extensions (for debugging/testing)
+     *
+     * @return array Array of extension => MIME types
+     */
+    public function getResolvedMimeTypes(): array
+    {
+        $resolved = [];
+        foreach ($this->types as $extension) {
+            $resolved[$extension] = MimeTypeResolver::getMimeTypes($extension);
+        }
+        return $resolved;
     }
 
     /**
@@ -79,29 +103,5 @@ class Mimes extends BaseRule
         // If extension is not found in resolver, treat as literal MIME type
         // This provides backward compatibility
         return in_array($fileMimeType, $this->types, true);
-    }
-
-    /**
-     * Get the MIME types for given extensions (for debugging/testing)
-     *
-     * @return array Array of extension => MIME types
-     */
-    public function getResolvedMimeTypes(): array
-    {
-        $resolved = [];
-        foreach ($this->types as $extension) {
-            $resolved[$extension] = MimeTypeResolver::getMimeTypes($extension);
-        }
-        return $resolved;
-    }
-
-    /**
-     * Clear the MimeTypeResolver cache (useful for testing)
-     *
-     * @return void
-     */
-    public static function clearCache(): void
-    {
-        MimeTypeResolver::clearCache();
     }
 }
