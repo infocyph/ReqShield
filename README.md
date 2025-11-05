@@ -1,9 +1,12 @@
 # 🛡️ ReqShield
 
-[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D8.4-777BB4?logo=php&logoColor=white)](https://www.php.net/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
-[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://reqshield.readthedocs.io)
+[![Security & Standards](https://github.com/infocyph/ReqShield/actions/workflows/build.yml/badge.svg)](https://github.com/infocyph/ReqShield/actions/workflows/build.yml)
+![Packagist Downloads](https://img.shields.io/packagist/dt/infocyph/ReqShield?color=green&link=https%3A%2F%2Fpackagist.org%2Fpackages%2Finfocyph%2FReqShield)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+![Packagist Version](https://img.shields.io/packagist/v/infocyph/ReqShield)
+![Packagist PHP Version](https://img.shields.io/packagist/dependency-v/infocyph/ReqShield/php)
+![GitHub Code Size](https://img.shields.io/github/languages/code-size/infocyph/ReqShield)
+[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://docs.infocyph.com/projects/reqshield)
 
 **Fast, modern PHP request validation and sanitization.** Schema-based rules, fail-fast execution, intelligent batching, and 100+ validation rules out of the box.
 
@@ -100,75 +103,39 @@ $clean = sanitize('<b>TEXT</b>', ['string', 'lowercase']); // 'text'
 
 ---
 
-## 📚 Available Rules (103)
+## 📚 Available Rules (100+)
 
-ReqShield includes 103 validation rules covering every common scenario:
+ReqShield includes 100+ validation rules covering several common scenarios:
 
-### Basic Types
-`required` • `filled` • `string` • `integer` • `numeric` • `boolean` • `array` • `nullable` • `present`
+- Basic Types
+- Formats
+- Strings
+- Numbers
+- Dates
+- Conditionals
+- Database
+- Files
+- Arrays
+- Comparison
+- Patterns
+- Additional
 
-### Formats
-`email` • `url` • `active_url` • `ip` • `json` • `uuid` • `ulid` • `mac` • `hex_color` • `timezone`
-
-### Strings
-`alpha` • `alpha_num` • `alpha_dash` • `ascii` • `lowercase` • `uppercase` • `starts_with` • `ends_with` • `contains` • `doesnt_contain` • `doesnt_start_with` • `doesnt_end_with`
-
-### Numbers
-`min` • `max` • `between` • `size` • `digits` • `digits_between` • `min_digits` • `max_digits` • `decimal` • `multiple_of` • `gt` • `gte` • `lt` • `lte`
-
-### Dates
-`date` • `date_format` • `date_equals` • `before` • `before_or_equal` • `after` • `after_or_equal`
-
-### Conditionals (27 rules!)
-`required_if` • `required_unless` • `required_with` • `required_with_all` • `required_without` • `required_without_all` • `required_array_keys` • `required_if_accepted` • `required_if_declined` • `present_if` • `present_unless` • `present_with` • `present_with_all` • `missing` • `missing_if` • `missing_unless` • `prohibited` • `prohibited_if` • `prohibited_unless` • `prohibits` • `exclude` • `exclude_if` • `exclude_unless` • `exclude_with` • `exclude_without`
-
-### Database
-`unique:table,column` • `exists:table,column`
-
-### Files
-`file` • `image` • `mimes` • `mimetypes` • `extensions` • `dimensions`
-
-### Arrays
-`in` • `not_in` • `in_array` • `distinct` • `is_list`
-
-### Comparison
-`same` • `different` • `confirmed`
-
-### Patterns
-`regex` • `not_regex`
-
-### Additional
-`accepted` • `accepted_if` • `declined` • `declined_if` • `bail` • `callback`
-
-**[📖 View Complete Rule Reference](https://reqshield.readthedocs.io/en/latest/rule-reference.html)**
+**[📖 View Complete Rule Reference](https://docs.infocyph.com/projects/reqshield/en/latest/rule-reference.html)**
 
 ---
 
 ## 🧹 Available Sanitizers (50+)
 
-### Basic Types
-`string` • `integer` • `float` • `boolean` • `email` • `url`
+ReqShield includes 50+ sanitizers covering several common scenarios:
 
-### Case Conversions
-`lowercase` • `uppercase` • `camelCase` • `pascalCase` • `snakeCase` • `kebabCase` • `titleCase` • `sentenceCase`
-
-### Text Processing
-`trim` • `slug` • `truncate` • `truncateWords` • `normalizeWhitespace` • `removeLineBreaks` • `stripWhitespace`
-
-### Special Formats
-`phone` • `currency` • `formatCurrency` • `filename` • `domain`
-
-### Alphanumeric Filters
-`alpha` • `alphanumeric` • `alphaDash` • `alphanumericSpace` • `numeric`
-
-### Security & HTML
-`htmlEncode` • `htmlDecode` • `stripTags` • `stripUnsafeTags` • `removeXss` • `escapeLike` • `removeSqlPatterns`
-
-### Encoding
-`base64Encode` • `base64Decode` • `jsonEncode` • `jsonDecode`
-
-### Array Operations
-`array` • `batch` • `apply`
+- Basic Types
+- Case Conversions
+- Text Processing
+- Special Formats
+- Alphanumeric Filters
+- Security & HTML
+- Encoding
+- Array Operations
 
 **[📖 View Complete Sanitizer Reference](https://docs.infocyph.com/projects/reqshield/en/latest/sanitization.html)**
 
