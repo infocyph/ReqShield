@@ -15,7 +15,7 @@ class Exists extends BaseRule
 {
     protected string $column;
 
-    protected ?DatabaseProvider $db;
+    protected ?DatabaseProvider $db = null;
 
     protected string $table;
 

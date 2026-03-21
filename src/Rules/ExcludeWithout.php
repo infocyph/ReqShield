@@ -28,7 +28,7 @@ class ExcludeWithout extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return isset($data[$this->otherField]); // Exclude field
+        return array_key_exists($this->otherField, $data); // Exclude field
 
     }
 

@@ -35,7 +35,7 @@ class RequiredWithAll extends BaseRule
         $hasAllFields = array_all(
             $this->fields,
             fn ($otherField)
-              => !(!isset($data[$otherField]) || $this->isEmpty(
+              => !(!array_key_exists($otherField, $data) || $this->isEmpty(
                   $data[$otherField],
               )),
         );

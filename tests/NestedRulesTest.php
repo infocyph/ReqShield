@@ -74,3 +74,46 @@ test('nested validation fails with missing keys', function () {
     expect($result->errors())->toHaveKey('user.profile.age');
     expect($result->errors()['user.profile.age'][0])->toContain('required');
 });
+
+test('nested wildcard validation passes', function () {
+    $validator = Validator::make([
+        'contacts.*.email' => 'required|email',
+        'contacts.*.name' => 'required|min:2',
+    ])->enableNestedValidation();
+
+    $data = [
+        'contacts' => [
+            ['email' => 'john@example.com', 'name' => 'John'],
+            ['email' => 'jane@example.com', 'name' => 'Jane'],
+        ],
+    ];
+
+    $result = $validator->validate($data);
+
+    expect($result->passes())->toBeTrue();
+    expect($result->validated())->toHaveKeys([
+        'contacts.0.email',
+        'contacts.0.name',
+        'contacts.1.email',
+        'contacts.1.name',
+    ]);
+});
+
+test('nested wildcard validation fails with indexed errors', function () {
+    $validator = Validator::make([
+        'contacts.*.email' => 'required|email',
+        'contacts.*.name' => 'required|min:2',
+    ])->enableNestedValidation();
+
+    $data = [
+        'contacts' => [
+            ['email' => 'bad-email', 'name' => 'A'],
+            ['email' => 'ok@example.com', 'name' => 'Jane'],
+        ],
+    ];
+
+    $result = $validator->validate($data);
+
+    expect($result->fails())->toBeTrue();
+    expect($result->errors())->toHaveKeys(['contacts.0.email', 'contacts.0.name']);
+});

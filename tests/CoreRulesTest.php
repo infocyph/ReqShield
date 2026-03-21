@@ -347,11 +347,7 @@ test('existence rules fail', function () {
     $result = $validator->validate($data);
     expect($result->fails())
       ->toBeTrue()
-      ->and($result->errors())->toHaveKeys(['optional']);
-
-    // Fix: Based on test output, 'present' (must_exist) and 'filled' (not_empty)
-    // appear to be bugged and do not report errors in this case.
-    // This assertion checks for the *only* error that *is* correctly reported.
+      ->and($result->errors())->toHaveKeys(['optional', 'must_exist', 'not_empty']);
 });
 
 test('file rules pass', function () {
@@ -495,7 +491,8 @@ describe('Basic Type Rules', function () {
         expect($validator->validate(['token' => 'abc'])->passes())
           ->toBeTrue()
           ->and($validator->validate(['token' => ''])->passes())->toBeTrue()
-          ->and($validator->validate(['token' => null])->passes())->toBeTrue();
+          ->and($validator->validate(['token' => null])->passes())->toBeTrue()
+          ->and($validator->validate([])->fails())->toBeTrue();
     });
 });
 
@@ -576,6 +573,15 @@ describe('String Validation Rules', function () {
           ->and($validator->validate(['file' => 'document.doc'])->passes())
           ->toBeTrue()
           ->and($validator->validate(['file' => 'document.txt'])->fails())
+          ->toBeTrue();
+    });
+
+    test('contains rule validates substring presence', function () {
+        $validator = Validator::make(['message' => 'contains:urgent']);
+
+        expect($validator->validate(['message' => 'urgent notice'])->passes())
+          ->toBeTrue()
+          ->and($validator->validate(['message' => 'normal update'])->fails())
           ->toBeTrue();
     });
 
@@ -889,6 +895,23 @@ describe('Format Validation Rules', function () {
           ->toBeTrue()
           ->and($validator->validate(['tz' => 'Invalid/Timezone'])->fails())
           ->toBeTrue();
+    });
+
+    test('path rule validates path strings', function () {
+        $validator = Validator::make([
+          'any_path' => 'path',
+          'abs_path' => 'path:absolute',
+          'rel_path' => 'path:relative',
+        ]);
+
+        expect($validator->validate([
+            'any_path' => 'storage/logs/app.log',
+            'abs_path' => '/var/www/public/index.php',
+            'rel_path' => 'storage/logs/app.log',
+        ])->passes())->toBeTrue();
+
+        expect($validator->validate(['abs_path' => 'storage/logs/app.log'])->fails())->toBeTrue();
+        expect($validator->validate(['rel_path' => '/etc/hosts'])->fails())->toBeTrue();
     });
 });
 

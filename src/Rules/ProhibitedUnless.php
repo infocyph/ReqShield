@@ -31,7 +31,7 @@ class ProhibitedUnless extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (isset($data[$this->otherField]) && $data[$this->otherField] === $this->value) {
+        if (array_key_exists($this->otherField, $data) && $data[$this->otherField] === $this->value) {
             return true;
         }
         return $this->isEmpty($value);

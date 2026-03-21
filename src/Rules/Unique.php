@@ -15,7 +15,7 @@ class Unique extends BaseRule
 {
     protected ?string $column;
 
-    protected ?DatabaseProvider $db;
+    protected ?DatabaseProvider $db = null;
 
     protected ?string $idColumn;
 
@@ -127,7 +127,7 @@ class Unique extends BaseRule
         foreach ($this->column as $col) {
             if ($col === $field) {
                 $columns[$col] = $value;
-            } elseif (isset($data[$col])) {
+            } elseif (array_key_exists($col, $data)) {
                 $columns[$col] = $data[$col];
             } else {
                 // Missing required column for composite unique

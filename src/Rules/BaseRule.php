@@ -25,6 +25,11 @@ abstract class BaseRule implements Rule
      */
     protected function getSize(mixed $value): float|int|string
     {
+        // Uploaded file arrays should be measured by file size in KB.
+        if (is_array($value) && isset($value['size']) && is_numeric($value['size'])) {
+            return (float)$value['size'] / 1024;
+        }
+
         if (is_numeric($value)) {
             return $value;
         }

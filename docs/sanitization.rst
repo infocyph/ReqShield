@@ -491,6 +491,14 @@ Applies multiple sanitizers to a value in sequence.
     Sanitizer::apply('  <b>HELLO</b>  ', ['string', 'lowercase']); // 'hello'
     Sanitizer::apply('  TEST@EX.COM  ', ['email', 'lowercase']); // 'test@ex.com'
 
+clearCache()
+^^^^^^^^^^^^
+Clears the internal regex pattern cache used by ``Sanitizer``. This is mainly useful in tests.
+
+.. code-block:: php
+
+    Sanitizer::clearCache();
+
 Best Practices
 --------------
 

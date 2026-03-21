@@ -238,6 +238,7 @@ The field under validation must end with one of the given values.
 contains
 ~~~~~~~~
 The field under validation must contain the given value.
+For strings, it checks substring presence. For arrays, it checks item membership.
 
 .. code-block:: php
 
@@ -452,7 +453,7 @@ The field under validation must be a date after or equal to the given date.
 
     'end_date' => 'after_or_equal:start_date'
 
-Conditional Rules (27)
+Conditional Rules (25)
 ----------------------
 
 required_if
@@ -680,7 +681,7 @@ The field under validation must exist within the given database table.
 
 **Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`custom-rules` for more details.
 
-File Rules (6)
+File Rules (7)
 --------------
 
 file
@@ -690,6 +691,17 @@ The field under validation must be a successfully uploaded file (checks ``is_upl
 .. code-block:: php
 
     'document' => 'file'
+
+path
+~~~~
+The field under validation must be a valid filesystem-style path string.
+You may optionally require an absolute or relative path.
+
+.. code-block:: php
+
+    'log_path' => 'path'               // Any non-empty valid path string
+    'root_path' => 'path:absolute'     // Must be absolute (/var/... or C:\...)
+    'cache_dir' => 'path:relative'     // Must be relative (storage/cache)
 
 image
 ~~~~~
@@ -828,7 +840,7 @@ The field under validation must not match the given regular expression.
 
     'username' => 'not_regex:/[^a-zA-Z0-9_]/'  // No special chars
 
-Additional Rules (6)
+Additional Rules (7)
 --------------------
 
 accepted
@@ -873,6 +885,22 @@ Stop validating this field after the first validation failure.
 
 **Note:** ReqShield is fail-fast by default, so ``bail`` is implicit unless you change the behavior.
 
+current_password
+~~~~~~~~~~~~~~~~
+The field under validation must match the authenticated user's current password.
+This rule requires a callable verifier.
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Rules\CurrentPassword;
+
+    'password' => [
+        'required',
+        new CurrentPassword(
+            callback: fn($value, $field, $data) => password_verify($value, $currentUserPasswordHash)
+        ),
+    ]
+
 callback
 ~~~~~~~~
 Use a custom callback function for validation. See :doc:`custom-rules` for detailed usage.
@@ -883,7 +911,7 @@ Use a custom callback function for validation. See :doc:`custom-rules` for detai
 
     'code' => [
         new Callback(
-            callback: fn($value) => $value % 2 === 0,
+            callback: fn($value, $field, $data) => $value % 2 === 0,
             message: 'The code must be an even number'
         )
     ]

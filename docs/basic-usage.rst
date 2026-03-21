@@ -30,7 +30,7 @@ Rules are defined as a pipe-separated string. You can also pass an array of rule
         'code' => [
             'required',
             new Callback(
-                callback: fn ($value) => $value % 2 === 0,
+                callback: fn ($value, $field, $data) => $value % 2 === 0,
                 message: 'Number must be even'
             ),
         ],
@@ -100,10 +100,10 @@ Errors are returned as an array with field names as keys.
     */
 
     // Get errors for a specific field
-    $emailErrors = $result->errors('email');
+    $emailErrors = $result->errorsFor('email');
 
     // Get the first error for a field
-    $firstError = $result->errors('email')[0] ?? null;
+    $firstError = $result->first('email');
 
 Throwing Exceptions on Failure
 -------------------------------
@@ -186,7 +186,7 @@ For setting many aliases at once, use the ``FieldAlias`` utility:
 Custom Error Messages
 ---------------------
 
-You can override the default error message for specific fields using ``setCustomMessage()``.
+You can override the default error message for specific fields using ``setCustomMessages()``.
 
 .. code-block:: php
 
@@ -195,8 +195,10 @@ You can override the default error message for specific fields using ``setCustom
         'age' => 'required|integer|min:18',
     ]);
 
-    $validator->setCustomMessage('email', 'Please provide a valid email address.');
-    $validator->setCustomMessage('age', 'You must be at least 18 years old.');
+    $validator->setCustomMessages([
+        'email' => 'Please provide a valid email address.',
+        'age' => 'You must be at least 18 years old.',
+    ]);
 
     $result = $validator->validate([
         'email' => 'invalid',
@@ -219,8 +221,22 @@ Default Behavior (Fail-Fast per Field)
     'email' => 'required|email|max:10'
 
 - If ``email`` is empty, it fails on ``required`` and **stops**.
-- It will not check ``email`` or ``max:10`` rules.
+- It will not check ``email`` (format) or ``max:10`` rules.
 - This is fast and provides the most relevant error first.
+
+Collect All Rule Errors for Each Field
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you want to collect all rule failures for a field (instead of stopping at the first), disable fail-fast:
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'email' => 'required|email|max:10',
+    ])->setFailFast(false);
+
+    $result = $validator->validate(['email' => 'not-an-email-address']);
+    // Can include multiple errors for the same field
 
 Stop on First Field Error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -254,7 +270,7 @@ Add ``bail`` as a rule to stop validation for that field on the first failure. T
 Optional Fields
 ---------------
 
-Fields are required by default. To make a field optional, use the ``nullable`` rule or omit the ``required`` rule.
+Fields are optional by default unless you apply a requirement rule (such as ``required``, ``required_if``, or ``present``).
 
 .. code-block:: php
 

@@ -191,6 +191,22 @@ test('bail rule stops on first field failure', function () {
     expect($result2->errors()['email'][0])->toContain('exceed');
 });
 
+test('bail is field-scoped even when global fail-fast is disabled', function () {
+    $validator = Validator::make([
+        'email' => ['bail', 'required', 'email', 'max:10'],
+        'name' => 'required|min:5',
+    ])->setFailFast(false);
+
+    $result = $validator->validate([
+        'email' => 'not-an-email', // invalid email and too long
+        'name' => '', // required and min
+    ]);
+
+    expect($result->fails())->toBeTrue();
+    expect($result->errors()['email'])->toHaveCount(1);
+    expect($result->errors()['name'])->toHaveCount(2);
+});
+
 test('real-world registration flow passes', function () {
     $validator = Validator::make([
         'email' => 'required|email|max:255',
@@ -229,5 +245,4 @@ test('schema statistics are calculated', function () {
     expect($stats['fields']['username']['cheap_rules'])->toBe(3);
     expect($stats['fields']['password']['cheap_rules'])->toBe(2);
 });
-
 

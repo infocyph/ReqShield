@@ -28,7 +28,7 @@ class LessThan extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_numeric($value) || !isset($data[$this->otherField])) {
+        if (!is_numeric($value) || !array_key_exists($this->otherField, $data)) {
             return false;
         }
 

@@ -28,7 +28,15 @@ class Contains extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_array($value) && in_array($this->needle, $value, true);
+        if (is_string($value)) {
+            return str_contains($value, (string)$this->needle);
+        }
+
+        if (is_array($value)) {
+            return in_array($this->needle, $value, true);
+        }
+
+        return false;
     }
 
 }

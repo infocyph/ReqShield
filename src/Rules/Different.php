@@ -29,7 +29,10 @@ class Different extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return !isset($data[$this->otherField]) || $value !== $data[$this->otherField];
+        return !array_key_exists(
+            $this->otherField,
+            $data,
+        ) || $value !== $data[$this->otherField];
     }
 
 }
