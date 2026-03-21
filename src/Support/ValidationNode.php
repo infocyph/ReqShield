@@ -97,7 +97,7 @@ class ValidationNode
     public function addRule(Rule $rule): void
     {
         $cost = $rule->cost();
-        $shortName = (new \ReflectionClass($rule))->getShortName();
+        $shortName = new \ReflectionClass($rule)->getShortName();
 
         // Check if this is a required rule
         if (str_starts_with($shortName, 'Required')) {
