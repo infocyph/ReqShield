@@ -21,9 +21,16 @@ class File extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_array($value)
-          && isset($value['tmp_name'], $value['error'])
-          && is_uploaded_file($value['tmp_name'])
-          && $value['error'] === UPLOAD_ERR_OK;
+        $error = $this->getUploadedFileError($value);
+        if ($error !== UPLOAD_ERR_OK) {
+            return false;
+        }
+
+        $path = $this->getUploadedFilePath($value);
+        if ($path !== null) {
+            return is_uploaded_file($path) || is_file($path);
+        }
+
+        return $this->isUploadedFileObject($value);
     }
 }

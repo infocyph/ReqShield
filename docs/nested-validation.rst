@@ -1,18 +1,23 @@
 Nested Validation
 =================
 
-ReqShield supports validating nested array data using dot notation. To enable this feature, you must chain the ``enableNestedValidation()`` method when creating your validator.
+ReqShield supports nested arrays with dot notation and wildcard rules.
+Enable this with ``enableNestedValidation()``.
 
-Enabling Nested Validation
---------------------------
+Enable Nested Validation
+------------------------
 
 .. code-block:: php
 
-    $nestedValidator = Validator::make([
-        // Rules using dot notation
+    $validator = Validator::make([
+        // Dot/wildcard rules
     ])->enableNestedValidation();
 
-When enabled, ReqShield will automatically flatten your input data to match the dot-notation keys in your rules.
+Flattening modes:
+
+* ``enableNestedValidation()`` or ``enableNestedValidation(true)``: flatten all paths.
+* ``enableNestedValidation(false)``: flatten only required paths (lower memory for large payloads).
+* ``setNestedFlattenMode('all'|'required')``: explicit control.
 
 Example
 -------
@@ -36,19 +41,19 @@ You can define rules to validate this structure like so:
 
 .. code-block:: php
 
-    $nestedValidator = Validator::make([
+    $validator = Validator::make([
         'user.email' => 'required|email',
         'user.name' => 'required|min:3',
         'user.profile.age' => 'required|integer|min:18',
-        'user.profile.bio' => 'string|max:500', // Optional field
+        'user.profile.bio' => 'string|max:500',
     ])->enableNestedValidation();
 
-    $result = $nestedValidator->validate($nestedData);
+    $result = $validator->validate($nestedData);
 
     if ($result->passes()) {
         echo "✓ Nested validation works!\n";
 
-        // The validated data will also be in a flat, dot-key array
+        // Validated data uses dot keys for nested paths
         $validated = $result->validated();
         /*
         [
@@ -75,7 +80,7 @@ ReqShield correctly handles errors for nested fields, including when they are mi
         ],
     ];
 
-    $result = $nestedValidator->validate($invalidNested);
+    $result = $validator->validate($invalidNested);
 
     if ($result->fails()) {
         echo "✗ Nested validation catches errors:\n";
@@ -92,7 +97,7 @@ ReqShield correctly handles errors for nested fields, including when they are mi
 Wildcard Array Validation
 -------------------------
 
-ReqShield also supports wildcard rules for validating each item in nested arrays.
+Use ``*`` to validate each item in indexed arrays.
 
 .. code-block:: php
 
@@ -110,11 +115,7 @@ ReqShield also supports wildcard rules for validating each item in nested arrays
 
     $result = $validator->validate($data);
 
-    // Validation runs against expanded keys:
-    // - contacts.0.email
-    // - contacts.0.name
-    // - contacts.1.email
-    // - contacts.1.name
+ReqShield expands wildcard rules into concrete indexed fields (for example ``contacts.0.email``).
 
 If a specific item fails, the error key includes its index:
 
@@ -134,3 +135,20 @@ If a specific item fails, the error key includes its index:
         'contacts.0.name' => ['The contacts.0.name must be at least 2.']
     ]
     */
+
+Wildcard Aliases and Messages
+-----------------------------
+
+Wildcard aliases and custom messages also work for nested arrays.
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'contacts.*.email' => 'required|email',
+    ])->enableNestedValidation()
+      ->setFieldAliases([
+          'contacts.*.email' => 'Contact Email',
+      ])
+      ->setCustomMessages([
+          'contacts.*.email.email' => 'Each :field must be valid.',
+      ]);

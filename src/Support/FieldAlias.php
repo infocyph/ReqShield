@@ -29,6 +29,13 @@ class FieldAlias
     protected static array $aliases = [];
 
     /**
+     * Compiled wildcard alias patterns.
+     *
+     * @var array<int,array{pattern:string,alias:string}>
+     */
+    protected static array $wildcardPatterns = [];
+
+    /**
      * Retrieves all defined field aliases.
      *
      * @return array<string,string> Associative array of all field aliases
@@ -55,6 +62,7 @@ class FieldAlias
     public static function clear(): void
     {
         static::$aliases = [];
+        static::$wildcardPatterns = [];
     }
 
     /**
@@ -77,7 +85,22 @@ class FieldAlias
      */
     public static function get(string $field): string
     {
-        return static::$aliases[$field] ?? static::humanize($field);
+        if (array_key_exists($field, static::$aliases)) {
+            return static::$aliases[$field];
+        }
+
+        $normalizedField = static::normalizeWildcardField($field);
+        if ($normalizedField !== $field && array_key_exists($normalizedField, static::$aliases)) {
+            return static::$aliases[$normalizedField];
+        }
+
+        foreach (static::$wildcardPatterns as $entry) {
+            if (preg_match($entry['pattern'], $field) === 1) {
+                return $entry['alias'];
+            }
+        }
+
+        return static::humanize($field);
     }
 
     /**
@@ -140,6 +163,7 @@ class FieldAlias
     public static function remove(string $field): void
     {
         unset(static::$aliases[$field]);
+        static::rebuildWildcardPatterns();
     }
 
     /**
@@ -162,6 +186,7 @@ class FieldAlias
         foreach ($fields as $field) {
             unset(static::$aliases[$field]);
         }
+        static::rebuildWildcardPatterns();
     }
 
     /**
@@ -197,6 +222,8 @@ class FieldAlias
             // Single alias mode
             static::$aliases[$field] = $alias;
         }
+
+        static::rebuildWildcardPatterns();
     }
 
     /**
@@ -233,6 +260,8 @@ class FieldAlias
         } else {
             static::$aliases = array_merge(static::$aliases, $aliases);
         }
+
+        static::rebuildWildcardPatterns();
     }
 
     /**
@@ -256,6 +285,35 @@ class FieldAlias
     protected static function humanize(string $field): string
     {
         return ucwords(str_replace(['_', '-', '.'], ' ', $field));
+    }
+
+    /**
+     * Normalize indexed field paths to wildcard notation.
+     */
+    protected static function normalizeWildcardField(string $field): string
+    {
+        return preg_replace('/\.\d+(?=\.|$)/', '.*', $field) ?? $field;
+    }
+
+    /**
+     * Rebuild wildcard alias regex cache.
+     */
+    protected static function rebuildWildcardPatterns(): void
+    {
+        static::$wildcardPatterns = [];
+
+        foreach (static::$aliases as $field => $alias) {
+            if (!is_string($field) || !is_string($alias) || !str_contains($field, '*')) {
+                continue;
+            }
+
+            $escaped = preg_quote($field, '/');
+            $pattern = '/^' . str_replace('\*', '[^.]+', $escaped) . '$/';
+            static::$wildcardPatterns[] = [
+                'pattern' => $pattern,
+                'alias' => $alias,
+            ];
+        }
     }
 
 }

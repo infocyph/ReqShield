@@ -109,15 +109,17 @@ class Sanitizer
      */
     public static function apply(mixed $value, array $sanitizers): mixed
     {
+        $resolved = [];
+
         foreach ($sanitizers as $sanitizer) {
-            $value = match (true) {
-                is_string($sanitizer) && method_exists(
-                    self::class,
-                    $sanitizer,
-                ) => self::$sanitizer($value),
-                is_callable($sanitizer) => $sanitizer($value),
-                default => $value
-            };
+            $callable = self::resolveSanitizerCallable($sanitizer);
+            if ($callable !== null) {
+                $resolved[] = $callable;
+            }
+        }
+
+        foreach ($resolved as $callable) {
+            $value = $callable($value);
         }
 
         return $value;
@@ -177,14 +179,13 @@ class Sanitizer
         array $values,
         string|callable $sanitizer,
     ): array {
-        return array_map(function ($value) use ($sanitizer) {
-            return is_string($sanitizer) && method_exists(
-                self::class,
-                $sanitizer,
-            )
-              ? self::$sanitizer($value)
-              : (is_callable($sanitizer) ? $sanitizer($value) : $value);
-        }, $values);
+        $callable = self::resolveSanitizerCallable($sanitizer);
+
+        if ($callable === null) {
+            return $values;
+        }
+
+        return array_map($callable, $values);
     }
 
     // ============================================
@@ -902,5 +903,26 @@ class Sanitizer
         );
 
         return $result ?? $subject;
+    }
+
+    /**
+     * Resolve a sanitizer into a callable once per invocation.
+     */
+    protected static function resolveSanitizerCallable(
+        mixed $sanitizer,
+    ): ?callable {
+        if (is_string($sanitizer)) {
+            if (method_exists(self::class, $sanitizer)) {
+                return [self::class, $sanitizer];
+            }
+
+            if (is_callable($sanitizer)) {
+                return $sanitizer;
+            }
+
+            return null;
+        }
+
+        return is_callable($sanitizer) ? $sanitizer : null;
     }
 }

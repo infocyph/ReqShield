@@ -40,6 +40,9 @@ Sanitizes a value using one or more sanitizers from the ``Sanitizer`` class.
     // 3. 'john!' (lowercase)
     // 4. 'john' (alphaDash)
 
+    // You can also include callables in sanitizer arrays
+    $custom = sanitize(' 42 ', ['trim', fn ($v) => (int)$v]);
+
 .. php:function:: passes(array $rules, array $data, ?DatabaseProvider $db = null): bool
 
 A quick check to see if validation passes. Returns ``true`` on success, ``false`` on failure.

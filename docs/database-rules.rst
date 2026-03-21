@@ -1,100 +1,130 @@
-Database Rules (unique, exists)
-===============================
+Database Rules (``unique``, ``exists``)
+=======================================
 
-ReqShield provides high-performance, batched validation for database rules like ``unique`` and ``exists``.
+ReqShield batches expensive DB validation rules across fields for performance.
+To use DB rules, provide a ``DatabaseProvider`` implementation to ``Validator::make($rules, $dbProvider)``.
 
-To use these rules, you must:
-1.  Implement the ``DatabaseProvider`` interface.
-2.  Pass your implementation to the ``Validator::make()`` method.
+DatabaseProvider Implementation
+-------------------------------
 
-1. The ``DatabaseProvider`` Interface
-------------------------------------
-
-You need to create a class in your application that implements ``Infocyph\ReqShield\Contracts\DatabaseProvider``. This interface acts as a bridge between ReqShield and your database (e.g., PDO, Eloquent, Doctrine).
+Your class must implement ``Infocyph\ReqShield\Contracts\DatabaseProvider``.
 
 .. code-block:: php
 
     <?php
-    namespace MyApp\Database;
+    namespace App\Validation;
 
     use Infocyph\ReqShield\Contracts\DatabaseProvider;
     use PDO;
 
-    class MyDbProvider implements DatabaseProvider
+    final class PdoDatabaseProvider implements DatabaseProvider
     {
-        protected $pdo;
-
-        public function __construct(PDO $pdo) {
-            $this->pdo = $pdo;
+        public function __construct(private PDO $pdo)
+        {
         }
 
-        // This is a simplified example.
-        // ReqShield's BatchExecutor will optimize this.
-        public function exists(string $table, string $column, $value, ?int $ignoreId = null): bool {
+        public function batchExistsCheck(string $table, array $checks): array
+        {
+            return [];
+        }
+
+        public function batchUniqueCheck(string $table, array $checks): array
+        {
+            return [];
+        }
+
+        public function compositeUnique(
+            string $table,
+            array $columns,
+            ?int $ignoreId = null,
+        ): bool {
+            return true;
+        }
+
+        public function exists(
+            string $table,
+            string $column,
+            $value,
+            ?int $ignoreId = null,
+        ): bool {
             $sql = "SELECT COUNT(*) FROM `{$table}` WHERE `{$column}` = ?";
             $params = [$value];
 
             if ($ignoreId !== null) {
-                $sql .= " AND id != ?";
+                $sql .= " AND `id` != ?";
                 $params[] = $ignoreId;
             }
 
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
-            return $stmt->fetchColumn() > 0;
+
+            return (int)$stmt->fetchColumn() > 0;
         }
 
-        // ... you must also implement batchExistsCheck, batchUniqueCheck, etc.
-        // For a full example, see the source of:
-        // Infocyph\ReqShield\Database\MockDatabaseProvider
-
-        // ... (rest of interface methods)
+        public function query(string $query, array $params = []): array
+        {
+            $stmt = $this->pdo->prepare($query);
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     }
 
-(Implementation of the batch methods is complex. ReqShield is designed to batch queries for you. See ``src/Executors/BatchExecutor.php`` for how it builds queries.)
-
-2. Using the Provider
----------------------
-
-Once you have your provider, pass it as the second argument to ``Validator::make()``:
+Use the Provider
+----------------
 
 .. code-block:: php
 
     use Infocyph\ReqShield\Validator;
 
-    // 1. Get your database connection (e.g., PDO)
-    $pdo = new PDO(...);
-    $dbProvider = new MyApp\Database\MyDbProvider($pdo);
+    $validator = Validator::make([
+        'email' => 'required|email|unique:users,email',
+        'category_id' => 'required|integer|exists:categories,id',
+    ], $dbProvider);
 
-    // 2. Pass the provider to the validator
-    $validator = Validator::make(
-        [
-            'email' => 'required|email|unique:users,email',
-            'category_id' => 'required|integer|exists:categories,id',
-        ],
-        $dbProvider // <-- Pass your provider here
-    );
+    $result = $validator->validate($payload);
 
-    // 3. Validate as usual
-    $data = [
-        'email' => 'new-user@example.com',
-        'category_id' => 99 // Does category 99 exist?
-    ];
-    $result = $validator->validate($data);
+Rule Syntax
+-----------
 
-    if ($result->fails()) {
-        // Errors might include:
-        // - "The email has already been taken."
-        // - "The selected category_id is invalid."
-    }
-
-Rule Definitions
-~~~~~~~~~~~~~~~~
-
-* ``unique:table,column``
-    * Checks if the value is unique in the ``table``'s ``column``.
-    * **Example**: ``unique:users,email``
+``exists``:
 
 * ``exists:table,column``
-    * Checks if the value already exists in the ``table``'s ``column``.
-    * **Example**: ``exists:categories,id``
+* Example: ``exists:users,id``
+
+``unique``:
+
+* ``unique:table,column``
+* ``unique:table,column,ignoreId``
+* ``unique:table,column,ignoreId,idColumn,withTrashed,softDeleteColumn``
+
+Examples:
+
+.. code-block:: php
+
+    'email' => 'unique:users,email'
+    'email' => 'unique:users,email,10' // ignore row id=10
+    'email' => 'unique:users,email,,id,false,deleted_at' // ignore soft-deleted rows
+    'email' => 'unique:users,email,,id,true,deleted_at'  // include soft-deleted rows
+
+Object Rule for Full Control
+----------------------------
+
+Use ``Infocyph\ReqShield\Rules\Unique`` directly when you need explicit constructor parameters.
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Rules\Unique;
+
+    $validator = Validator::make([
+        'email' => [
+            'required',
+            new Unique(
+                table: 'users',
+                column: 'email',
+                ignoreId: null,
+                idColumn: 'id',
+                withTrashed: false,
+                softDeleteColumn: 'deleted_at',
+            ),
+        ],
+    ], $dbProvider);

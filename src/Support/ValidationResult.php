@@ -25,6 +25,9 @@ class ValidationResult
     public function __construct(
         protected array $errors,
         protected array $validated = [],
+        protected array $failures = [],
+        protected array $typed = [],
+        protected ?string $dtoClass = null,
     ) {
         $this->messageBag = new MessageBag($errors);
     }
@@ -99,6 +102,25 @@ class ValidationResult
     public function fails(): bool
     {
         return !empty($this->errors);
+    }
+
+    /**
+     * Get structured failed rule metadata.
+     */
+    public function failures(): array
+    {
+        return $this->failures;
+    }
+
+    /**
+     * Get failed rule metadata for a single field.
+     */
+    public function failuresFor(string $field): array
+    {
+        return array_values(array_filter(
+            $this->failures,
+            fn (array $failure): bool => ($failure['field'] ?? null) === $field,
+        ));
     }
 
     /**
@@ -190,6 +212,8 @@ class ValidationResult
     {
         $this->errors = array_merge($this->errors, $other->errors());
         $this->validated = array_merge($this->validated, $other->validated());
+        $this->typed = array_merge($this->typed, $other->typed());
+        $this->failures = array_merge($this->failures, $other->failures());
         $this->messageBag = new MessageBag($this->errors);
 
         return $this;
@@ -259,7 +283,9 @@ class ValidationResult
         return [
           'valid' => $this->passes(),
           'errors' => $this->errors,
+          'failures' => $this->failures,
           'validated' => $this->validated,
+          'typed' => $this->typed(),
         ];
     }
 
@@ -269,10 +295,17 @@ class ValidationResult
      */
     public function toDTO(): object
     {
+        $payload = $this->typed();
+
+        if ($this->dtoClass !== null && class_exists($this->dtoClass)) {
+            return $this->buildDto($this->dtoClass, $payload);
+        }
+
         return (object)[
           'success' => $this->passes(),
           'errors' => $this->errors,
-          'data' => $this->validated,
+          'failures' => $this->failures,
+          'data' => $payload,
           'errorCount' => $this->errorCount(),
         ];
     }
@@ -283,6 +316,14 @@ class ValidationResult
     public function toJson(): string
     {
         return $this->messageBag->toJson();
+    }
+
+    /**
+     * Get typed output after casts are applied.
+     */
+    public function typed(): array
+    {
+        return empty($this->typed) ? $this->validated : $this->typed;
     }
 
     /**
@@ -313,10 +354,94 @@ class ValidationResult
     public function whenPasses(callable $callback): self
     {
         if ($this->passes()) {
-            $callback($this->validated);
+            $callback($this->typed());
         }
 
         return $this;
+    }
+
+    /**
+     * Build DTO instance from data.
+     */
+    protected function buildDto(string $class, array $payload): object
+    {
+        try {
+            $reflection = new \ReflectionClass($class);
+            $instance = $this->instantiateDto($reflection, $payload);
+        } catch (\Throwable) {
+            return (object)$payload;
+        }
+
+        foreach ($payload as $key => $value) {
+            try {
+                $instance->{$key} = $value;
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return $instance;
+    }
+
+    /**
+     * Build DTO instance with constructor mapping when possible.
+     */
+    protected function instantiateDto(
+        \ReflectionClass $reflection,
+        array $payload,
+    ): object {
+        $ctor = $reflection->getConstructor();
+        if ($ctor === null) {
+            return $reflection->newInstance();
+        }
+
+        $args = [];
+        foreach ($ctor->getParameters() as $parameter) {
+            $resolved = $this->resolveCtorParameter($parameter, $payload);
+            if (!$resolved['resolved']) {
+                return $reflection->newInstanceWithoutConstructor();
+            }
+
+            $args[] = $resolved['value'];
+        }
+
+        return $reflection->newInstanceArgs($args);
+    }
+
+    /**
+     * Resolve constructor parameter from payload/defaults.
+     *
+     * @return array{resolved:bool,value:mixed}
+     */
+    protected function resolveCtorParameter(
+        \ReflectionParameter $parameter,
+        array $payload,
+    ): array {
+        $name = $parameter->getName();
+
+        if (array_key_exists($name, $payload)) {
+            return ['resolved' => true, 'value' => $payload[$name]];
+        }
+
+        $snakeName = strtolower(
+            preg_replace('/(?<!^)[A-Z]/', '_$0', $name) ?? $name,
+        );
+        if ($snakeName !== $name && array_key_exists($snakeName, $payload)) {
+            return ['resolved' => true, 'value' => $payload[$snakeName]];
+        }
+
+        if ($parameter->isDefaultValueAvailable()) {
+            return [
+                'resolved' => true,
+                'value' => $parameter->getDefaultValue(),
+            ];
+        }
+
+        if ($parameter->allowsNull()) {
+            return ['resolved' => true, 'value' => null];
+        }
+
+        return ['resolved' => false, 'value' => null];
     }
 
 }

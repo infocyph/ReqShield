@@ -10,6 +10,8 @@ use Infocyph\ReqShield\Rules\Unique;
 
 class BatchExecutor
 {
+    protected const IN_CLAUSE_CHUNK_SIZE = 500;
+
     protected ?DatabaseProvider $db;
 
     public function __construct(?DatabaseProvider $db = null)
@@ -25,7 +27,7 @@ class BatchExecutor
      *     => string]
      * @param array $errors Reference to errors array
      */
-    public function executeBatch(array $batch, array &$errors): void
+    public function executeBatch(array $batch, array &$errors, array &$failures = []): void
     {
         if (!$this->db || empty($batch)) {
             return;
@@ -36,11 +38,21 @@ class BatchExecutor
 
         // Execute batched checks for each table
         foreach ($categorized['unique'] as $table => $checks) {
-            $this->processUniqueChecksForTable($table, $checks, $errors);
+            $this->processUniqueChecksForTable(
+                $table,
+                $checks,
+                $errors,
+                $failures,
+            );
         }
 
         foreach ($categorized['exists'] as $table => $checks) {
-            $this->processExistsChecksForTable($table, $checks, $errors);
+            $this->processExistsChecksForTable(
+                $table,
+                $checks,
+                $errors,
+                $failures,
+            );
         }
     }
 
@@ -79,71 +91,96 @@ class BatchExecutor
     }
 
     /**
-     * Build query data for database checks
-     * OPTIMIZED: Unified method to eliminate duplicate code between exists and
-     * unique FIXED: Removed costly array_merge in loop
+     * Build query groups for database checks.
+     *
+     * Queries are split by column and chunked by value count so the database
+     * can avoid broad OR scans.
      */
-    protected function buildQueryData(
+    protected function buildQueryGroups(
         string $table,
         array $checks,
         bool $isUnique = false,
     ): array {
-        // Group values by column for efficient IN clauses
         $grouped = [];
-        $checkIndex = [];
-        $idColumns = [];
 
-        foreach ($checks as $idx => $check) {
+        foreach ($checks as $check) {
             $rule = $check['rule'];
             $column = $rule->getColumn() ?? $check['field'];
-            $value = $check['value'];
+            $groupKey = $column;
 
-            $grouped[$column][] = $value;
-            $checkIndex[$this->makeCheckKey($column, $value)] = $check;
-
-            // For unique checks, track ID columns
             if ($isUnique) {
-                $idColumns[$rule->getIdColumn() ?? 'id'] = true;
+                $idColumn = $rule->getIdColumn() ?? 'id';
+                $groupKey .= '|trashed:' . (($rule->getWithTrashed() ?? false) ? '1' : '0');
+                $groupKey .= '|soft:' . ($rule->getSoftDeleteColumn() ?? 'deleted_at');
+                $groupKey .= '|id:' . $idColumn;
+            }
+
+            if (!isset($grouped[$groupKey])) {
+                $grouped[$groupKey] = [
+                    'column' => $column,
+                    'values' => [],
+                    'withTrashed' => $isUnique ? (bool)($rule->getWithTrashed() ?? false) : true,
+                    'softDeleteColumn' => $isUnique ? (string)($rule->getSoftDeleteColumn() ?? 'deleted_at') : '',
+                    'idColumns' => [],
+                ];
+            }
+
+            $grouped[$groupKey]['values'][] = $check['value'];
+
+            if ($isUnique) {
+                $grouped[$groupKey]['idColumns'][$rule->getIdColumn() ?? 'id'] = true;
             }
         }
 
-        // Build query with IN clauses
-        // FIXED: Use array spread operator instead of array_merge in loop
-        $conditions = [];
-        $params = [];
+        $queries = [];
 
-        foreach ($grouped as $column => $values) {
-            $escapedCol = $this->escapeIdentifier($column);
-            $placeholders = implode(',', array_fill(0, count($values), '?'));
-            $conditions[] = "{$escapedCol} IN ({$placeholders})";
-            // FIXED: Use array spread instead of array_merge
-            array_push($params, ...$values);
+        foreach ($grouped as $group) {
+            $values = $this->dedupeValues($group['values']);
+            $idColumns = array_keys($group['idColumns']);
+
+            foreach (array_chunk($values, self::IN_CLAUSE_CHUNK_SIZE) as $chunk) {
+                $queries[] = $this->buildSingleColumnQuery(
+                    $table,
+                    $group['column'],
+                    $chunk,
+                    $isUnique ? $idColumns : [],
+                    $isUnique ? $group['softDeleteColumn'] : null,
+                    $isUnique ? $group['withTrashed'] : true,
+                );
+            }
         }
 
+        return $queries;
+    }
+
+    /**
+     * Build a single-column query with optional ID columns in select list.
+     */
+    protected function buildSingleColumnQuery(
+        string $table,
+        string $column,
+        array $values,
+        array $idColumns = [],
+        ?string $softDeleteColumn = null,
+        bool $withTrashed = true,
+    ): array {
         $escapedTable = $this->escapeIdentifier($table);
-
-        // Select columns needed
-        if ($isUnique) {
-            $allCols = array_unique(
-                array_merge(array_keys($grouped), array_keys($idColumns)),
-            );
-        } else {
-            $allCols = array_keys($grouped);
-        }
-
+        $escapedColumn = $this->escapeIdentifier($column);
+        $selectColumns = array_values(array_unique(array_merge([$column], $idColumns)));
+        $placeholders = implode(',', array_fill(0, count($values), '?'));
         $selectCols = implode(
             ', ',
-            array_map([$this, 'escapeIdentifier'], $allCols),
+            array_map([$this, 'escapeIdentifier'], $selectColumns),
         );
 
-        return [
-          'query' => "SELECT {$selectCols} FROM {$escapedTable} WHERE " . implode(
-              ' OR ',
-              $conditions,
-          ),
-          'params' => $params,
-          'checkIndex' => $checkIndex,
-        ];
+        $query = "SELECT {$selectCols} FROM {$escapedTable} WHERE {$escapedColumn} IN ({$placeholders})";
+
+        if (!$withTrashed && is_string($softDeleteColumn) && $softDeleteColumn !== '') {
+            $escapedSoftDelete = $this->escapeIdentifier($softDeleteColumn);
+            $query .= " AND {$escapedSoftDelete} IS NULL";
+        }
+
+        return ['query' => $query, 'params' => $values];
     }
 
     /**
@@ -173,6 +210,28 @@ class BatchExecutor
     }
 
     /**
+     * Remove duplicate values while preserving first-seen order.
+     */
+    protected function dedupeValues(array $values): array
+    {
+        $unique = [];
+        $seen = [];
+
+        foreach ($values as $value) {
+            $key = $this->makeValueKey($value);
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $value;
+        }
+
+        return $unique;
+    }
+
+    /**
      * Escape database identifier to prevent SQL injection.
      * Validates and wraps identifier in backticks.
      */
@@ -187,6 +246,27 @@ class BatchExecutor
         }
 
         return "`{$identifier}`";
+    }
+
+    /**
+     * Execute all query groups for a table and collect result rows.
+     */
+    protected function executeQueryGroups(
+        string $table,
+        array $checks,
+        bool $isUnique,
+    ): array {
+        $results = [];
+
+        foreach ($this->buildQueryGroups($table, $checks, $isUnique) as $queryData) {
+            $rows = $this->db->query($queryData['query'], $queryData['params']);
+
+            foreach ($rows as $row) {
+                $results[] = $row;
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -216,6 +296,14 @@ class BatchExecutor
      */
     protected function makeCheckKey(string $column, mixed $value): string
     {
+        return $column . ':' . $this->makeValueKey($value);
+    }
+
+    /**
+     * Create a stable key for value de-duplication.
+     */
+    protected function makeValueKey(mixed $value): string
+    {
         if (is_array($value)) {
             $value = 'array:' . json_encode($value);
         } elseif (is_object($value)) {
@@ -228,45 +316,33 @@ class BatchExecutor
             $value = (string)$value;
         }
 
-        return $column . ':' . $value;
+        return (string)$value;
     }
 
     /**
-     * Process exists checks for a single table
-     * OPTIMIZED: Uses unified buildQueryData method
+     * Process exists checks for a single table.
      */
     protected function processExistsChecksForTable(
         string $table,
         array $checks,
         array &$errors,
+        array &$failures,
     ): void {
-        // Build query components in single pass
-        $queryData = $this->buildQueryData($table, $checks, false);
-
-        // Execute and process results
-        $results = $this->db->query($queryData['query'], $queryData['params']);
-
-        // Build lookup map and validate
-        $this->validateExistsResults($results, $checks, $errors);
+        $results = $this->executeQueryGroups($table, $checks, false);
+        $this->validateExistsResults($results, $checks, $errors, $failures);
     }
 
     /**
-     * Process unique checks for a single table
-     * OPTIMIZED: Uses unified buildQueryData method
+     * Process unique checks for a single table.
      */
     protected function processUniqueChecksForTable(
         string $table,
         array $checks,
         array &$errors,
+        array &$failures,
     ): void {
-        // Build query components in single pass
-        $queryData = $this->buildQueryData($table, $checks, true);
-
-        // Execute and process results
-        $results = $this->db->query($queryData['query'], $queryData['params']);
-
-        // Process results efficiently
-        $this->processUniqueResults($results, $checks, $errors);
+        $results = $this->executeQueryGroups($table, $checks, true);
+        $this->processUniqueResults($results, $checks, $errors, $failures);
     }
 
     /**
@@ -277,6 +353,7 @@ class BatchExecutor
         array $results,
         array $checks,
         array &$errors,
+        array &$failures,
     ): void {
         if (empty($results)) {
             return; // All values are unique (good!)
@@ -302,8 +379,31 @@ class BatchExecutor
             }
 
             // Add error - value is not unique
-            $errors[$check['field']][] = $rule->message($check['field']);
+            $message = $this->resolveFailureMessage($check, $rule);
+            $errors[$check['field']][] = $message;
+            $failures[] = [
+                'field' => $check['field'],
+                'rule' => $check['rule_name'] ?? 'unique',
+                'message' => $message,
+                'value' => $value,
+            ];
         }
+    }
+
+    /**
+     * Resolve failure message using pre-rendered value when available.
+     */
+    protected function resolveFailureMessage(array $check, object $rule): string
+    {
+        if (isset($check['message']) && is_string($check['message'])) {
+            return $check['message'];
+        }
+
+        $label = isset($check['field_label']) && is_string($check['field_label'])
+            ? $check['field_label']
+            : $check['field'];
+
+        return $rule->message($label);
     }
 
     /**
@@ -331,6 +431,7 @@ class BatchExecutor
         array $results,
         array $checks,
         array &$errors,
+        array &$failures,
     ): void {
         // Build set of found values for O(1) lookup
         $foundKeys = $this->buildLookupFromResults($results, $checks);
@@ -344,7 +445,14 @@ class BatchExecutor
 
             if (!isset($foundKeys[$key])) {
                 // Value doesn't exist in database - validation failed
-                $errors[$check['field']][] = $rule->message($check['field']);
+                $message = $this->resolveFailureMessage($check, $rule);
+                $errors[$check['field']][] = $message;
+                $failures[] = [
+                    'field' => $check['field'],
+                    'rule' => $check['rule_name'] ?? 'exists',
+                    'message' => $message,
+                    'value' => $value,
+                ];
             }
         }
     }

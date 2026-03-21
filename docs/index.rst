@@ -1,14 +1,11 @@
-ReqShield: Fast, Modern PHP Request Validation
+ReqShield: Fast PHP Validation and Sanitization
 ===============================================
 
-**ReqShield** is a fast, modern PHP request validation and sanitization library. It features schema-based rules, fail-fast execution, typed input, and is PSR-7 friendly.
+**ReqShield** is a schema-based request validator and sanitizer for modern PHP apps.
+It supports nested/wildcard validation, localized/custom messages, batched database rules, sanitizer pipelines, typed output, and schema export.
 
-This documentation will guide you through installation, basic usage, and all the advanced features ReqShield has to offer, from nested validation to custom database rules.
-
-Getting Started
----------------
-
-Here is a simple example of validating a set of data.
+Quick Start
+-----------
 
 .. code-block:: php
 
@@ -17,25 +14,21 @@ Here is a simple example of validating a set of data.
 
     $validator = Validator::make([
         'email' => 'required|email|max:255',
-        'username' => 'required|string|min:3|max:50',
-        'age' => 'required|integer|min:18|max:120',
+        'age' => 'required|integer|min:18',
+    ])->setSanitizers([
+        'email' => ['trim', 'lowercase'],
+    ])->setCasts([
+        'age' => 'integer',
     ]);
 
-    $data = [
-        'email' => 'john@example.com',
-        'username' => 'johndoe',
-        'age' => 25,
-    ];
-
-    $result = $validator->validate($data);
+    $result = $validator->validate([
+        'email' => '  USER@EXAMPLE.COM ',
+        'age' => '21',
+    ]);
 
     if ($result->passes()) {
-        echo "✓ Validation passed!\n";
-        // $result->validated() contains only the validated data
-        print_r($result->validated());
+        print_r($result->typed()); // ['email' => 'user@example.com', 'age' => 21]
     } else {
-        echo "✗ Validation failed:\n";
-        // $result->errors() contains an array of errors
         print_r($result->errors());
     }
 
@@ -47,6 +40,7 @@ Table of Contents
    :caption: Getting Started
 
    installation
+   quick-usage
    basic-usage
    handling-results
 
@@ -54,6 +48,7 @@ Table of Contents
    :maxdepth: 2
    :caption: Core Features
 
+   advanced-features
    nested-validation
    sanitization
    database-rules

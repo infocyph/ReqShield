@@ -3,7 +3,10 @@ Sanitization
 
 ReqShield includes a powerful ``Sanitizer`` utility class with over 50 methods for cleaning and normalizing data.
 
-It's highly recommended to **sanitize your data *before*** validation to ensure clean, consistent input.
+You can sanitize in two ways:
+
+* Manual sanitization using ``Sanitizer``.
+* Validator-integrated pipelines using ``setSanitizers()`` and schema ``sanitize`` fields.
 
 Using the ``Sanitizer`` Class
 ------------------------------
@@ -33,6 +36,30 @@ All methods are static and can be called directly.
 
     // Now, validate the clean input
     $result = $validator->validate($cleanInput);
+
+Validator-Integrated Sanitization
+---------------------------------
+
+You can run sanitizers automatically before validation.
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Validator;
+
+    $validator = Validator::make([
+        'email' => [
+            'rules' => 'required|email',
+            'sanitize' => ['trim', 'lowercase'],
+        ],
+        'username' => 'required|alpha_dash|min:3',
+    ])->setSanitizers([
+        'username' => ['trim', 'lowercase'],
+        'contacts.*.email' => ['trim', 'lowercase'],
+    ]);
+
+    $result = $validator->validate($input);
+
+Schema ``sanitize``/``sanitizers`` and runtime ``setSanitizers()`` are merged.
 
 Helper Function
 ---------------
@@ -481,6 +508,7 @@ Applies a single sanitizer to all elements in an array.
 
     Sanitizer::batch([' HELLO ', ' WORLD '], 'lowercase'); // [' hello ', ' world ']
     Sanitizer::batch(['test@EX.com', 'foo@BAR.com'], 'email'); // ['test@EX.com', 'foo@BAR.com']
+    Sanitizer::batch([' x ', ' y '], fn ($v) => trim((string)$v)); // ['x', 'y']
 
 apply($value, array $sanitizers)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -490,6 +518,7 @@ Applies multiple sanitizers to a value in sequence.
 
     Sanitizer::apply('  <b>HELLO</b>  ', ['string', 'lowercase']); // 'hello'
     Sanitizer::apply('  TEST@EX.COM  ', ['email', 'lowercase']); // 'test@ex.com'
+    Sanitizer::apply('  123  ', ['trim', fn ($v) => (int)$v]); // 123
 
 clearCache()
 ^^^^^^^^^^^^
@@ -502,8 +531,8 @@ Clears the internal regex pattern cache used by ``Sanitizer``. This is mainly us
 Best Practices
 --------------
 
-1. **Sanitize Before Validation**
-   Always sanitize user input before passing it to the validator. This ensures consistent data format and reduces validation errors.
+1. **Use Sanitization Consistently**
+   Sanitize either manually before validation or inside validator pipelines. Keep one clear strategy per endpoint.
 
    .. code-block:: php
 

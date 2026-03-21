@@ -81,12 +81,10 @@ class Mimes extends BaseRule
      */
     public function passes(mixed $value, string $field, array $data): bool
     {
-        // Ensure value is a valid file array with MIME type
-        if (!is_array($value) || !isset($value['type'])) {
+        $fileMimeType = $this->getUploadedFileClientMediaType($value);
+        if (!is_string($fileMimeType) || $fileMimeType === '') {
             return false;
         }
-
-        $fileMimeType = $value['type'];
 
         // Check each extension provided
         foreach ($this->types as $extension) {

@@ -1,105 +1,105 @@
 Handling the Validation Result
 ==============================
 
-The ``validate()`` method returns a ``ValidationResult`` object, which provides a fluent API for inspecting the outcome.
+``validate()`` returns ``ValidationResult``.
 
 .. code-block:: php
 
     $result = $validator->validate($data);
 
-Checking Success or Failure
----------------------------
-
-You can easily check if the validation passed or failed.
+Pass/Fail Checks
+----------------
 
 .. code-block:: php
 
-    if ($result->passes()) {
-        // Validation was successful
-    }
+    $result->passes();
+    $result->fails();
 
-    if ($result->fails()) {
-        // Validation failed
-    }
+Validated and Typed Data
+------------------------
 
-Retrieving Validated Data
--------------------------
-
-When validation passes, you can get the array of validated data. This array only includes fields that were defined in your validation rules, providing a "safe" list of data.
+``validated()`` returns validated values.
+``typed()`` returns casted values when casts are configured; otherwise it matches ``validated()``.
 
 .. code-block:: php
 
-    $validatedData = $result->validated();
+    $all = $result->validated();
+    $typed = $result->typed();
 
-    // Example:
-    // $data = ['email' => 'test@ex.com', 'extra' => 'ignored']
-    // $rules = ['email' => 'required|email']
-    // $result->validated() will be ['email' => 'test@ex.com']
-
-You can also retrieve specific subsets of the validated data:
-
-.. code-block:: php
-
-    // Get only the 'email' and 'name' fields
     $subset = $result->only(['email', 'name']);
+    $withoutAge = $result->except(['age']);
+    $safe = $result->safe(['optional_field']);
 
-    // Get all validated data *except* 'age'
-    $subset = $result->except(['age']);
+    $result->has('email');
+    $result->get('email');
 
-    // Check if a validated key exists
-    if ($result->has('email')) {
-        // ...
-    }
-
-Retrieving Errors
------------------
-
-When validation fails, you can get the full array of error messages.
+Errors and Messages
+-------------------
 
 .. code-block:: php
 
     $errors = $result->errors();
-    /*
-    [
-        'email' => [
-            'The email must be a valid email address.'
-        ],
-        'age' => [
-            'The age must be at least 18.'
-        ]
-    ]
-    */
+    $emailErrors = $result->errorsFor('email');
 
-You can also get the first error for a specific field or the very first error in the list:
+    $firstForEmail = $result->first('email');
+    $firstAny = $result->firstError();
+
+    $result->hasError('email');
+    $result->errorCount();
+    $result->allErrors();
+    $result->messages(); // MessageBag
+
+Failure Metadata
+----------------
+
+Use failure metadata for API/UI mapping.
 
 .. code-block:: php
 
-    // Get the first error for the 'email' field
-    $firstEmailError = $result->first('email');
+    $result->failures();
+    // [
+    //   [
+    //     'field' => 'email',
+    //     'rule' => 'email',
+    //     'message' => 'The Email must be a valid email address.',
+    //     'value' => 'bad-email'
+    //   ]
+    // ]
 
-    // Get the very first error message for any field
-    $firstError = $result->firstError();
+    $result->failuresFor('email');
 
-    // Check if a specific field has an error
-    if ($result->hasError('age')) {
-        // ...
-    }
+DTO and Serialization
+---------------------
 
-Fluent Callbacks
-----------------
+.. code-block:: php
 
-You can chain ``whenPasses()`` and ``whenFails()`` to execute callbacks based on the result.
+    $dto = $result->toDTO();     // uses setDtoClass() if configured
+    $arr = $result->toArray();   // includes errors, failures, validated, typed
+    $json = $result->toJson();   // errors JSON
+
+When a DTO class is configured, constructor parameter names are matched from typed payload keys when possible.
+
+Data Utilities
+--------------
+
+.. code-block:: php
+
+    $filtered = $result->filter(fn ($value, $key) => str_starts_with($key, 'user_'));
+    $mapped = $result->map(fn ($value) => is_string($value) ? trim($value) : $value);
+
+    $merged = $result->merge($anotherResult);
+
+Fluent Helpers
+--------------
 
 .. code-block:: php
 
     $result
-        ->whenPasses(function ($validatedData) {
-            // Runs only if validation passed
-            echo "✓ Success!";
-            // $validatedData is passed to the callback
+        ->whenPasses(function (array $typedData) {
+            // Runs on success
         })
-        ->whenFails(function ($errors) {
-            // Runs only if validation failed
-            echo "✗ Failed!";
-            // $errors array is passed to the callback
+        ->whenFails(function (array $errors) {
+            // Runs on failure
         });
+
+    $result->throw(); // throws ValidationException when failed

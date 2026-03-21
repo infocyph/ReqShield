@@ -8,19 +8,22 @@
 ![GitHub Code Size](https://img.shields.io/github/languages/code-size/infocyph/ReqShield)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://docs.infocyph.com/projects/reqshield)
 
-**Fast, modern PHP request validation and sanitization.** Schema-based rules, fail-fast execution, intelligent batching, and 100+ validation rules out of the box.
+**Fast, modern PHP request validation and sanitization.** Schema-based rules, fail-fast execution, intelligent batching, and 103 built-in validation rules.
 
 ```php
 $validator = Validator::make([
     'email' => 'required|email|max:255',
-    'username' => 'required|alpha_dash|min:3|max:50',
     'age' => 'required|integer|min:18',
+])->setSanitizers([
+    'email' => ['trim', 'lowercase'],
+])->setCasts([
+    'age' => 'integer',
 ]);
 
 $result = $validator->validate($data);
 
 if ($result->passes()) {
-    $clean = $result->validated();
+    $clean = $result->typed();
     // ✅ All good!
 }
 ```
@@ -29,15 +32,19 @@ if ($result->passes()) {
 
 ## ✨ Features
 
-- 🚀 **103 Built-in Rules** - From basic types to complex conditionals and database checks
-- 🧹 **50+ Sanitizers** - Clean and normalize data before validation
-- ⚡ **Intelligent Batching** - Database rules are batched automatically (50x faster)
-- 🎯 **Fail-Fast Execution** - Stops at first error per field for maximum performance
-- 📦 **Cost-Based Optimization** - Rules auto-sorted by complexity (cheap → expensive)
-- 🔗 **Nested Validation** - Validate deeply nested arrays with dot notation
-- 💾 **Database Validation** - Built-in `unique` and `exists` rules with custom provider support
-- 🎨 **Custom Rules** - Simple callbacks or full OOP rule classes
-- 🌐 **PSR-7 Friendly** - Works seamlessly with modern PHP frameworks
+- 🚀 **103 Built-in Rules** - Basic types, conditional rules, files, database checks, and more
+- 🧹 **50+ Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
+- ⚡ **Intelligent Batching** - Expensive DB checks are batched automatically
+- 🎯 **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
+- 🔗 **Nested + Wildcard Validation** - Dot notation with wildcard expansion
+- 🧾 **Custom Messages + Placeholders** - `:field`, `:rule`, `:min`, and more
+- 🌍 **Locale Packs** - Per-rule localized message templates with fallback
+- 🧠 **Failure Metadata** - Structured failures (`field`, `rule`, `message`, `value`)
+- 📦 **Schema Fragments + Composition** - Reuse validation contracts across endpoints
+- 🔁 **Conditional Closures** - `sometimes()` and `when()` for dynamic rule activation
+- 🧱 **Schema Export** - JSON Schema, OpenAPI shape, and introspection metadata
+- 🧰 **Typed Output + DTO Mapping** - Cast map + `toDTO()` support
+- 📤 **Uploaded File Object Support** - Array-style uploads and PSR-7 style objects
 - 🛠️ **PHP 8.4+** - Built with modern PHP features
 
 ---
@@ -48,7 +55,7 @@ if ($result->passes()) {
 composer require infocyph/reqshield
 ```
 
-**Requirements:** PHP 8.4 or higher
+**Requirements:** PHP 8.4+ and `ext-hash` with `xxh3` support
 
 ---
 
@@ -60,26 +67,35 @@ composer require infocyph/reqshield
 use Infocyph\ReqShield\Validator;
 
 $validator = Validator::make([
-    'email' => 'required|email|max:255',
-    'username' => 'required|string|min:3|max:50',
-    'password' => 'required|min:8',
-    'password_confirmation' => 'required|same:password',
+    'email' => [
+        'rules' => 'required|email|max:255',
+        'sanitize' => ['trim', 'lowercase'],
+        'alias' => 'Email Address',
+    ],
+    'password' => 'required|string|min:8|confirmed',
+    'age' => 'required|integer|min:18',
+])->setCasts([
+    'age' => 'integer',
+])->setCustomMessages([
+    'email.required' => ':field is required.',
+    '*.min' => ':field must be at least :min.',
 ]);
 
 $result = $validator->validate($data);
 
 if ($result->passes()) {
-    $validated = $result->validated();
+    $validated = $result->typed();
     // Process your data...
 } else {
     $errors = $result->errors();
+    $failures = $result->failures();
     // Handle validation errors...
 }
 ```
 
 ### Sanitization
 
-Sanitize before validating:
+Manual sanitization:
 
 ```php
 use Infocyph\ReqShield\Sanitizer;
@@ -94,6 +110,18 @@ $clean = [
 $result = $validator->validate($clean);
 ```
 
+Or built-in sanitize+validate pipeline:
+
+```php
+$validator = Validator::make([
+    'email' => 'required|email',
+    'contacts.*.email' => 'required|email',
+])->setSanitizers([
+    'email' => ['trim', 'lowercase'],
+    'contacts.*.email' => ['trim', 'lowercase'],
+]);
+```
+
 Or use the helper:
 
 ```php
@@ -103,9 +131,9 @@ $clean = sanitize('<b>TEXT</b>', ['string', 'lowercase']); // 'text'
 
 ---
 
-## 📚 Available Rules (100+)
+## 📚 Available Rules (103)
 
-ReqShield includes 100+ validation rules covering several common scenarios:
+ReqShield includes 103 validation rules covering several common scenarios:
 
 - Basic Types
 - Formats
@@ -169,6 +197,8 @@ $data = [
 $result = $validator->validate($data);
 ```
 
+Use `enableNestedValidation(false)` to flatten only required paths for large nested payloads.
+
 ### Custom Field Names
 
 Make error messages user-friendly:
@@ -176,12 +206,24 @@ Make error messages user-friendly:
 ```php
 $validator->setFieldAliases([
     'user_email' => 'Email Address',
-    'pwd' => 'Password',
-    'pwd_confirm' => 'Password Confirmation',
+    'contacts.*.email' => 'Contact Email',
 ]);
+```
 
-// Error: "The Email Address must be a valid email address."
-// Instead of: "The user_email must be a valid email address."
+### Custom Messages + Locale Packs
+
+```php
+$validator
+    ->setCustomMessages([
+        'email.required' => ':field is required.',
+        '*.min' => ':field must be at least :min.',
+        'contacts.*.email.email' => 'Each :field must be valid.',
+    ])
+    ->addLocalePack('es', [
+        'required' => 'El campo :field es obligatorio.',
+        '*' => 'El campo :field no es valido.',
+    ])
+    ->setLocale('es');
 ```
 
 ### Throw Exceptions on Failure
@@ -203,6 +245,59 @@ try {
 }
 ```
 
+### Failure Metadata for APIs
+
+```php
+$result = $validator->validate($data);
+
+if ($result->fails()) {
+    return [
+        'errors' => $result->errors(),
+        'failures' => $result->failures(), // field, rule, message, value
+    ];
+}
+```
+
+### Conditional Rules
+
+```php
+$validator
+    ->sometimes('vat', 'required', fn(array $data) => ($data['type'] ?? null) === 'business')
+    ->when(
+        fn(array $data) => ($data['country'] ?? null) === 'US',
+        fn() => ['state' => 'required|string'],
+    );
+```
+
+### Schema Fragments
+
+```php
+Validator::defineFragment('address', [
+    'line1' => 'required|string|max:120',
+    'zip' => 'required|digits:5',
+]);
+
+$validator = Validator::make([
+    'name' => 'required|string',
+])->useFragment('address', 'billing');
+```
+
+### Typed Output + DTO
+
+```php
+$validator = Validator::make([
+    'age' => 'required|integer',
+    'active' => 'required|boolean',
+])->setCasts([
+    'age' => 'integer',
+    'active' => 'boolean',
+])->setDtoClass(App\DTO\UserInput::class);
+
+$result = $validator->validate($data);
+$typed = $result->typed();
+$dto = $result->toDTO();
+```
+
 ### Custom Rules (Simple)
 
 Use callbacks for quick custom validation:
@@ -214,7 +309,7 @@ $validator = Validator::make([
     'code' => [
         'required',
         new Callback(
-            callback: fn($value) => $value % 2 === 0,
+            callback: fn($value, $field, $data) => $value % 2 === 0,
             message: 'The code must be an even number'
         ),
     ],
@@ -268,18 +363,26 @@ class MyDatabaseProvider implements DatabaseProvider
     // Implement required methods...
 }
 
-Validator::setDatabaseProvider(new MyDatabaseProvider());
+$db = new MyDatabaseProvider();
 
 $validator = Validator::make([
     'email' => 'required|email|unique:users,email',
     'category_id' => 'required|exists:categories,id',
-]);
+], $db);
 ```
 
 **Benefits:**
 - 🚀 **Automatic batching** - Multiple checks become one query
-- ⚡ **50x faster** than individual queries
 - 🎯 **Update support** - `unique:users,email,5` ignores ID 5
+- 🧾 **Soft-delete aware unique** - `unique:users,email,,id,false,deleted_at`
+
+### Schema Export / Introspection
+
+```php
+$jsonSchema = $validator->exportSchema('json_schema');
+$openApiShape = $validator->exportSchema('openapi');
+$introspection = $validator->exportSchema('introspection');
+```
 
 ### Stop on First Error
 

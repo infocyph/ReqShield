@@ -69,10 +69,20 @@ class Unique extends BaseRule
         return $this->ignoreId;
     }
 
+    public function getSoftDeleteColumn(): string
+    {
+        return $this->softDeleteColumn;
+    }
+
     // Getters for batch executor
     public function getTable(): string
     {
         return $this->table;
+    }
+
+    public function getWithTrashed(): bool
+    {
+        return $this->withTrashed;
     }
 
     public function isBatchable(): bool
