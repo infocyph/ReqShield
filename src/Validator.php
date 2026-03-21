@@ -50,6 +50,8 @@ class Validator
 
     protected bool $nestedValidation = false;
 
+    protected ?array $ruleClassToNameMap = null;
+
     protected array $rules;
 
     protected array $schema;
@@ -412,6 +414,16 @@ class Validator
     }
 
     /**
+     * Convert indexed dot paths to wildcard paths for custom message lookup.
+     *
+     * Example: contacts.0.email => contacts.*.email
+     */
+    protected function normalizeWildcardField(string $field): string
+    {
+        return preg_replace('/\.\d+(?=\.|$)/', '.*', $field) ?? $field;
+    }
+
+    /**
      * Prepare nested data for validation.
      * IMPROVED: Implements nested validation support
      *
@@ -533,6 +545,81 @@ class Validator
     }
 
     /**
+     * Resolve custom message for a specific field/rule failure.
+     *
+     * Supported keys (in priority order):
+     * - field.rule (e.g. email.required)
+     * - field.* (any rule for that field)
+     * - *.rule (any field for that rule)
+     * - normalized_wildcard_field.rule (e.g. contacts.*.email.required)
+     * - normalized_wildcard_field.*
+     * - field
+     * - normalized_wildcard_field
+     * - rule (global fallback)
+     */
+    protected function resolveCustomMessage(string $field, object $rule): ?string
+    {
+        $ruleName = $this->resolveRuleName($rule);
+        $normalizedField = $this->normalizeWildcardField($field);
+
+        $candidates = [
+          "{$field}.{$ruleName}",
+          "{$field}.*",
+          "*.{$ruleName}",
+        ];
+
+        if ($normalizedField !== $field) {
+            $candidates[] = "{$normalizedField}.{$ruleName}";
+            $candidates[] = "{$normalizedField}.*";
+        }
+
+        $candidates[] = $field;
+
+        if ($normalizedField !== $field) {
+            $candidates[] = $normalizedField;
+        }
+
+        $candidates[] = $ruleName;
+
+        foreach ($candidates as $key) {
+            if (!array_key_exists($key, $this->customMessages)) {
+                continue;
+            }
+
+            $message = $this->customMessages[$key];
+            return is_string($message) ? $message : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve canonical rule name for custom message key lookup.
+     */
+    protected function resolveRuleName(object $rule): string
+    {
+        if ($this->ruleClassToNameMap === null) {
+            $this->ruleClassToNameMap = [];
+            foreach ($this->compiler->getRuleMap() as $name => $class) {
+                $this->ruleClassToNameMap[ltrim($class, '\\')] = $name;
+            }
+        }
+
+        $class = ltrim($rule::class, '\\');
+        if (isset($this->ruleClassToNameMap[$class])) {
+            return $this->ruleClassToNameMap[$class];
+        }
+
+        $pos = strrpos($class, '\\');
+        $shortName = $pos === false ? $class : substr($class, $pos + 1);
+        $snake = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $shortName) ?? $shortName);
+
+        return str_ends_with($snake, '_rule')
+            ? substr($snake, 0, -5)
+            : $snake;
+    }
+
+    /**
      * Check if a field should be excluded from the validated payload.
      */
     protected function shouldExcludeField(
@@ -629,7 +716,7 @@ class Validator
             }
 
             // Rule failed - add error
-            $message = $this->customMessages[$field] ?? $rule->message(
+            $message = $this->resolveCustomMessage($field, $rule) ?? $rule->message(
                 FieldAlias::get($field),
             );
 

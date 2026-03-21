@@ -77,6 +77,14 @@ class SchemaCompiler
     }
 
     /**
+     * Get the active rule map (rule name => class).
+     */
+    public function getRuleMap(): array
+    {
+        return $this->ruleMap;
+    }
+
+    /**
      * Register a custom rule.
      */
     public function registerRule(string $name, string $class): void

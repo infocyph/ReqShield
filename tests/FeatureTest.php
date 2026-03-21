@@ -120,6 +120,29 @@ test('custom callback rule fails', function () {
     expect($result->errors()['code'][0])->toBe($message);
 });
 
+test('custom messages support per-rule and global fallbacks', function () {
+    $validator = Validator::make([
+        'email' => 'required|email|max:10',
+        'score' => 'required|integer|min:5',
+    ])->setFailFast(false);
+
+    $validator->setCustomMessages([
+        'email.email' => 'Email format is invalid.',
+        'email.max' => 'Email is too long.',
+        'min' => 'Value is too small.',
+    ]);
+
+    $result = $validator->validate([
+        'email' => 'not-an-email-address',
+        'score' => 2,
+    ]);
+
+    expect($result->fails())->toBeTrue();
+    expect($result->errors()['email'])->toContain('Email format is invalid.');
+    expect($result->errors()['email'])->toContain('Email is too long.');
+    expect($result->errors()['score'])->toContain('Value is too small.');
+});
+
 test('fluent validationresult api works', function () {
     $validator = Validator::make([
         'email' => 'required|email',
@@ -245,4 +268,3 @@ test('schema statistics are calculated', function () {
     expect($stats['fields']['username']['cheap_rules'])->toBe(3);
     expect($stats['fields']['password']['cheap_rules'])->toBe(2);
 });
-

@@ -186,7 +186,17 @@ For setting many aliases at once, use the ``FieldAlias`` utility:
 Custom Error Messages
 ---------------------
 
-You can override the default error message for specific fields using ``setCustomMessages()``.
+You can override default error messages using ``setCustomMessages()``.
+
+Supported message keys:
+
+- ``field.rule``: Specific message for a specific rule on a specific field (e.g. ``email.required``).
+- ``field``: Fallback message for any failing rule on that field.
+- ``rule``: Global fallback message for a rule across all fields (e.g. ``min``).
+- ``field.*``: Any rule for one field.
+- ``*.rule``: One rule for any field.
+
+For nested wildcard fields, you can use wildcard field paths like ``contacts.*.email.required``.
 
 .. code-block:: php
 
@@ -196,8 +206,10 @@ You can override the default error message for specific fields using ``setCustom
     ]);
 
     $validator->setCustomMessages([
-        'email' => 'Please provide a valid email address.',
-        'age' => 'You must be at least 18 years old.',
+        'email.required' => 'Email is required.',
+        'email.email' => 'Please provide a valid email address.',
+        'age.min' => 'You must be at least 18 years old.',
+        'required' => 'This field is required.',
     ]);
 
     $result = $validator->validate([
