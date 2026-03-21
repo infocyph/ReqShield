@@ -31,9 +31,9 @@ class PresentWithAll extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $hasAll = array_all($this->fields, fn ($f) => isset($data[$f]));
+        $hasAll = array_all($this->fields, fn ($f) => array_key_exists($f, $data));
 
-        return !$hasAll || isset($data[$field]);
+        return !$hasAll || array_key_exists($field, $data);
     }
 
 }

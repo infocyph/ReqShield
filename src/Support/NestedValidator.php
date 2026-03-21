@@ -249,22 +249,22 @@ class NestedValidator
         foreach ($data as $key => $value) {
             $newKey = $prefix === '' ? (string)$key : "{$prefix}.{$key}";
 
-            if (is_array($value) && !empty($value)) {
-                // Check if it's an associative array (not a list)
-                if (static::isAssociativeArray($value)) {
-                    // Recursively flatten nested associative arrays
-                    // IMPROVED: Direct assignment instead of array_merge
+            if (is_array($value)) {
+                // Keep the original key so array-level rules still work.
+                $flattened[$newKey] = $value;
+
+                if (!empty($value)) {
+                    // Also flatten nested keys (including indexed arrays) for dot/wildcard rules.
                     $nested = static::flattenData($value, $newKey);
                     foreach ($nested as $nestedKey => $nestedValue) {
                         $flattened[$nestedKey] = $nestedValue;
                     }
-                } else {
-                    // For indexed arrays (lists), keep as is
-                    $flattened[$newKey] = $value;
                 }
-            } else {
-                $flattened[$newKey] = $value;
+
+                continue;
             }
+
+            $flattened[$newKey] = $value;
         }
 
         return $flattened;

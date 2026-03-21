@@ -11,7 +11,7 @@ ReqShield provides two ways to add your own validation logic:
 For simple, single-use rules, you can pass an instance of ``Infocyph\ReqShield\Rules\Callback`` directly into your rule array.
 
 The ``Callback`` constructor accepts:
-* ``callback``: A ``callable`` (like a closure) that receives ``($value)`` and returns ``true`` (pass) or ``false`` (fail).
+* ``callback``: A ``callable`` (like a closure) that receives ``($value, $field, $data)`` and returns ``true`` (pass) or ``false`` (fail).
 * ``cost`` (optional): An integer cost. Keep it low (e.g., ``20``) unless it's a slow operation.
 * ``message`` (optional): A custom error message.
 
@@ -25,7 +25,7 @@ The ``Callback`` constructor accepts:
             'required',
             // Example: Must be a specific format
             new Callback(
-                callback: fn ($value) => preg_match('/^[A-Z]{3}-\d{4}$/', $value),
+                callback: fn ($value, $field, $data) => preg_match('/^[A-Z]{3}-\d{4}$/', $value),
                 cost: 20,
                 message: 'Code must be in format ABC-1234'
             ),
@@ -35,7 +35,7 @@ The ``Callback`` constructor accepts:
             'integer',
             // Example: Must be an even number
             new Callback(
-                callback: fn ($value) => $value % 2 === 0,
+                callback: fn ($value, $field, $data) => $value % 2 === 0,
                 cost: 5,
                 message: 'Number must be even'
             ),

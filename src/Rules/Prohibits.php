@@ -37,7 +37,7 @@ class Prohibits extends BaseRule
 
         return array_all(
             $this->fields,
-            fn ($f) => !(isset($data[$f]) && !$this->isEmpty($data[$f])),
+            fn ($f) => !(array_key_exists($f, $data) && !$this->isEmpty($data[$f])),
         );
     }
 

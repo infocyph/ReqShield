@@ -21,7 +21,7 @@ class Present extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return isset($data[$field]);
+        return array_key_exists($field, $data);
     }
 
 }

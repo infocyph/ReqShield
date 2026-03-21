@@ -50,6 +50,8 @@ class Validator
 
     protected bool $nestedValidation = false;
 
+    protected array $rules;
+
     protected array $schema;
 
     protected bool $stopOnFirstError = false;
@@ -81,6 +83,7 @@ class Validator
             }
         }
 
+        $this->rules = $rules;
         $this->compiler = new SchemaCompiler();
         $this->schema = $this->compiler->compile($rules);
         $this->batchExecutor = new BatchExecutor($db);
@@ -231,27 +234,29 @@ class Validator
      */
     public function validate(array $data): ValidationResult
     {
+        $schema = $this->schema;
+
         // Handle nested validation if enabled
         if ($this->nestedValidation) {
-            $data = $this->prepareNestedData($data);
+            $data = $this->prepareNestedData($data, $schema);
         }
 
         $context = $this->initializeValidationContext();
 
-        // IMPROVED: Process all fields (data + required schema fields)
-        // This ensures required fields that are missing from data are validated
-        $fieldsToValidate = $this->getFieldsToValidate($data);
+        // Process data fields plus schema fields requiring implicit validation.
+        $fieldsToValidate = $this->getFieldsToValidate($data, $schema);
 
         foreach ($fieldsToValidate as $field) {
-            if (!isset($this->schema[$field])) {
+            if (!isset($schema[$field])) {
                 continue;
             }
 
-            $node = $this->schema[$field];
-            $value = $data[$field] ?? null;
+            $node = $schema[$field];
+            $fieldExists = array_key_exists($field, $data);
+            $value = $fieldExists ? $data[$field] : null;
 
             // Quick skip for optional empty fields
-            if ($this->shouldSkipOptionalField($node, $value)) {
+            if ($this->shouldSkipOptionalField($node, $value, $fieldExists)) {
                 continue;
             }
 
@@ -356,19 +361,40 @@ class Validator
      *
      * @return array List of field names to validate
      */
-    protected function getFieldsToValidate(array $data): array
-    {
-        // Get all fields from data
-        $fields = array_keys($data);
+    protected function getFieldsToValidate(
+        array $data,
+        ?array $schema = null,
+    ): array {
+        $schema ??= $this->schema;
 
-        // Add all required fields from schema that aren't in data
-        foreach ($this->schema as $field => $node) {
-            if (!$node->isOptional && !in_array($field, $fields, true)) {
-                $fields[] = $field;
+        $fields = [];
+
+        foreach (array_keys($data) as $field) {
+            $fields[$field] = true;
+        }
+
+        foreach ($schema as $field => $node) {
+            if (
+                $node instanceof ValidationNode
+                && (!$node->isOptional || $node->requiresValidationWhenMissing)
+            ) {
+                $fields[$field] = true;
             }
         }
 
-        return array_unique($fields);
+        return array_keys($fields);
+    }
+
+    /**
+     * Fast helper for checking rule short-name prefixes.
+     */
+    protected function hasRulePrefix(object $rule, string $prefix): bool
+    {
+        $class = $rule::class;
+        $pos = strrpos($class, '\\');
+        $shortName = $pos === false ? $class : substr($class, $pos + 1);
+
+        return str_starts_with($shortName, $prefix);
     }
 
     /**
@@ -397,14 +423,26 @@ class Validator
      *
      * @return array Flattened data with dot notation keys
      */
-    protected function prepareNestedData(array $data): array
+    protected function prepareNestedData(array $data, array &$schema): array
     {
         $hasNestedRules = array_any(
-            array_keys($this->schema),
-            fn ($field) => str_contains($field, '.'),
+            array_keys($this->rules),
+            fn ($field) => str_contains($field, '.') || str_contains($field, '*'),
         );
         if (!$hasNestedRules) {
             return $data;
+        }
+
+        // Expand wildcard rules at runtime based on actual payload structure.
+        $hasWildcardRules = array_any(
+            array_keys($this->rules),
+            fn ($field) => str_contains($field, '*'),
+        );
+
+        if ($hasWildcardRules) {
+            $parsedRules = NestedValidator::parseRules($this->rules);
+            $expandedRules = NestedValidator::expandWildcards($data, $parsedRules);
+            $schema = $this->compiler->compile($expandedRules);
         }
 
         // Flatten nested data to match dot notation rules
@@ -435,6 +473,16 @@ class Validator
         array $data,
         array &$context,
     ): bool {
+        if ($node->hasExcludeRules && $this->shouldExcludeField(
+            $node,
+            $field,
+            $value,
+            $data,
+        )) {
+            return true;
+        }
+
+        $fieldFailFast = $this->failFast || $node->hasBailRule;
         $hasError = false;
 
         // Phase 1: Cheap rules (cost < 50)
@@ -444,19 +492,21 @@ class Validator
             $field,
             $data,
             $context['errors'],
+            $fieldFailFast,
         )) {
             $hasError = true;
         }
 
         // Phase 2: Medium rules (cost 50-99)
         // OPTIMIZED: Skip if already failed and failFast is enabled
-        if (!$hasError || !$this->failFast) {
+        if (!$hasError || !$fieldFailFast) {
             if (!$this->validatePhase(
                 $node->mediumRules,
                 $value,
                 $field,
                 $data,
                 $context['errors'],
+                $fieldFailFast,
             )) {
                 $hasError = true;
             }
@@ -464,7 +514,7 @@ class Validator
 
         // Phase 3: Collect expensive rules for batching
         // OPTIMIZED: Skip if already failed and failFast is enabled
-        if (!$hasError || !$this->failFast) {
+        if (!$hasError || !$fieldFailFast) {
             $this->collectExpensiveRules(
                 $node->expensiveRules,
                 $value,
@@ -483,6 +533,28 @@ class Validator
     }
 
     /**
+     * Check if a field should be excluded from the validated payload.
+     */
+    protected function shouldExcludeField(
+        ValidationNode $node,
+        string $field,
+        mixed $value,
+        array $data,
+    ): bool {
+        foreach ($node->getAllRules() as $rule) {
+            if (!$this->hasRulePrefix($rule, 'Exclude')) {
+                continue;
+            }
+
+            if (!$rule->passes($value, $field, $data)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Check if optional field should be skipped.
      * OPTIMIZED: Inline isEmpty check for better performance
      *
@@ -494,9 +566,20 @@ class Validator
     protected function shouldSkipOptionalField(
         ValidationNode $node,
         mixed $value,
+        bool $fieldExists,
     ): bool {
-        if (!$node->isOptional) {
+        if (!$node->isOptional || $node->requiresValidationWhenMissing) {
             return false;
+        }
+
+        // Filled must run when the field exists, even if empty.
+        if ($node->hasFilledRule && $fieldExists) {
+            return false;
+        }
+
+        // Missing optional field with no implicit requirement can be skipped.
+        if (!$fieldExists) {
+            return true;
         }
 
         // Inline isEmpty for performance (avoid method call overhead)
@@ -527,6 +610,7 @@ class Validator
         string $field,
         array $data,
         array &$errors,
+        bool $stopOnFirstFailure,
     ): bool {
         if (empty($rules)) {
             return true;
@@ -535,6 +619,11 @@ class Validator
         $hasError = false;
 
         foreach ($rules as $rule) {
+            // Exclusion directives are handled before phase execution.
+            if ($this->hasRulePrefix($rule, 'Exclude')) {
+                continue;
+            }
+
             if ($rule->passes($value, $field, $data)) {
                 continue;
             }
@@ -553,7 +642,7 @@ class Validator
             $hasError = true;
 
             // Fail fast if enabled
-            if ($this->failFast) {
+            if ($stopOnFirstFailure) {
                 return false;
             }
         }

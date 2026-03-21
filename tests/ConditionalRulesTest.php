@@ -14,6 +14,7 @@ describe('Conditional Validation Rules', function () {
 
         expect($validator->validate(['account_type' => 'business', 'company_name' => 'Acme Corp'])->passes())->toBeTrue();
         expect($validator->validate(['account_type' => 'personal'])->passes())->toBeTrue();
+        expect($validator->validate(['account_type' => 'business'])->fails())->toBeTrue();
     });
 
     test('required_unless rule validates requirement unless condition', function () {
@@ -192,6 +193,7 @@ describe('Conditional Validation Rules', function () {
         $result = $validator->validate(['name' => 'John', 'internal_id' => '12345']);
         $validated = $result->validated();
 
+        expect($result->passes())->toBeTrue();
         expect($validated)->toHaveKey('name');
         expect($validated)->not->toHaveKey('internal_id');
     });
@@ -204,6 +206,7 @@ describe('Conditional Validation Rules', function () {
 
         $result = $validator->validate(['user_role' => 'guest', 'debug_info' => 'test']);
 
+        expect($result->passes())->toBeTrue();
         expect($result->validated())->not->toHaveKey('debug_info');
     });
 
@@ -215,6 +218,7 @@ describe('Conditional Validation Rules', function () {
 
         $result = $validator->validate(['user_role' => 'user', 'admin_notes' => 'notes']);
 
+        expect($result->passes())->toBeTrue();
         expect($result->validated())->not->toHaveKey('admin_notes');
     });
 
@@ -226,6 +230,7 @@ describe('Conditional Validation Rules', function () {
 
         $result = $validator->validate(['temp_token' => 'abc', 'permanent_token' => 'xyz']);
 
+        expect($result->passes())->toBeTrue();
         expect($result->validated())->not->toHaveKey('temp_token');
     });
 
@@ -237,6 +242,7 @@ describe('Conditional Validation Rules', function () {
 
         $result = $validator->validate(['backup_email' => 'backup@example.com']);
 
+        expect($result->passes())->toBeTrue();
         expect($result->validated())->not->toHaveKey('backup_email');
     });
 });

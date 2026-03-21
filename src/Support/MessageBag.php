@@ -254,6 +254,9 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
         // OPTIMIZATION: Use array_push with spread operator instead of array_merge
         $flat = [];
         foreach ($this->messages as $messages) {
+            if ($messages === []) {
+                continue;
+            }
             array_push($flat, ...$messages);
         }
 
@@ -356,6 +359,10 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
     public function merge(MessageBag $bag): self
     {
         foreach ($bag->all() as $key => $messages) {
+            if ($messages === []) {
+                continue;
+            }
+
             if (!isset($this->messages[$key])) {
                 $this->messages[$key] = $messages;
             } else {

@@ -35,7 +35,7 @@ class RequiredWithout extends BaseRule
         $missingAnyField = array_any(
             $this->fields,
             fn ($otherField)
-              => !isset($data[$otherField]) || $this->isEmpty(
+              => !array_key_exists($otherField, $data) || $this->isEmpty(
                   $data[$otherField],
               ),
         );

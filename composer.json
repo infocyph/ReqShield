@@ -38,11 +38,11 @@
         "php": ">=8.4"
     },
     "require-dev": {
-        "captainhook/captainhook": "^5.25",
-        "laravel/pint": "^1.25",
-        "pestphp/pest": "^4.1",
-        "rector/rector": "^2.2.3",
-        "symfony/var-dumper": "^7.3"
+        "captainhook/captainhook": "^5.28",
+        "laravel/pint": "^1.29",
+        "pestphp/pest": "^4.4",
+        "rector/rector": "^2.3",
+        "symfony/var-dumper": "^7.4"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,

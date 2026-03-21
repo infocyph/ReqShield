@@ -88,3 +88,49 @@ ReqShield correctly handles errors for nested fields, including when they are mi
         ]
         */
     }
+
+Wildcard Array Validation
+-------------------------
+
+ReqShield also supports wildcard rules for validating each item in nested arrays.
+
+.. code-block:: php
+
+    $validator = Validator::make([
+        'contacts.*.email' => 'required|email',
+        'contacts.*.name' => 'required|min:2',
+    ])->enableNestedValidation();
+
+    $data = [
+        'contacts' => [
+            ['email' => 'john@example.com', 'name' => 'John'],
+            ['email' => 'jane@example.com', 'name' => 'Jane'],
+        ],
+    ];
+
+    $result = $validator->validate($data);
+
+    // Validation runs against expanded keys:
+    // - contacts.0.email
+    // - contacts.0.name
+    // - contacts.1.email
+    // - contacts.1.name
+
+If a specific item fails, the error key includes its index:
+
+.. code-block:: php
+
+    $invalid = [
+        'contacts' => [
+            ['email' => 'bad-email', 'name' => 'A'],
+        ],
+    ];
+
+    $result = $validator->validate($invalid);
+    $errors = $result->errors();
+    /*
+    [
+        'contacts.0.email' => ['The contacts.0.email must be a valid email address.'],
+        'contacts.0.name' => ['The contacts.0.name must be at least 2.']
+    ]
+    */

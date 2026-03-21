@@ -31,7 +31,10 @@ class ExcludeUnless extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return isset($data[$this->otherField]) && $data[$this->otherField] === $this->value;
+        return array_key_exists(
+            $this->otherField,
+            $data,
+        ) && $data[$this->otherField] === $this->value;
     }
 
 }

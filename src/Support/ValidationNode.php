@@ -49,6 +49,21 @@ class ValidationNode
     public array $expensiveRules = [];
 
     /**
+     * Whether this field has a bail rule (field-level fail-fast).
+     */
+    public bool $hasBailRule = false;
+
+    /**
+     * Whether this field has any exclude* rules.
+     */
+    public bool $hasExcludeRules = false;
+
+    /**
+     * Whether this field has a filled rule.
+     */
+    public bool $hasFilledRule = false;
+
+    /**
      * Whether this field is optional (no required rule)
      */
     public bool $isOptional = true;
@@ -59,6 +74,11 @@ class ValidationNode
      * @var Rule[]
      */
     public array $mediumRules = [];
+
+    /**
+     * Whether this field must be evaluated even when missing from input.
+     */
+    public bool $requiresValidationWhenMissing = false;
 
     /**
      * Add a child node for nested validation.
@@ -77,10 +97,33 @@ class ValidationNode
     public function addRule(Rule $rule): void
     {
         $cost = $rule->cost();
+        $shortName = new \ReflectionClass($rule)->getShortName();
 
         // Check if this is a required rule
-        if ($rule instanceof \Infocyph\ReqShield\Rules\Required) {
+        if (str_starts_with($shortName, 'Required')) {
             $this->isOptional = false;
+        }
+
+        if ($shortName === 'Bail') {
+            $this->hasBailRule = true;
+        }
+
+        if ($shortName === 'Filled') {
+            $this->hasFilledRule = true;
+        }
+
+        if (str_starts_with($shortName, 'Exclude')) {
+            $this->hasExcludeRules = true;
+        }
+
+        if (
+            str_starts_with($shortName, 'Required')
+            || str_starts_with($shortName, 'Present')
+            || str_starts_with($shortName, 'Missing')
+            || str_starts_with($shortName, 'Prohibited')
+            || $shortName === 'Prohibits'
+        ) {
+            $this->requiresValidationWhenMissing = true;
         }
 
         if ($cost < 50) {
@@ -182,6 +225,10 @@ class ValidationNode
           'expensive_rules' => count($this->expensiveRules),
           'total_rules' => $this->getRuleCount(),
           'is_optional' => $this->isOptional,
+          'requires_validation_when_missing' => $this->requiresValidationWhenMissing,
+          'has_exclude_rules' => $this->hasExcludeRules,
+          'has_filled_rule' => $this->hasFilledRule,
+          'has_bail_rule' => $this->hasBailRule,
           'has_children' => $this->hasChildren(),
           'children_count' => $this->hasChildren() ? count(
               $this->children,

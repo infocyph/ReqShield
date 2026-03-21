@@ -24,7 +24,10 @@ class Confirmed extends BaseRule
     {
         $confirmationField = $field . '_confirmation';
 
-        return isset($data[$confirmationField]) && $value === $data[$confirmationField];
+        return array_key_exists(
+            $confirmationField,
+            $data,
+        ) && $value === $data[$confirmationField];
     }
 
 }

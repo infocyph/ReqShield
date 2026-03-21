@@ -29,7 +29,7 @@ class RequiredIfDeclined extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         $declined = ['no', 'off', '0', 0, false, 'false'];
-        if (!isset($data[$this->otherField]) || !in_array(
+        if (!array_key_exists($this->otherField, $data) || !in_array(
             $data[$this->otherField],
             $declined,
             true,
