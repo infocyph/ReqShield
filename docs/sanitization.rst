@@ -1,7 +1,7 @@
 Sanitization
 ============
 
-ReqShield includes a powerful ``Sanitizer`` utility class with over 50 methods for cleaning and normalizing data.
+ReqShield includes a powerful ``Sanitizer`` utility class with 46 built-in methods for cleaning and normalizing data.
 
 You can sanitize in two ways:
 
@@ -333,16 +333,16 @@ Formats a numeric value as currency with proper symbols and formatting.
 
 filename($value)
 ^^^^^^^^^^^^^^^^
-Removes path traversal attempts and unsafe characters from filenames.
+Removes path traversal attempts and normalizes unsafe filename characters to ``_``.
 
 .. code-block:: php
 
     Sanitizer::filename('../../../etc/passwd');      // 'passwd'
-    Sanitizer::filename('my file!@#.txt');           // 'myfile.txt'
+    Sanitizer::filename('my file!@#.txt');           // 'my_file___.txt'
 
 domain($value)
 ^^^^^^^^^^^^^^
-Extracts domain from URL (removes protocol and paths).
+Extracts the host-like segment from a URL string by removing protocol and path segments.
 
 .. code-block:: php
 
@@ -494,11 +494,11 @@ Array Sanitizers
 
 array($value)
 ^^^^^^^^^^^^^
-Sanitizes all values in an array using the ``string()`` sanitizer.
+Sanitizes all string values in an array using ``string()``. Non-string values are preserved.
 
 .. code-block:: php
 
-    Sanitizer::array(['  key1  ', '<b>key2</b>', 123]); // ['key1', 'key2', '123']
+    Sanitizer::array(['  key1  ', '<b>key2</b>', 123]); // ['key1', 'key2', 123]
 
 batch($array, $sanitizer)
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -522,7 +522,7 @@ Applies multiple sanitizers to a value in sequence.
 
 clearCache()
 ^^^^^^^^^^^^
-Clears the internal regex pattern cache used by ``Sanitizer``. This is mainly useful in tests.
+Clears internal regex and pipeline callable caches used by ``Sanitizer``. This is mainly useful in tests.
 
 .. code-block:: php
 

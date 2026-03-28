@@ -4,6 +4,10 @@ Database Rules (``unique``, ``exists``)
 ReqShield batches expensive DB validation rules across fields for performance.
 To use DB rules, provide a ``DatabaseProvider`` implementation to ``Validator::make($rules, $dbProvider)``.
 
+For provider-native batch execution, also implement
+``Infocyph\ReqShield\Contracts\NativeBatchDatabaseProvider`` (marker interface).
+If you only implement ``DatabaseProvider``, ReqShield falls back to chunked ``query()``-based checks.
+
 DatabaseProvider Implementation
 -------------------------------
 
