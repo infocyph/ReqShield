@@ -245,8 +245,6 @@ class Sanitizer
      * behavior between test cases. In production, the cache improves performance
      * by avoiding recompilation of frequently used patterns.
      *
-     * @return void
-     *
      * @example
      * // In test setup
      * Sanitizer::clearCache();

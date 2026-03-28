@@ -73,9 +73,7 @@ class SchemaCompiler
 
         // Sort rules by cost in all nodes
         foreach ($schema as $node) {
-            if ($node instanceof ValidationNode) {
-                $node->sortRules();
-            }
+            $node->sortRules();
         }
 
         return $schema;

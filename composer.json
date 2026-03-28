@@ -42,7 +42,7 @@
         "laravel/pint": "^1.29",
         "pestphp/pest": "^4.4",
         "rector/rector": "^2.3",
-        "symfony/var-dumper": "^7.4"
+        "symfony/var-dumper": "^7.4 || ^8.0"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
@@ -55,10 +55,10 @@
     },
     "scripts": {
         "test:code": "php vendor/bin/pest --parallel --processes=10",
-        "test:refactor": "php vendor/bin/rector process --dry-run",
+        "test:refactor": "php vendor/bin/rector process --dry-run --config rector.php",
         "test:lint": "php -d memory_limit=1G vendor/bin/pint --test",
         "test:static": "php vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --no-progress --memory-limit=1G",
-        "test:dead-code": "php vendor/bin/rector process --dry-run --config rector-dead-code.php",
+        "test:dead-code": "php tools/run-rector-dead-code.php",
         "bench:validator": "php benchmarks/validator_bench.php",
         "test:hook": [
             "captainhook hook:post-checkout",
@@ -77,7 +77,7 @@
         ],
         "git:hook": "captainhook install --only-enabled -nf",
         "test": "php vendor/bin/pest",
-        "refactor": "php vendor/bin/rector process",
+        "refactor": "php vendor/bin/rector process --config rector.php",
         "lint": "php -d memory_limit=1G vendor/bin/pint",
         "post-autoload-dump": "captainhook install --only-enabled -nf"
     }

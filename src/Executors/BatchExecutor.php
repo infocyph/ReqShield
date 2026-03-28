@@ -317,7 +317,7 @@ class BatchExecutor
             $value = (string)$value;
         }
 
-        return (string)$value;
+        return $value;
     }
 
     /**

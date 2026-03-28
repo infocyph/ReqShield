@@ -42,7 +42,6 @@ class MimeTypes extends BaseRule
         }
 
         $mime = finfo_file($finfo, $path);
-        finfo_close($finfo);
 
         if (!is_string($mime)) {
             return false;

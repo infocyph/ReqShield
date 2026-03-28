@@ -601,7 +601,7 @@ class NestedValidator
 
         foreach ($keys as $key) {
             $value = $data[$key];
-            hash_update($context, 'k:' . (string)$key . ';');
+            hash_update($context, 'k:' . $key . ';');
 
             if (is_array($value)) {
                 static::updateShapeHash($context, $value);

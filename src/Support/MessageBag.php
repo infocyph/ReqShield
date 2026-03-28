@@ -536,9 +536,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
             ) . '</li>';
         }
 
-        $html .= "</{$listType}>";
-
-        return $html;
+        return $html . "</{$listType}>";
     }
 
     /**

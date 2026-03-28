@@ -115,7 +115,6 @@ class MimeTypeResolver
      * Get primary MIME type (first in array)
      *
      * @param string $extension File extension
-     * @return string
      */
     public static function getPrimaryMimeType(string $extension): string
     {
@@ -127,7 +126,6 @@ class MimeTypeResolver
      * Check if extension has a known MIME type
      *
      * @param string $extension File extension
-     * @return bool
      */
     public static function hasExtension(string $extension): bool
     {

@@ -35,7 +35,7 @@ class MockDatabaseProvider implements NativeBatchDatabaseProvider
      */
     public function addData(string $table, array $rows): void
     {
-        if (!is_array($rows) || empty($rows)) {
+        if (empty($rows)) {
             throw new \InvalidArgumentException(
                 "Rows must be a non-empty array",
             );

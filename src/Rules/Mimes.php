@@ -25,8 +25,6 @@ class Mimes extends BaseRule
 
     /**
      * Clear the MimeTypeResolver cache (useful for testing)
-     *
-     * @return void
      */
     public static function clearCache(): void
     {
@@ -35,8 +33,6 @@ class Mimes extends BaseRule
 
     /**
      * Get the cost of this rule
-     *
-     * @return int
      */
     public function cost(): int
     {
@@ -61,7 +57,6 @@ class Mimes extends BaseRule
      * Get the validation error message
      *
      * @param string $field Field name
-     * @return string
      */
     public function message(string $field): string
     {
@@ -77,7 +72,6 @@ class Mimes extends BaseRule
      * @param mixed $value File array from $_FILES
      * @param string $field Field name
      * @param array $data All validation data
-     * @return bool
      */
     public function passes(mixed $value, string $field, array $data): bool
     {
