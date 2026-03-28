@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Executors;
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
+use Infocyph\ReqShield\Contracts\NativeBatchDatabaseProvider;
 use Infocyph\ReqShield\Rules\Exists;
 use Infocyph\ReqShield\Rules\Unique;
 
@@ -328,8 +329,67 @@ class BatchExecutor
         array &$errors,
         array &$failures,
     ): void {
+        if (
+            $this->db instanceof NativeBatchDatabaseProvider
+            && $this->processExistsChecksWithNativeBatch($table, $checks, $errors, $failures)
+        ) {
+            return;
+        }
+
         $results = $this->executeQueryGroups($table, $checks, false);
         $this->validateExistsResults($results, $checks, $errors, $failures);
+    }
+
+    protected function processExistsChecksWithNativeBatch(
+        string $table,
+        array $checks,
+        array &$errors,
+        array &$failures,
+    ): bool {
+        $payload = [];
+        $checksByField = [];
+
+        foreach ($checks as $check) {
+            $rule = $check['rule'];
+            $column = $rule->getColumn();
+            $field = $check['field'];
+
+            $payload[] = [
+                'column' => $column,
+                'value' => $check['value'],
+                'field' => $field,
+            ];
+            $checksByField[$field] = $check;
+        }
+
+        try {
+            $failedFields = $this->db->batchExistsCheck($table, $payload);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if (!is_array($failedFields)) {
+            return false;
+        }
+
+        foreach ($failedFields as $failedField) {
+            $field = is_string($failedField) ? $failedField : (string)$failedField;
+            if (!isset($checksByField[$field])) {
+                continue;
+            }
+
+            $check = $checksByField[$field];
+            $message = $this->resolveFailureMessage($check, $check['rule']);
+            $errors[$field][] = $message;
+            $failures[] = [
+                'field' => $field,
+                'rule' => $check['rule_name'] ?? 'exists',
+                'message' => $message,
+                'value' => $check['value'],
+            ];
+        }
+
+        return true;
     }
 
     /**
@@ -341,8 +401,71 @@ class BatchExecutor
         array &$errors,
         array &$failures,
     ): void {
+        if (
+            $this->db instanceof NativeBatchDatabaseProvider
+            && $this->processUniqueChecksWithNativeBatch($table, $checks, $errors, $failures)
+        ) {
+            return;
+        }
+
         $results = $this->executeQueryGroups($table, $checks, true);
         $this->processUniqueResults($results, $checks, $errors, $failures);
+    }
+
+    protected function processUniqueChecksWithNativeBatch(
+        string $table,
+        array $checks,
+        array &$errors,
+        array &$failures,
+    ): bool {
+        $payload = [];
+        $checksByField = [];
+
+        foreach ($checks as $check) {
+            $rule = $check['rule'];
+            $column = $rule->getColumn() ?? $check['field'];
+            $field = $check['field'];
+
+            $payload[] = [
+                'column' => $column,
+                'value' => $check['value'],
+                'field' => $field,
+                'ignore_id' => $rule->getIgnoreId(),
+                'id_column' => $rule->getIdColumn() ?? 'id',
+                'with_trashed' => (bool)($rule->getWithTrashed() ?? false),
+                'soft_delete_column' => $rule->getSoftDeleteColumn() ?? 'deleted_at',
+            ];
+            $checksByField[$field] = $check;
+        }
+
+        try {
+            $failedFields = $this->db->batchUniqueCheck($table, $payload);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if (!is_array($failedFields)) {
+            return false;
+        }
+
+        foreach ($failedFields as $failedField) {
+            $field = is_string($failedField) ? $failedField : (string)$failedField;
+            if (!isset($checksByField[$field])) {
+                continue;
+            }
+
+            $check = $checksByField[$field];
+            $message = $this->resolveFailureMessage($check, $check['rule']);
+            $errors[$field][] = $message;
+            $failures[] = [
+                'field' => $field,
+                'rule' => $check['rule_name'] ?? 'unique',
+                'message' => $message,
+                'value' => $check['value'],
+            ];
+        }
+
+        return true;
     }
 
     /**
@@ -397,6 +520,18 @@ class BatchExecutor
     {
         if (isset($check['message']) && is_string($check['message'])) {
             return $check['message'];
+        }
+
+        if (isset($check['message_resolver']) && is_callable($check['message_resolver'])) {
+            try {
+                $resolved = ($check['message_resolver'])();
+
+                if (is_string($resolved) && $resolved !== '') {
+                    return $resolved;
+                }
+            } catch (\Throwable) {
+                // Fall back to rule default message.
+            }
         }
 
         $label = isset($check['field_label']) && is_string($check['field_label'])

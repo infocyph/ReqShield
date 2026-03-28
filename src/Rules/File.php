@@ -11,7 +11,7 @@ class File extends BaseRule
 {
     public function cost(): int
     {
-        return 10;
+        return 55;
     }
 
     public function message(string $field): string

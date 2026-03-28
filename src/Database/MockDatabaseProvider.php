@@ -2,7 +2,7 @@
 
 namespace Infocyph\ReqShield\Database;
 
-use Infocyph\ReqShield\Contracts\DatabaseProvider;
+use Infocyph\ReqShield\Contracts\NativeBatchDatabaseProvider;
 
 /**
  * MockDatabaseProvider
@@ -23,7 +23,7 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
  *
  * This mock implementation does NOT provide real security or performance.
  */
-class MockDatabaseProvider implements DatabaseProvider
+class MockDatabaseProvider implements NativeBatchDatabaseProvider
 {
     /**
      * Mock database data.
@@ -48,22 +48,32 @@ class MockDatabaseProvider implements DatabaseProvider
      */
     public function batchExistsCheck(string $table, array $checks): array
     {
-        $missing = [];
-
-        if (!isset($this->data[$table])) {
-            return array_values($checks);
+        if (!$this->looksLikeStructuredBatch($checks)) {
+            return $this->legacyBatchExistsCheck($table, $checks);
         }
 
-        foreach ($checks as $column => $value) {
+        $missing = [];
+        $rows = $this->data[$table] ?? [];
+
+        foreach ($checks as $check) {
+            $column = (string)($check['column'] ?? '');
+            $value = $check['value'] ?? null;
+            $identifier = (string)($check['field'] ?? $value);
+
+            if ($column === '') {
+                continue;
+            }
+
             $found = false;
-            foreach ($this->data[$table] as $row) {
-                if (isset($row[$column]) && $row[$column] === $value) {
+            foreach ($rows as $row) {
+                if (array_key_exists($column, $row) && $row[$column] === $value) {
                     $found = true;
                     break;
                 }
             }
+
             if (!$found) {
-                $missing[] = $value;
+                $missing[] = $identifier;
             }
         }
 
@@ -75,18 +85,49 @@ class MockDatabaseProvider implements DatabaseProvider
      */
     public function batchUniqueCheck(string $table, array $checks): array
     {
-        $nonUnique = [];
-
-        if (!isset($this->data[$table])) {
-            return $nonUnique;
+        if (!$this->looksLikeStructuredBatch($checks)) {
+            return $this->legacyBatchUniqueCheck($table, $checks);
         }
 
-        foreach ($checks as $column => $value) {
-            foreach ($this->data[$table] as $row) {
-                if (isset($row[$column]) && $row[$column] === $value) {
-                    $nonUnique[] = $value;
-                    break;
+        $nonUnique = [];
+        $rows = $this->data[$table] ?? [];
+
+        foreach ($checks as $check) {
+            $column = (string)($check['column'] ?? '');
+            $value = $check['value'] ?? null;
+            $identifier = (string)($check['field'] ?? $value);
+            $ignoreId = isset($check['ignore_id']) && is_int($check['ignore_id'])
+                ? $check['ignore_id']
+                : null;
+            $idColumn = isset($check['id_column']) && is_string($check['id_column'])
+                ? $check['id_column']
+                : 'id';
+            $withTrashed = isset($check['with_trashed']) && is_bool($check['with_trashed'])
+                ? $check['with_trashed']
+                : true;
+            $softDeleteColumn = isset($check['soft_delete_column']) && is_string($check['soft_delete_column'])
+                ? $check['soft_delete_column']
+                : 'deleted_at';
+
+            if ($column === '') {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (!$withTrashed && isset($row[$softDeleteColumn]) && $row[$softDeleteColumn] !== null) {
+                    continue;
                 }
+
+                if (!array_key_exists($column, $row) || $row[$column] !== $value) {
+                    continue;
+                }
+
+                if ($ignoreId !== null && isset($row[$idColumn]) && (int)$row[$idColumn] === $ignoreId) {
+                    continue;
+                }
+
+                $nonUnique[] = $identifier;
+                break;
             }
         }
 
@@ -184,6 +225,61 @@ class MockDatabaseProvider implements DatabaseProvider
         }
 
         return $results;
+    }
+
+    protected function legacyBatchExistsCheck(string $table, array $checks): array
+    {
+        $missing = [];
+
+        if (!isset($this->data[$table])) {
+            return array_values($checks);
+        }
+
+        foreach ($checks as $column => $value) {
+            $found = false;
+            foreach ($this->data[$table] as $row) {
+                if (isset($row[$column]) && $row[$column] === $value) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                $missing[] = $value;
+            }
+        }
+
+        return $missing;
+    }
+
+    protected function legacyBatchUniqueCheck(string $table, array $checks): array
+    {
+        $nonUnique = [];
+
+        if (!isset($this->data[$table])) {
+            return $nonUnique;
+        }
+
+        foreach ($checks as $column => $value) {
+            foreach ($this->data[$table] as $row) {
+                if (isset($row[$column]) && $row[$column] === $value) {
+                    $nonUnique[] = $value;
+                    break;
+                }
+            }
+        }
+
+        return $nonUnique;
+    }
+
+    protected function looksLikeStructuredBatch(array $checks): bool
+    {
+        if ($checks === []) {
+            return true;
+        }
+
+        $first = array_values($checks)[0] ?? null;
+
+        return is_array($first) && array_key_exists('column', $first);
     }
 
 }

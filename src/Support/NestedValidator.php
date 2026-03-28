@@ -541,17 +541,7 @@ class NestedValidator
      */
     protected static function resolveShapeHashAlgorithm(): string
     {
-        static $checked = false;
-
-        if (!$checked && !in_array('xxh3', hash_algos(), true)) {
-            throw new \RuntimeException(
-                'Hash algorithm "xxh3" is required but not available.',
-            );
-        }
-
-        $checked = true;
-
-        return 'xxh3';
+        return HashAlgorithm::require('xxh3');
     }
 
     /**

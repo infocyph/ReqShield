@@ -109,13 +109,8 @@ class SchemaCompiler
 
         $pos = strrpos($class, '\\');
         $shortName = $pos === false ? $class : substr($class, $pos + 1);
-        $snake = strtolower(
-            preg_replace('/(?<!^)[A-Z]/', '_$0', $shortName) ?? $shortName,
-        );
 
-        return str_ends_with($snake, '_rule')
-            ? substr($snake, 0, -5)
-            : $snake;
+        return RuleNameResolver::canonicalRuleNameFromClass($shortName);
     }
 
     /**
@@ -413,17 +408,7 @@ class SchemaCompiler
      */
     protected function parseRuleString(string $rule): array
     {
-        $parts = explode(':', $rule, 2);
-        $name = $parts[0];
-
-        // Don't split regex parameters - commas are part of pattern!
-        if (in_array($name, ['regex', 'not_regex'])) {
-            return [$name, [$parts[1] ?? '']];
-        }
-
-        // Normal rules: split on comma
-        $params = explode(',', $parts[1] ?? '');
-        return [$name, $params];
+        return RuleExpressionParser::parse($rule);
     }
 
     /**

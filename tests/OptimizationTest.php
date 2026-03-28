@@ -1,8 +1,10 @@
 <?php
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
+use Infocyph\ReqShield\Contracts\NativeBatchDatabaseProvider;
 use Infocyph\ReqShield\Executors\BatchExecutor;
 use Infocyph\ReqShield\Rules\Exists;
+use Infocyph\ReqShield\Rules\Unique;
 use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Validator;
 
@@ -203,4 +205,72 @@ test('batch executor chunks large in lists', function () {
     expect($provider->queries)->toHaveCount(2);
     expect($provider->queries[0]['params'])->toHaveCount(500);
     expect($provider->queries[1]['params'])->toHaveCount(1);
+});
+
+test('batch executor uses native provider batch methods when available', function () {
+    $provider = new class implements NativeBatchDatabaseProvider {
+        public int $existsCalls = 0;
+        public int $uniqueCalls = 0;
+
+        public function batchExistsCheck(string $table, array $checks): array
+        {
+            $this->existsCalls++;
+
+            return ['missing_email'];
+        }
+
+        public function batchUniqueCheck(string $table, array $checks): array
+        {
+            $this->uniqueCalls++;
+
+            return ['taken_email'];
+        }
+
+        public function compositeUnique(
+            string $table,
+            array $columns,
+            ?int $ignoreId = null,
+        ): bool {
+            return true;
+        }
+
+        public function exists(
+            string $table,
+            string $column,
+            $value,
+            ?int $ignoreId = null,
+        ): bool {
+            return false;
+        }
+
+        public function query(string $query, array $params = []): array
+        {
+            throw new RuntimeException('Query fallback should not execute');
+        }
+    };
+
+    $executor = new BatchExecutor($provider);
+    $errors = [];
+    $batch = [
+        [
+            'rule' => new Exists('users', 'email'),
+            'value' => 'missing@example.com',
+            'field' => 'missing_email',
+            'rule_name' => 'exists',
+            'message' => 'The selected Email is invalid.',
+        ],
+        [
+            'rule' => new Unique('users', 'email'),
+            'value' => 'taken@example.com',
+            'field' => 'taken_email',
+            'rule_name' => 'unique',
+            'message' => 'The Email has already been taken.',
+        ],
+    ];
+
+    $executor->executeBatch($batch, $errors);
+
+    expect($provider->existsCalls)->toBe(1);
+    expect($provider->uniqueCalls)->toBe(1);
+    expect($errors)->toHaveKeys(['missing_email', 'taken_email']);
 });

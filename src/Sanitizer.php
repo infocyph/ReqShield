@@ -35,12 +35,19 @@ class Sanitizer
 
     private const FILENAME_CHARS = self::ALPHANUMERIC . '._-';
 
+    private const MAX_PIPELINE_CACHE = 256;
+
     private const NUMERIC = '0-9';
 
     private const SLUG_CHARS = self::ALPHANUMERIC . '_-';
 
     // Cached regex patterns for performance
     private static array $patterns = [];
+
+    /**
+     * @var array<string,array<int,callable>>
+     */
+    private static array $pipelineCallables = [];
 
     // ============================================
     // Alphanumeric Filters
@@ -109,14 +116,7 @@ class Sanitizer
      */
     public static function apply(mixed $value, array $sanitizers): mixed
     {
-        $resolved = [];
-
-        foreach ($sanitizers as $sanitizer) {
-            $callable = self::resolveSanitizerCallable($sanitizer);
-            if ($callable !== null) {
-                $resolved[] = $callable;
-            }
-        }
+        $resolved = self::resolvePipelineCallables($sanitizers);
 
         foreach ($resolved as $callable) {
             $value = $callable($value);
@@ -256,6 +256,7 @@ class Sanitizer
     public static function clearCache(): void
     {
         self::$patterns = [];
+        self::$pipelineCallables = [];
     }
 
     /**
@@ -883,6 +884,21 @@ class Sanitizer
         return $sanitized !== false ? $sanitized : '';
     }
 
+    protected static function pipelineCacheKey(array $sanitizers): ?string
+    {
+        $parts = [];
+
+        foreach ($sanitizers as $sanitizer) {
+            if (!is_string($sanitizer)) {
+                return null;
+            }
+
+            $parts[] = $sanitizer;
+        }
+
+        return implode('|', $parts);
+    }
+
     /**
      * Optimized preg_replace with pattern caching
      */
@@ -903,6 +919,37 @@ class Sanitizer
         );
 
         return $result ?? $subject;
+    }
+
+    /**
+     * @param array<int,mixed> $sanitizers
+     *
+     * @return array<int,callable>
+     */
+    protected static function resolvePipelineCallables(array $sanitizers): array
+    {
+        $cacheKey = self::pipelineCacheKey($sanitizers);
+        if ($cacheKey !== null && isset(self::$pipelineCallables[$cacheKey])) {
+            return self::$pipelineCallables[$cacheKey];
+        }
+
+        $resolved = [];
+
+        foreach ($sanitizers as $sanitizer) {
+            $callable = self::resolveSanitizerCallable($sanitizer);
+            if ($callable !== null) {
+                $resolved[] = $callable;
+            }
+        }
+
+        if ($cacheKey !== null) {
+            self::$pipelineCallables[$cacheKey] = $resolved;
+            if (count(self::$pipelineCallables) > self::MAX_PIPELINE_CACHE) {
+                array_shift(self::$pipelineCallables);
+            }
+        }
+
+        return $resolved;
     }
 
     /**

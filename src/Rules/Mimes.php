@@ -40,7 +40,7 @@ class Mimes extends BaseRule
      */
     public function cost(): int
     {
-        return 15;
+        return 25;
     }
 
     /**

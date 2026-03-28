@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Rules;
 
 /**
- * MimeTypes Rule - Cost: 15
+ * MimeTypes Rule - Cost: 30
  */
 class MimeTypes extends BaseRule
 {
@@ -18,7 +18,7 @@ class MimeTypes extends BaseRule
 
     public function cost(): int
     {
-        return 15;
+        return 70;
     }
 
     public function message(string $field): string

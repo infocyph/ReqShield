@@ -423,9 +423,7 @@ class ValidationResult
             return ['resolved' => true, 'value' => $payload[$name]];
         }
 
-        $snakeName = strtolower(
-            preg_replace('/(?<!^)[A-Z]/', '_$0', $name) ?? $name,
-        );
+        $snakeName = RuleNameResolver::toSnakeCase($name);
         if ($snakeName !== $name && array_key_exists($snakeName, $payload)) {
             return ['resolved' => true, 'value' => $payload[$snakeName]];
         }

@@ -48,13 +48,6 @@ class ValidationNode
     public array $cheapRules = [];
 
     /**
-     * Child nodes for nested validation
-     *
-     * @var array<string, ValidationNode>|null
-     */
-    public ?array $children = null;
-
-    /**
      * Canonical names for expensive rules, aligned with expensiveRules.
      *
      * @var string[]
@@ -127,17 +120,6 @@ class ValidationNode
      * @var array<int,string>
      */
     protected array $ruleNamesByObjectId = [];
-
-    /**
-     * Add a child node for nested validation.
-     */
-    public function addChild(string $key, ValidationNode $node): void
-    {
-        if ($this->children === null) {
-            $this->children = [];
-        }
-        $this->children[$key] = $node;
-    }
 
     /**
      * Add a rule to the appropriate cost bucket.
@@ -224,30 +206,6 @@ class ValidationNode
     }
 
     /**
-     * Retrieves a child validation node by its key.
-     *
-     * This method allows accessing nested validation rules for structured data.
-     * Returns null if no child exists with the specified key.
-     *
-     * @param string $key The key of the child node to retrieve
-     *
-     * @return ValidationNode|null The child node if found, null otherwise
-     *
-     * @see ValidationNode::hasChildren() To check if any child nodes exist
-     * @example
-     * // Get the 'address' child node
-     * $addressNode = $node->getChild('address');
-     * if ($addressNode) {
-     *     // Process address validation rules
-     * }
-     *
-     */
-    public function getChild(string $key): ?ValidationNode
-    {
-        return $this->children[$key] ?? null;
-    }
-
-    /**
      * Returns the total number of validation rules in this node.
      *
      * This is a convenience method that sums up all rules across all cost
@@ -280,27 +238,11 @@ class ValidationNode
     }
 
     /**
-     * Get rules by cost category.
-     * NEW: Added for more flexible access
-     */
-    public function getRulesByCost(string $category): array
-    {
-        return match ($category) {
-            'cheap' => $this->cheapRules,
-            'medium' => $this->mediumRules,
-            'expensive' => $this->expensiveRules,
-            default => []
-        };
-    }
-
-    /**
      * Get statistics about this node (for debugging).
      * IMPROVED: More comprehensive stats
      */
     public function getStats(): array
     {
-        $childrenCount = $this->hasChildren() ? count($this->children) : 0;
-
         $stats = [
           'cheap_rules' => count($this->cheapRules),
           'medium_rules' => count($this->mediumRules),
@@ -311,8 +253,6 @@ class ValidationNode
           'has_exclude_rules' => $this->hasExcludeRules,
           'has_filled_rule' => $this->hasFilledRule,
           'has_bail_rule' => $this->hasBailRule,
-          'has_children' => $this->hasChildren(),
-          'children_count' => $childrenCount,
         ];
 
         // Add detailed rule names for debugging
@@ -320,42 +260,7 @@ class ValidationNode
             $stats['rule_types'] = $this->getAllRuleNames();
         }
 
-        // Add child statistics recursively
-        if ($this->hasChildren()) {
-            $stats['children'] = [];
-            foreach ($this->children as $key => $child) {
-                $stats['children'][$key] = $child->getStats();
-            }
-        }
-
         return $stats;
-    }
-
-    /**
-     * Check if this node has children (nested validation).
-     */
-    public function hasChildren(): bool
-    {
-        return !empty($this->children);
-    }
-
-    /**
-     * Check if this node has any expensive rules.
-     */
-    public function hasExpensiveRules(): bool
-    {
-        return !empty($this->expensiveRules);
-    }
-
-    /**
-     * Check if node is empty (no rules).
-     * NEW: Added for validation
-     */
-    public function isEmpty(): bool
-    {
-        return empty($this->cheapRules)
-          && empty($this->mediumRules)
-          && empty($this->expensiveRules);
     }
 
     /**
@@ -386,16 +291,7 @@ class ValidationNode
      */
     protected function resolveRuleName(Rule $rule): string
     {
-        $class = $rule::class;
-        $pos = strrpos($class, '\\');
-        $shortName = $pos === false ? $class : substr($class, $pos + 1);
-        $snake = strtolower(
-            preg_replace('/(?<!^)[A-Z]/', '_$0', $shortName) ?? $shortName,
-        );
-
-        return str_ends_with($snake, '_rule')
-            ? substr($snake, 0, -5)
-            : $snake;
+        return RuleNameResolver::canonicalRuleNameFromClass($rule::class);
     }
 
     /**

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Rules;
 
 /**
- * Dimensions Rule - Cost: 20
+ * Dimensions Rule - Cost: 35
  */
 class Dimensions extends BaseRule
 {
@@ -19,7 +19,7 @@ class Dimensions extends BaseRule
 
     public function cost(): int
     {
-        return 20;
+        return 65;
     }
 
     public function message(string $field): string
