@@ -58,7 +58,7 @@
         "test:refactor": "php vendor/bin/rector process --dry-run --config rector.php",
         "test:lint": "php -d memory_limit=1G vendor/bin/pint --test",
         "test:static": "php vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --no-progress --memory-limit=1G",
-        "test:dead-code": "php tools/run-rector-dead-code.php",
+        "test:dead-code": "php vendor/bin/rector process --dry-run --config rector-dead-code.php",
         "bench:validator": "php benchmarks/validator_bench.php",
         "test:hook": [
             "captainhook hook:post-checkout",
@@ -72,7 +72,6 @@
             "@test:code",
             "@test:lint",
             "@test:static",
-            "@test:dead-code",
             "@test:refactor"
         ],
         "git:hook": "captainhook install --only-enabled -nf",
