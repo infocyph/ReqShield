@@ -28,6 +28,19 @@ use Infocyph\ReqShield\Contracts\Rule;
 class ValidationNode
 {
     /**
+     * Canonical names for cheap rules, aligned with cheapRules.
+     *
+     * @var string[]
+     */
+    public array $cheapRuleNames = [];
+
+    /**
+     * Placeholder token maps for cheap rules, aligned with cheapRules.
+     *
+     * @var array<int,array<string,mixed>>
+     */
+    public array $cheapRulePlaceholders = [];
+    /**
      * Cheap rules (cost < 50)
      *
      * @var Rule[]
@@ -35,11 +48,18 @@ class ValidationNode
     public array $cheapRules = [];
 
     /**
-     * Child nodes for nested validation
+     * Canonical names for expensive rules, aligned with expensiveRules.
      *
-     * @var array<string, ValidationNode>|null
+     * @var string[]
      */
-    public ?array $children = null;
+    public array $expensiveRuleNames = [];
+
+    /**
+     * Placeholder token maps for expensive rules, aligned with expensiveRules.
+     *
+     * @var array<int,array<string,mixed>>
+     */
+    public array $expensiveRulePlaceholders = [];
 
     /**
      * Expensive rules (cost >= 100)
@@ -69,6 +89,20 @@ class ValidationNode
     public bool $isOptional = true;
 
     /**
+     * Canonical names for medium rules, aligned with mediumRules.
+     *
+     * @var string[]
+     */
+    public array $mediumRuleNames = [];
+
+    /**
+     * Placeholder token maps for medium rules, aligned with mediumRules.
+     *
+     * @var array<int,array<string,mixed>>
+     */
+    public array $mediumRulePlaceholders = [];
+
+    /**
      * Medium rules (cost 50-99)
      *
      * @var Rule[]
@@ -81,58 +115,78 @@ class ValidationNode
     public bool $requiresValidationWhenMissing = false;
 
     /**
-     * Add a child node for nested validation.
+     * Fast lookup from rule object ID to canonical rule name.
+     *
+     * @var array<int,string>
      */
-    public function addChild(string $key, ValidationNode $node): void
-    {
-        if ($this->children === null) {
-            $this->children = [];
-        }
-        $this->children[$key] = $node;
-    }
+    protected array $ruleNamesByObjectId = [];
 
     /**
      * Add a rule to the appropriate cost bucket.
      */
-    public function addRule(Rule $rule): void
-    {
+    public function addRule(
+        Rule $rule,
+        string $ruleName = '',
+        array $placeholders = [],
+    ): void {
         $cost = $rule->cost();
-        $shortName = new \ReflectionClass($rule)->getShortName();
+        $shortName = $ruleName !== '' ? $ruleName : $this->resolveRuleName($rule);
+        $this->ruleNamesByObjectId[spl_object_id($rule)] = $shortName;
 
         // Check if this is a required rule
-        if (str_starts_with($shortName, 'Required')) {
+        if (str_starts_with($shortName, 'required')) {
             $this->isOptional = false;
         }
 
-        if ($shortName === 'Bail') {
+        if ($shortName === 'bail') {
             $this->hasBailRule = true;
         }
 
-        if ($shortName === 'Filled') {
+        if ($shortName === 'filled') {
             $this->hasFilledRule = true;
         }
 
-        if (str_starts_with($shortName, 'Exclude')) {
+        if (str_starts_with($shortName, 'exclude')) {
             $this->hasExcludeRules = true;
         }
 
         if (
-            str_starts_with($shortName, 'Required')
-            || str_starts_with($shortName, 'Present')
-            || str_starts_with($shortName, 'Missing')
-            || str_starts_with($shortName, 'Prohibited')
-            || $shortName === 'Prohibits'
+            str_starts_with($shortName, 'required')
+            || str_starts_with($shortName, 'present')
+            || str_starts_with($shortName, 'missing')
+            || str_starts_with($shortName, 'prohibited')
+            || $shortName === 'prohibits'
         ) {
             $this->requiresValidationWhenMissing = true;
         }
 
         if ($cost < 50) {
             $this->cheapRules[] = $rule;
+            $this->cheapRuleNames[] = $shortName;
+            $this->cheapRulePlaceholders[] = $placeholders;
         } elseif ($cost < 100) {
             $this->mediumRules[] = $rule;
+            $this->mediumRuleNames[] = $shortName;
+            $this->mediumRulePlaceholders[] = $placeholders;
         } else {
             $this->expensiveRules[] = $rule;
+            $this->expensiveRuleNames[] = $shortName;
+            $this->expensiveRulePlaceholders[] = $placeholders;
         }
+    }
+
+    /**
+     * Get all canonical rule names for this node.
+     *
+     * @return string[]
+     */
+    public function getAllRuleNames(): array
+    {
+        return array_merge(
+            $this->cheapRuleNames,
+            $this->mediumRuleNames,
+            $this->expensiveRuleNames,
+        );
     }
 
     /**
@@ -149,30 +203,6 @@ class ValidationNode
             $this->mediumRules,
             $this->expensiveRules,
         );
-    }
-
-    /**
-     * Retrieves a child validation node by its key.
-     *
-     * This method allows accessing nested validation rules for structured data.
-     * Returns null if no child exists with the specified key.
-     *
-     * @param string $key The key of the child node to retrieve
-     *
-     * @return ValidationNode|null The child node if found, null otherwise
-     *
-     * @see ValidationNode::hasChildren() To check if any child nodes exist
-     * @example
-     * // Get the 'address' child node
-     * $addressNode = $node->getChild('address');
-     * if ($addressNode) {
-     *     // Process address validation rules
-     * }
-     *
-     */
-    public function getChild(string $key): ?ValidationNode
-    {
-        return $this->children[$key] ?? null;
     }
 
     /**
@@ -200,17 +230,11 @@ class ValidationNode
     }
 
     /**
-     * Get rules by cost category.
-     * NEW: Added for more flexible access
+     * Get the canonical name for a rule object.
      */
-    public function getRulesByCost(string $category): array
+    public function getRuleName(Rule $rule): ?string
     {
-        return match ($category) {
-            'cheap' => $this->cheapRules,
-            'medium' => $this->mediumRules,
-            'expensive' => $this->expensiveRules,
-            default => []
-        };
+        return $this->ruleNamesByObjectId[spl_object_id($rule)] ?? null;
     }
 
     /**
@@ -229,56 +253,14 @@ class ValidationNode
           'has_exclude_rules' => $this->hasExcludeRules,
           'has_filled_rule' => $this->hasFilledRule,
           'has_bail_rule' => $this->hasBailRule,
-          'has_children' => $this->hasChildren(),
-          'children_count' => $this->hasChildren() ? count(
-              $this->children,
-          ) : 0,
         ];
 
         // Add detailed rule names for debugging
         if ($this->getRuleCount() > 0) {
-            $stats['rule_types'] = array_map(
-                fn ($rule) => new \ReflectionClass($rule)->getShortName(),
-                $this->getAllRules(),
-            );
-        }
-
-        // Add child statistics recursively
-        if ($this->hasChildren()) {
-            $stats['children'] = [];
-            foreach ($this->children as $key => $child) {
-                $stats['children'][$key] = $child->getStats();
-            }
+            $stats['rule_types'] = $this->getAllRuleNames();
         }
 
         return $stats;
-    }
-
-    /**
-     * Check if this node has children (nested validation).
-     */
-    public function hasChildren(): bool
-    {
-        return !empty($this->children);
-    }
-
-    /**
-     * Check if this node has any expensive rules.
-     */
-    public function hasExpensiveRules(): bool
-    {
-        return !empty($this->expensiveRules);
-    }
-
-    /**
-     * Check if node is empty (no rules).
-     * NEW: Added for validation
-     */
-    public function isEmpty(): bool
-    {
-        return empty($this->cheapRules)
-          && empty($this->mediumRules)
-          && empty($this->expensiveRules);
     }
 
     /**
@@ -287,9 +269,64 @@ class ValidationNode
      */
     public function sortRules(): void
     {
-        usort($this->cheapRules, fn ($a, $b) => $a->cost() <=> $b->cost());
-        usort($this->mediumRules, fn ($a, $b) => $a->cost() <=> $b->cost());
-        usort($this->expensiveRules, fn ($a, $b) => $a->cost() <=> $b->cost());
+        $this->sortRuleBucket(
+            $this->cheapRules,
+            $this->cheapRuleNames,
+            $this->cheapRulePlaceholders,
+        );
+        $this->sortRuleBucket(
+            $this->mediumRules,
+            $this->mediumRuleNames,
+            $this->mediumRulePlaceholders,
+        );
+        $this->sortRuleBucket(
+            $this->expensiveRules,
+            $this->expensiveRuleNames,
+            $this->expensiveRulePlaceholders,
+        );
+    }
+
+    /**
+     * Resolve a fallback canonical rule name for rules created outside the compiler.
+     */
+    protected function resolveRuleName(Rule $rule): string
+    {
+        return RuleNameResolver::canonicalRuleNameFromClass($rule::class);
+    }
+
+    /**
+     * Sort a rule bucket while keeping rule names aligned with rule objects.
+     *
+     * @param Rule[] $rules
+     * @param string[] $ruleNames
+     * @param array<int,array<string,mixed>> $placeholders
+     */
+    protected function sortRuleBucket(
+        array &$rules,
+        array &$ruleNames,
+        array &$placeholders,
+    ): void {
+        $paired = [];
+
+        foreach ($rules as $index => $rule) {
+            $paired[] = [
+                $rule,
+                $ruleNames[$index] ?? '',
+                $placeholders[$index] ?? [],
+            ];
+        }
+
+        usort($paired, fn (array $left, array $right) => $left[0]->cost() <=> $right[0]->cost());
+
+        $rules = [];
+        $ruleNames = [];
+        $placeholders = [];
+
+        foreach ($paired as [$rule, $ruleName, $tokenMap]) {
+            $rules[] = $rule;
+            $ruleNames[] = $ruleName;
+            $placeholders[] = $tokenMap;
+        }
     }
 
 }

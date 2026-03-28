@@ -8,10 +8,10 @@ ReqShield provides two ways to add your own validation logic:
 1. Simple Callbacks
 -------------------
 
-For simple, single-use rules, you can pass an instance of ``Infocyph\ReqShield\Rules\Callback`` directly into your rule array.
+For simple, single-use rules, pass ``Infocyph\ReqShield\Rules\Callback`` in your rule list.
 
 The ``Callback`` constructor accepts:
-* ``callback``: A ``callable`` (like a closure) that receives ``($value, $field, $data)`` and returns ``true`` (pass) or ``false`` (fail).
+* ``callback``: callable signature ``fn (mixed $value, string $field, array $data): bool``.
 * ``cost`` (optional): An integer cost. Keep it low (e.g., ``20``) unless it's a slow operation.
 * ``message`` (optional): A custom error message.
 
@@ -51,7 +51,7 @@ The ``Callback`` constructor accepts:
 2. Reusable Rule Classes
 ------------------------
 
-For complex logic or rules you want to reuse, you can create your own class that implements the ``Infocyph\ReqShield\Contracts\Rule`` interface.
+For reusable logic, implement ``Infocyph\ReqShield\Contracts\Rule`` (or extend ``BaseRule``).
 
 .. code-block:: php
 
@@ -102,3 +102,19 @@ You can use your new rule class just like the ``Callback`` rule.
 
     $result = $validator->validate(['even_number' => 42]); // Passes
     $result2 = $validator->validate(['even_number' => 7]); // Fails
+
+Register a Custom Rule Name
+---------------------------
+
+If you want to use a custom string token (for example ``even``), register it on the validator instance:
+
+.. code-block:: php
+
+    use App\Rules\IsEven;
+    use Infocyph\ReqShield\Validator;
+
+    $validator = Validator::make([
+        'number' => 'required|even',
+    ])->registerRule('even', IsEven::class);
+
+    $result = $validator->validate(['number' => 8]);

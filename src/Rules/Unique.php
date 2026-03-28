@@ -69,10 +69,20 @@ class Unique extends BaseRule
         return $this->ignoreId;
     }
 
+    public function getSoftDeleteColumn(): string
+    {
+        return $this->softDeleteColumn;
+    }
+
     // Getters for batch executor
     public function getTable(): string
     {
         return $this->table;
+    }
+
+    public function getWithTrashed(): bool
+    {
+        return $this->withTrashed;
     }
 
     public function isBatchable(): bool
@@ -106,40 +116,6 @@ class Unique extends BaseRule
     public function setDatabaseProvider(DatabaseProvider $db): void
     {
         $this->db = $db;
-    }
-
-    /**
-     * Check composite unique constraint.
-     */
-    protected function checkCompositeUnique(
-        mixed $value,
-        string $field,
-        array $data,
-    ): bool {
-        if (!$this->db) {
-            throw new \RuntimeException(
-                'Database provider is required for unique rule',
-            );
-        }
-
-        // Build column => value map
-        $columns = [];
-        foreach ($this->column as $col) {
-            if ($col === $field) {
-                $columns[$col] = $value;
-            } elseif (array_key_exists($col, $data)) {
-                $columns[$col] = $data[$col];
-            } else {
-                // Missing required column for composite unique
-                return true; // Pass this rule, other rules will catch missing fields
-            }
-        }
-
-        return $this->db->compositeUnique(
-            $this->table,
-            $columns,
-            $this->ignoreId,
-        );
     }
 
 }

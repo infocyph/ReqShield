@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Rules;
 
 /**
- * Image Rule - Cost: 15
+ * Image Rule - Cost: 25
  */
 class Image extends BaseRule
 {
     public function cost(): int
     {
-        return 15;
+        return 60;
     }
 
     public function message(string $field): string
@@ -21,10 +21,12 @@ class Image extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['tmp_name'])) {
+        $path = $this->getUploadedFilePath($value);
+        if ($path === null) {
             return false;
         }
-        $imageInfo = @getimagesize($value['tmp_name']);
+
+        $imageInfo = @getimagesize($path);
 
         return $imageInfo !== false;
     }

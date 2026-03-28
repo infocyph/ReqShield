@@ -35,12 +35,19 @@ class Sanitizer
 
     private const FILENAME_CHARS = self::ALPHANUMERIC . '._-';
 
+    private const MAX_PIPELINE_CACHE = 256;
+
     private const NUMERIC = '0-9';
 
     private const SLUG_CHARS = self::ALPHANUMERIC . '_-';
 
     // Cached regex patterns for performance
     private static array $patterns = [];
+
+    /**
+     * @var array<string,array<int,callable>>
+     */
+    private static array $pipelineCallables = [];
 
     // ============================================
     // Alphanumeric Filters
@@ -109,15 +116,10 @@ class Sanitizer
      */
     public static function apply(mixed $value, array $sanitizers): mixed
     {
-        foreach ($sanitizers as $sanitizer) {
-            $value = match (true) {
-                is_string($sanitizer) && method_exists(
-                    self::class,
-                    $sanitizer,
-                ) => self::$sanitizer($value),
-                is_callable($sanitizer) => $sanitizer($value),
-                default => $value
-            };
+        $resolved = self::resolvePipelineCallables($sanitizers);
+
+        foreach ($resolved as $callable) {
+            $value = $callable($value);
         }
 
         return $value;
@@ -177,14 +179,13 @@ class Sanitizer
         array $values,
         string|callable $sanitizer,
     ): array {
-        return array_map(function ($value) use ($sanitizer) {
-            return is_string($sanitizer) && method_exists(
-                self::class,
-                $sanitizer,
-            )
-              ? self::$sanitizer($value)
-              : (is_callable($sanitizer) ? $sanitizer($value) : $value);
-        }, $values);
+        $callable = self::resolveSanitizerCallable($sanitizer);
+
+        if ($callable === null) {
+            return $values;
+        }
+
+        return array_map($callable, $values);
     }
 
     // ============================================
@@ -244,8 +245,6 @@ class Sanitizer
      * behavior between test cases. In production, the cache improves performance
      * by avoiding recompilation of frequently used patterns.
      *
-     * @return void
-     *
      * @example
      * // In test setup
      * Sanitizer::clearCache();
@@ -255,6 +254,7 @@ class Sanitizer
     public static function clearCache(): void
     {
         self::$patterns = [];
+        self::$pipelineCallables = [];
     }
 
     /**
@@ -882,6 +882,21 @@ class Sanitizer
         return $sanitized !== false ? $sanitized : '';
     }
 
+    protected static function pipelineCacheKey(array $sanitizers): ?string
+    {
+        $parts = [];
+
+        foreach ($sanitizers as $sanitizer) {
+            if (!is_string($sanitizer)) {
+                return null;
+            }
+
+            $parts[] = $sanitizer;
+        }
+
+        return implode('|', $parts);
+    }
+
     /**
      * Optimized preg_replace with pattern caching
      */
@@ -902,5 +917,57 @@ class Sanitizer
         );
 
         return $result ?? $subject;
+    }
+
+    /**
+     * @param array<int,mixed> $sanitizers
+     *
+     * @return array<int,callable>
+     */
+    protected static function resolvePipelineCallables(array $sanitizers): array
+    {
+        $cacheKey = self::pipelineCacheKey($sanitizers);
+        if ($cacheKey !== null && isset(self::$pipelineCallables[$cacheKey])) {
+            return self::$pipelineCallables[$cacheKey];
+        }
+
+        $resolved = [];
+
+        foreach ($sanitizers as $sanitizer) {
+            $callable = self::resolveSanitizerCallable($sanitizer);
+            if ($callable !== null) {
+                $resolved[] = $callable;
+            }
+        }
+
+        if ($cacheKey !== null) {
+            self::$pipelineCallables[$cacheKey] = $resolved;
+            if (count(self::$pipelineCallables) > self::MAX_PIPELINE_CACHE) {
+                array_shift(self::$pipelineCallables);
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Resolve a sanitizer into a callable once per invocation.
+     */
+    protected static function resolveSanitizerCallable(
+        mixed $sanitizer,
+    ): ?callable {
+        if (is_string($sanitizer)) {
+            if (method_exists(self::class, $sanitizer)) {
+                return [self::class, $sanitizer];
+            }
+
+            if (is_callable($sanitizer)) {
+                return $sanitizer;
+            }
+
+            return null;
+        }
+
+        return is_callable($sanitizer) ? $sanitizer : null;
     }
 }

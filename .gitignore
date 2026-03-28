@@ -11,5 +11,6 @@ git-story_media
 .windsurf
 .vscode
 .phpunit.cache
+var
 *.patch
 patch.php

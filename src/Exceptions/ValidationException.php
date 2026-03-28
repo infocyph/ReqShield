@@ -40,8 +40,6 @@ class ValidationException extends Exception
 
     /**
      * Convert to string representation.
-     *
-     * @return string
      */
     public function __toString(): string
     {
@@ -74,8 +72,6 @@ class ValidationException extends Exception
 
     /**
      * Get error count.
-     *
-     * @return int
      */
     public function getErrorCount(): int
     {
@@ -108,8 +104,6 @@ class ValidationException extends Exception
      * Get first error for a specific field.
      *
      * @param string $field Field name
-     *
-     * @return string|null
      */
     public function getFirstFieldError(string $field): ?string
     {
@@ -120,8 +114,6 @@ class ValidationException extends Exception
      * Check if a field has errors.
      *
      * @param string $field Field name
-     *
-     * @return bool
      */
     public function hasFieldError(string $field): bool
     {

@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Rules;
 
 /**
- * Timezone Rule - Cost: 20
+ * Timezone Rule - Cost: 12
  */
 class Timezone extends BaseRule
 {
+    protected static ?array $timezoneLookup = null;
+
     public function cost(): int
     {
-        return 20;
+        return 12;
     }
 
     public function message(string $field): string
@@ -25,7 +27,14 @@ class Timezone extends BaseRule
             return false;
         }
 
-        return in_array($value, \DateTimeZone::listIdentifiers(), true);
+        if (self::$timezoneLookup === null) {
+            self::$timezoneLookup = array_fill_keys(
+                \DateTimeZone::listIdentifiers(),
+                true,
+            );
+        }
+
+        return isset(self::$timezoneLookup[$value]);
     }
 
 }

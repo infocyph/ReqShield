@@ -1,9 +1,12 @@
 Sanitization
 ============
 
-ReqShield includes a powerful ``Sanitizer`` utility class with over 50 methods for cleaning and normalizing data.
+ReqShield includes a powerful ``Sanitizer`` utility class with 46 built-in methods for cleaning and normalizing data.
 
-It's highly recommended to **sanitize your data *before*** validation to ensure clean, consistent input.
+You can sanitize in two ways:
+
+* Manual sanitization using ``Sanitizer``.
+* Validator-integrated pipelines using ``setSanitizers()`` and schema ``sanitize`` fields.
 
 Using the ``Sanitizer`` Class
 ------------------------------
@@ -33,6 +36,30 @@ All methods are static and can be called directly.
 
     // Now, validate the clean input
     $result = $validator->validate($cleanInput);
+
+Validator-Integrated Sanitization
+---------------------------------
+
+You can run sanitizers automatically before validation.
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Validator;
+
+    $validator = Validator::make([
+        'email' => [
+            'rules' => 'required|email',
+            'sanitize' => ['trim', 'lowercase'],
+        ],
+        'username' => 'required|alpha_dash|min:3',
+    ])->setSanitizers([
+        'username' => ['trim', 'lowercase'],
+        'contacts.*.email' => ['trim', 'lowercase'],
+    ]);
+
+    $result = $validator->validate($input);
+
+Schema ``sanitize``/``sanitizers`` and runtime ``setSanitizers()`` are merged.
 
 Helper Function
 ---------------
@@ -306,16 +333,16 @@ Formats a numeric value as currency with proper symbols and formatting.
 
 filename($value)
 ^^^^^^^^^^^^^^^^
-Removes path traversal attempts and unsafe characters from filenames.
+Removes path traversal attempts and normalizes unsafe filename characters to ``_``.
 
 .. code-block:: php
 
     Sanitizer::filename('../../../etc/passwd');      // 'passwd'
-    Sanitizer::filename('my file!@#.txt');           // 'myfile.txt'
+    Sanitizer::filename('my file!@#.txt');           // 'my_file___.txt'
 
 domain($value)
 ^^^^^^^^^^^^^^
-Extracts domain from URL (removes protocol and paths).
+Extracts the host-like segment from a URL string by removing protocol and path segments.
 
 .. code-block:: php
 
@@ -467,11 +494,11 @@ Array Sanitizers
 
 array($value)
 ^^^^^^^^^^^^^
-Sanitizes all values in an array using the ``string()`` sanitizer.
+Sanitizes all string values in an array using ``string()``. Non-string values are preserved.
 
 .. code-block:: php
 
-    Sanitizer::array(['  key1  ', '<b>key2</b>', 123]); // ['key1', 'key2', '123']
+    Sanitizer::array(['  key1  ', '<b>key2</b>', 123]); // ['key1', 'key2', 123]
 
 batch($array, $sanitizer)
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -481,6 +508,7 @@ Applies a single sanitizer to all elements in an array.
 
     Sanitizer::batch([' HELLO ', ' WORLD '], 'lowercase'); // [' hello ', ' world ']
     Sanitizer::batch(['test@EX.com', 'foo@BAR.com'], 'email'); // ['test@EX.com', 'foo@BAR.com']
+    Sanitizer::batch([' x ', ' y '], fn ($v) => trim((string)$v)); // ['x', 'y']
 
 apply($value, array $sanitizers)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -490,10 +518,11 @@ Applies multiple sanitizers to a value in sequence.
 
     Sanitizer::apply('  <b>HELLO</b>  ', ['string', 'lowercase']); // 'hello'
     Sanitizer::apply('  TEST@EX.COM  ', ['email', 'lowercase']); // 'test@ex.com'
+    Sanitizer::apply('  123  ', ['trim', fn ($v) => (int)$v]); // 123
 
 clearCache()
 ^^^^^^^^^^^^
-Clears the internal regex pattern cache used by ``Sanitizer``. This is mainly useful in tests.
+Clears internal regex and pipeline callable caches used by ``Sanitizer``. This is mainly useful in tests.
 
 .. code-block:: php
 
@@ -502,8 +531,8 @@ Clears the internal regex pattern cache used by ``Sanitizer``. This is mainly us
 Best Practices
 --------------
 
-1. **Sanitize Before Validation**
-   Always sanitize user input before passing it to the validator. This ensures consistent data format and reduces validation errors.
+1. **Use Sanitization Consistently**
+   Sanitize either manually before validation or inside validator pipelines. Keep one clear strategy per endpoint.
 
    .. code-block:: php
 

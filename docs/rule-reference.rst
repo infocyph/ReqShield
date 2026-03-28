@@ -667,8 +667,9 @@ The field under validation must not exist within the given database table.
 
     'email' => 'unique:users,email'
     'username' => 'unique:users,username,5'  // Ignore ID 5 (for updates)
+    'email' => 'unique:users,email,,id,false,deleted_at' // exclude soft-deleted rows
 
-**Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`custom-rules` for more details.
+**Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`database-rules`.
 
 exists
 ~~~~~~
@@ -679,14 +680,15 @@ The field under validation must exist within the given database table.
     'category_id' => 'exists:categories,id'
     'user_id' => 'exists:users,id'
 
-**Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`custom-rules` for more details.
+**Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`database-rules`.
 
 File Rules (7)
 --------------
 
 file
 ~~~~
-The field under validation must be a successfully uploaded file (checks ``is_uploaded_file()``).
+The field under validation must be a valid uploaded file payload.
+Supports array-style ``$_FILES`` payloads and PSR-7-like uploaded file objects.
 
 .. code-block:: php
 
@@ -741,9 +743,8 @@ The file under validation must be an image meeting the dimension constraints.
 
 .. code-block:: php
 
-    'avatar' => 'dimensions:min_width=100,min_height=100,max_width=1000,max_height=1000'
-    'banner' => 'dimensions:ratio=3/1'  // Aspect ratio
-    'logo' => 'dimensions:width=200,height=200'  // Exact dimensions
+    'avatar' => 'dimensions:100,100,1000,1000' // minWidth,minHeight,maxWidth,maxHeight
+    'logo' => 'dimensions:200,200,200,200'      // exact 200x200
 
 Array Rules (5)
 ---------------
@@ -830,7 +831,7 @@ The field under validation must match the given regular expression.
     'postal_code' => 'regex:/^\d{5}(-\d{4})?$/'  // US ZIP code
     'color' => 'regex:/^#[0-9A-F]{6}$/i'         // Hex color
 
-**Note:** Use ``#`` as delimiter in the pattern.
+**Note:** Use any valid PHP regex delimiter.
 
 not_regex
 ~~~~~~~~~

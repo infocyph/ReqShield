@@ -117,3 +117,30 @@ test('nested wildcard validation fails with indexed errors', function () {
     expect($result->fails())->toBeTrue();
     expect($result->errors())->toHaveKeys(['contacts.0.email', 'contacts.0.name']);
 });
+
+test('nested wildcard rules support wildcard custom messages', function () {
+    $validator = Validator::make([
+        'contacts.*.email' => 'required|email',
+    ])->enableNestedValidation()->setCustomMessages([
+        'contacts.*.email.required' => 'Contact email is required.',
+        'contacts.*.email.email' => 'Contact email must be valid.',
+    ]);
+
+    $missingResult = $validator->validate([
+        'contacts' => [
+            [],
+        ],
+    ]);
+
+    $invalidResult = $validator->validate([
+        'contacts' => [
+            ['email' => 'not-an-email'],
+        ],
+    ]);
+
+    expect($missingResult->fails())->toBeTrue();
+    expect($missingResult->errors()['contacts.0.email'])->toContain('Contact email is required.');
+
+    expect($invalidResult->fails())->toBeTrue();
+    expect($invalidResult->errors()['contacts.0.email'])->toContain('Contact email must be valid.');
+});

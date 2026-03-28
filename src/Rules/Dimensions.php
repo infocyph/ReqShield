@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Rules;
 
 /**
- * Dimensions Rule - Cost: 20
+ * Dimensions Rule - Cost: 35
  */
 class Dimensions extends BaseRule
 {
@@ -19,7 +19,7 @@ class Dimensions extends BaseRule
 
     public function cost(): int
     {
-        return 20;
+        return 65;
     }
 
     public function message(string $field): string
@@ -29,10 +29,12 @@ class Dimensions extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['tmp_name'])) {
+        $path = $this->getUploadedFilePath($value);
+        if ($path === null) {
             return false;
         }
-        $imageInfo = @getimagesize($value['tmp_name']);
+
+        $imageInfo = @getimagesize($path);
         if ($imageInfo === false) {
             return false;
         }

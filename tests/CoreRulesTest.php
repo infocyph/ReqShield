@@ -1,5 +1,6 @@
 <?php
 
+use Infocyph\ReqShield\Rules\CurrentPassword;
 use Infocyph\ReqShield\Validator;
 
 test('basic validation passes', function () {
@@ -819,6 +820,14 @@ describe('Format Validation Rules', function () {
         )->toBeTrue();
     });
 
+    test('active_url rule fails for invalid dns hosts', function () {
+        $validator = Validator::make(['site' => 'active_url']);
+
+        expect(
+            $validator->validate(['site' => 'https://example.invalid'])->fails(),
+        )->toBeTrue();
+    });
+
     test('ip rule validates IP addresses', function () {
         $validator = Validator::make([
           'ip_any' => 'ip',
@@ -1202,6 +1211,17 @@ describe('Acceptance Rules', function () {
 });
 
 describe('Special Rules', function () {
+    test('current_password rule executes in expensive bucket', function () {
+        $validator = Validator::make([
+          'password' => [new CurrentPassword(fn (mixed $value): bool => $value === 'secret123')],
+        ]);
+
+        expect($validator->validate(['password' => 'secret123'])->passes())
+          ->toBeTrue()
+          ->and($validator->validate(['password' => 'wrong'])->fails())
+          ->toBeTrue();
+    });
+
     test('bail rule stops validation on first failure', function () {
         $validator = Validator::make([
           'email' => ['bail', 'required', 'email', 'max:10'],

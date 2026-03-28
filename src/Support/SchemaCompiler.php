@@ -28,6 +28,11 @@ class SchemaCompiler
     protected array $arrayRules = ['in', 'not_in'];
 
     /**
+     * Reverse lookup of rule class => canonical rule name.
+     */
+    protected ?array $reverseRuleMap = null;
+
+    /**
      * Rule map configuration - loaded from rule-map.php.
      */
     protected array $ruleMap = [];
@@ -68,12 +73,42 @@ class SchemaCompiler
 
         // Sort rules by cost in all nodes
         foreach ($schema as $node) {
-            if ($node instanceof ValidationNode) {
-                $node->sortRules();
-            }
+            $node->sortRules();
         }
 
         return $schema;
+    }
+
+    /**
+     * Get the active rule map (rule name => class).
+     */
+    public function getRuleMap(): array
+    {
+        return $this->ruleMap;
+    }
+
+    /**
+     * Get the canonical rule name for a rule object.
+     */
+    public function getRuleNameForRule(Rule $rule): string
+    {
+        $class = ltrim($rule::class, '\\');
+
+        if ($this->reverseRuleMap === null) {
+            $this->reverseRuleMap = [];
+            foreach ($this->ruleMap as $name => $mappedClass) {
+                $this->reverseRuleMap[ltrim($mappedClass, '\\')] = $name;
+            }
+        }
+
+        if (isset($this->reverseRuleMap[$class])) {
+            return $this->reverseRuleMap[$class];
+        }
+
+        $pos = strrpos($class, '\\');
+        $shortName = $pos === false ? $class : substr($class, $pos + 1);
+
+        return RuleNameResolver::canonicalRuleNameFromClass($shortName);
     }
 
     /**
@@ -88,6 +123,125 @@ class SchemaCompiler
         }
 
         $this->ruleMap[$name] = $class;
+        $this->reverseRuleMap = null;
+    }
+
+    /**
+     * Build placeholder token map for a parsed rule.
+     *
+     * @param array<int,mixed> $params
+     *
+     * @return array<string,mixed>
+     */
+    protected function buildRulePlaceholders(
+        string $ruleName,
+        array $params,
+    ): array {
+        $params = array_values(array_filter(
+            $params,
+            fn (mixed $value): bool => $value !== '' && $value !== null,
+        ));
+
+        if (empty($params)) {
+            return [];
+        }
+
+        $placeholders = [];
+        foreach ($params as $index => $value) {
+            $placeholders['param' . ($index + 1)] = $value;
+        }
+
+        $singleValueRules = ['min', 'max', 'size', 'digits', 'min_digits', 'max_digits', 'multiple_of'];
+        if (in_array($ruleName, $singleValueRules, true)) {
+            $key = match ($ruleName) {
+                'max' => 'max',
+                'size' => 'size',
+                'digits' => 'digits',
+                'min_digits' => 'min',
+                'max_digits' => 'max',
+                'multiple_of' => 'multiple',
+                default => 'min',
+            };
+            $placeholders[$key] = $params[0];
+        }
+
+        if (in_array($ruleName, ['between', 'digits_between'], true)) {
+            $placeholders['min'] = $params[0] ?? null;
+            $placeholders['max'] = $params[1] ?? null;
+        }
+
+        if ($ruleName === 'decimal') {
+            $placeholders['min'] = $params[0] ?? null;
+            $placeholders['max'] = $params[1] ?? ($params[0] ?? null);
+        }
+
+        if (in_array($ruleName, ['same', 'different', 'gt', 'gte', 'lt', 'lte'], true)) {
+            $placeholders['other'] = $params[0] ?? null;
+        }
+
+        if (in_array(
+            $ruleName,
+            ['in', 'not_in', 'contains', 'doesnt_contain', 'starts_with', 'ends_with', 'doesnt_start_with', 'doesnt_end_with', 'required_array_keys'],
+            true,
+        )) {
+            $placeholders['values'] = implode(', ', array_map('strval', $params));
+        }
+
+        if (in_array(
+            $ruleName,
+            ['required_with', 'required_with_all', 'required_without', 'required_without_all', 'present_with', 'present_with_all', 'exclude_with', 'exclude_without', 'prohibits'],
+            true,
+        )) {
+            $placeholders['other'] = implode(', ', array_map('strval', $params));
+        }
+
+        if (in_array(
+            $ruleName,
+            ['required_if', 'required_unless', 'present_if', 'present_unless', 'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless', 'accepted_if', 'declined_if'],
+            true,
+        )) {
+            $placeholders['other'] = $params[0] ?? null;
+            $placeholders['value'] = implode(
+                ', ',
+                array_map('strval', array_slice($params, 1)),
+            );
+        }
+
+        if (in_array($ruleName, ['required_if_accepted', 'required_if_declined'], true)) {
+            $placeholders['other'] = implode(', ', array_map('strval', $params));
+        }
+
+        if (in_array(
+            $ruleName,
+            ['before', 'before_or_equal', 'after', 'after_or_equal', 'date_equals', 'date_format'],
+            true,
+        )) {
+            $placeholders['date'] = $params[0] ?? null;
+            $placeholders['format'] = $params[0] ?? null;
+        }
+
+        if (in_array($ruleName, ['regex', 'not_regex'], true)) {
+            $placeholders['pattern'] = $params[0] ?? null;
+        }
+
+        if ($ruleName === 'unique') {
+            $placeholders['table'] = $params[0] ?? null;
+            $placeholders['column'] = $params[1] ?? null;
+            $placeholders['ignore'] = $params[2] ?? null;
+            $placeholders['id_column'] = $params[3] ?? null;
+            $placeholders['with_trashed'] = $params[4] ?? null;
+            $placeholders['soft_delete_column'] = $params[5] ?? null;
+        }
+
+        if ($ruleName === 'exists') {
+            $placeholders['table'] = $params[0] ?? null;
+            $placeholders['column'] = $params[1] ?? null;
+        }
+
+        return array_filter(
+            $placeholders,
+            fn (mixed $value): bool => $value !== null && $value !== '',
+        );
     }
 
     /**
@@ -117,8 +271,17 @@ class SchemaCompiler
         $node = new ValidationNode();
 
         foreach ($ruleSet as $rule) {
-            $ruleObject = $this->parseRule($rule);
-            $node->addRule($ruleObject);
+            if (is_string($rule)) {
+                [$ruleName, $params] = $this->parseRuleString($rule);
+                $ruleObject = $this->createRuleInstance($ruleName, $params);
+                $placeholders = $this->buildRulePlaceholders($ruleName, $params);
+            } else {
+                $ruleObject = $this->parseRule($rule);
+                $ruleName = $this->getRuleNameForRule($ruleObject);
+                $placeholders = [];
+            }
+
+            $node->addRule($ruleObject, $ruleName, $placeholders);
         }
 
         return $node;
@@ -243,17 +406,7 @@ class SchemaCompiler
      */
     protected function parseRuleString(string $rule): array
     {
-        $parts = explode(':', $rule, 2);
-        $name = $parts[0];
-
-        // Don't split regex parameters - commas are part of pattern!
-        if (in_array($name, ['regex', 'not_regex'])) {
-            return [$name, [$parts[1]]];
-        }
-
-        // Normal rules: split on comma
-        $params = explode(',', $parts[1] ?? '');
-        return [$name, $params];
+        return RuleExpressionParser::parse($rule);
     }
 
     /**

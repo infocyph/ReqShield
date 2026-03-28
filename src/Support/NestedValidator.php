@@ -99,48 +99,7 @@ class NestedValidator
                 continue;
             }
 
-            // Find the array that needs wildcard expansion
-            $wildcardIndex = array_search('*', $ruleData['segments'], true);
-
-            if ($wildcardIndex === false) {
-                continue;
-            }
-
-            $pathBeforeWildcard = $wildcardIndex > 0
-              ? implode(
-                  '.',
-                  array_slice($ruleData['segments'], 0, $wildcardIndex),
-              )
-              : '';
-
-            $pathAfterWildcard = $wildcardIndex < count(
-                $ruleData['segments'],
-            ) - 1
-              ? implode(
-                  '.',
-                  array_slice($ruleData['segments'], $wildcardIndex + 1),
-              )
-              : '';
-
-            // Get the array to iterate
-            $arrayData = $pathBeforeWildcard
-              ? static::extractValue($data, $pathBeforeWildcard)
-              : $data;
-
-            if (!is_array($arrayData)) {
-                continue;
-            }
-
-            // Expand wildcard for each array item
-            // IMPROVED: Build path more efficiently
-            foreach (array_keys($arrayData) as $index) {
-                $expandedPath = static::buildExpandedPath(
-                    $pathBeforeWildcard,
-                    $index,
-                    $pathAfterWildcard,
-                );
-                $expanded[$expandedPath] = $ruleData['rule'];
-            }
+            static::expandWildcardRule($expanded, $data, $ruleData);
         }
 
         return $expanded;
@@ -265,6 +224,38 @@ class NestedValidator
             }
 
             $flattened[$newKey] = $value;
+        }
+
+        return $flattened;
+    }
+
+    /**
+     * Flatten only specific dot paths from nested data.
+     *
+     * @param array<string> $paths
+     *
+     * @return array<string,mixed>
+     */
+    public static function flattenForPaths(array $data, array $paths): array
+    {
+        $flattened = [];
+
+        foreach ($paths as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            // Fast path for already-flattened payloads.
+            if (array_key_exists($path, $data)) {
+                $flattened[$path] = $data[$path];
+                continue;
+            }
+
+            if (!static::has($data, $path)) {
+                continue;
+            }
+
+            $flattened[$path] = static::extractValue($data, $path);
         }
 
         return $flattened;
@@ -414,6 +405,18 @@ class NestedValidator
             }
         }
     }
+    /**
+     * Build a stable signature for payload structure.
+     *
+     * Values are ignored so schema expansion can be cached per shape.
+     */
+    public static function shapeSignature(array $data): string
+    {
+        $context = hash_init(static::resolveShapeHashAlgorithm());
+        static::updateShapeHash($context, $data);
+
+        return hash_final($context);
+    }
 
     /**
      * Unflatten data from dot notation back to nested structure.
@@ -437,6 +440,26 @@ class NestedValidator
         }
 
         return $result;
+    }
+
+    /**
+     * Append expanded wildcard rules for each available index.
+     */
+    protected static function appendExpandedWildcardRules(
+        array &$expanded,
+        array $arrayData,
+        string $pathBeforeWildcard,
+        string $pathAfterWildcard,
+        mixed $rule,
+    ): void {
+        foreach (array_keys($arrayData) as $index) {
+            $expandedPath = static::buildExpandedPath(
+                $pathBeforeWildcard,
+                $index,
+                $pathAfterWildcard,
+            );
+            $expanded[$expandedPath] = $rule;
+        }
     }
 
     /**
@@ -469,6 +492,32 @@ class NestedValidator
         return (string)$index;
     }
 
+    protected static function expandWildcardRule(
+        array &$expanded,
+        array $data,
+        array $ruleData,
+    ): void {
+        $paths = static::resolveWildcardPaths($ruleData['segments']);
+
+        if ($paths === null) {
+            return;
+        }
+
+        $arrayData = static::resolveWildcardArrayData($data, $paths['before']);
+
+        if ($arrayData === null) {
+            return;
+        }
+
+        static::appendExpandedWildcardRules(
+            $expanded,
+            $arrayData,
+            $paths['before'],
+            $paths['after'],
+            $ruleData['rule'],
+        );
+    }
+
     /**
      * Check if array is associative (not a sequential list).
      * IMPROVED: Helper method for better array handling
@@ -485,6 +534,83 @@ class NestedValidator
 
         // Check if keys are sequential integers starting from 0
         return array_keys($array) !== range(0, count($array) - 1);
+    }
+
+    /**
+     * Resolve the hash algorithm used for payload shape signatures.
+     */
+    protected static function resolveShapeHashAlgorithm(): string
+    {
+        return HashAlgorithm::require('xxh3');
+    }
+
+    /**
+     * Resolve the array data that wildcard expansion should iterate.
+     */
+    protected static function resolveWildcardArrayData(
+        array $data,
+        string $pathBeforeWildcard,
+    ): ?array {
+        if ($pathBeforeWildcard === '') {
+            return $data;
+        }
+
+        $value = static::extractValue($data, $pathBeforeWildcard);
+
+        return is_array($value) ? $value : null;
+    }
+
+    /**
+     * Resolve wildcard path segments into before/after strings.
+     *
+     * @param array<int,string> $segments
+     *
+     * @return array{before:string,after:string}|null
+     */
+    protected static function resolveWildcardPaths(array $segments): ?array
+    {
+        $wildcardIndex = array_search('*', $segments, true);
+
+        if ($wildcardIndex === false) {
+            return null;
+        }
+
+        $before = $wildcardIndex > 0
+            ? implode('.', array_slice($segments, 0, $wildcardIndex))
+            : '';
+
+        $after = $wildcardIndex < count($segments) - 1
+            ? implode('.', array_slice($segments, $wildcardIndex + 1))
+            : '';
+
+        return [
+            'before' => $before,
+            'after' => $after,
+        ];
+    }
+
+    /**
+     * Stream payload shape into a hash context without allocating shape arrays.
+     */
+    protected static function updateShapeHash(mixed $context, array $data): void
+    {
+        hash_update($context, '{');
+
+        $keys = array_keys($data);
+        usort($keys, fn ($left, $right) => strcmp((string)$left, (string)$right));
+
+        foreach ($keys as $key) {
+            $value = $data[$key];
+            hash_update($context, 'k:' . $key . ';');
+
+            if (is_array($value)) {
+                static::updateShapeHash($context, $value);
+            } else {
+                hash_update($context, 's;');
+            }
+        }
+
+        hash_update($context, '}');
     }
 
 }

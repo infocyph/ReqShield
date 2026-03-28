@@ -8,9 +8,12 @@ interface DatabaseProvider
      * Batch check if values exist.
      *
      * @param string $table Table name
-     * @param array $checks Array of ['column' => value] checks
+     * @param array $checks Array of check payloads. Each item should include:
+     *   - column: string
+     *   - value: mixed
+     *   - field: string (optional, used by caller for mapping failures)
      *
-     * @return array Array of values that don't exist
+     * @return array Array of failed check identifiers (usually field names)
      */
     public function batchExistsCheck(string $table, array $checks): array;
 
@@ -18,9 +21,16 @@ interface DatabaseProvider
      * Batch check if values are unique.
      *
      * @param string $table Table name
-     * @param array $checks Array of ['column' => value] checks
+     * @param array $checks Array of check payloads. Each item should include:
+     *   - column: string
+     *   - value: mixed
+     *   - field: string (optional)
+     *   - ignore_id: int|null (optional)
+     *   - id_column: string (optional)
+     *   - with_trashed: bool (optional)
+     *   - soft_delete_column: string (optional)
      *
-     * @return array Array of non-unique values
+     * @return array Array of failed check identifiers (usually field names)
      */
     public function batchUniqueCheck(string $table, array $checks): array;
 
