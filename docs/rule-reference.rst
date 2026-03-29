@@ -716,6 +716,9 @@ The field under validation must be an image (jpeg, png, bmp, gif, svg, or webp).
 mimes
 ~~~~~
 The file under validation must have a MIME type corresponding to one of the listed extensions.
+ReqShield attempts to detect MIME type from the uploaded file content first (when
+``fileinfo``/``mime_content_type`` is available), then falls back to client-provided
+MIME as a compatibility fallback.
 
 .. code-block:: php
 
@@ -724,6 +727,7 @@ The file under validation must have a MIME type corresponding to one of the list
 mimetypes
 ~~~~~~~~~
 The file under validation must match one of the given MIME types.
+ReqShield prefers MIME detection from file content when possible.
 
 .. code-block:: php
 
@@ -732,6 +736,8 @@ The file under validation must match one of the given MIME types.
 extensions
 ~~~~~~~~~~
 The file under validation must have one of the extensions listed.
+For upload hardening, combine ``file|mimetypes:...|extensions:...`` and use strict
+allowlists.
 
 .. code-block:: php
 
