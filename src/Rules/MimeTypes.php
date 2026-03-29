@@ -29,25 +29,29 @@ class MimeTypes extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $path = $this->getUploadedFilePath($value);
-        if ($path === null) {
-            $mimeFromClient = $this->getUploadedFileClientMediaType($value);
-            return is_string($mimeFromClient)
-                && in_array($mimeFromClient, $this->types, true);
-        }
-
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        if ($finfo === false) {
-            return false;
-        }
-
-        $mime = finfo_file($finfo, $path);
-
-        if (!is_string($mime)) {
+        $mime = $this->resolveMimeType($value);
+        if ($mime === null) {
             return false;
         }
 
         return in_array($mime, $this->types, true);
+    }
+
+    protected function resolveMimeType(mixed $value): ?string
+    {
+        $path = $this->getUploadedFilePath($value);
+        if (is_string($path)) {
+            $detected = $this->detectMimeTypeFromPath($path);
+            if ($detected !== null) {
+                return $detected;
+            }
+        }
+
+        $clientMimeType = $this->getUploadedFileClientMediaType($value);
+
+        return is_string($clientMimeType) && $clientMimeType !== ''
+            ? $clientMimeType
+            : null;
     }
 
 }

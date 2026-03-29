@@ -31,10 +31,21 @@ class Extensions extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (!is_array($value) || !isset($value['name'])) {
+        $filename = $this->getUploadedFileClientFilename($value);
+
+        if (!is_string($filename) || $filename === '') {
+            $path = $this->getUploadedFilePath($value);
+            $filename = is_string($path) ? basename($path) : null;
+        }
+
+        if (!is_string($filename) || $filename === '') {
             return false;
         }
-        $ext = strtolower(pathinfo($value['name'], PATHINFO_EXTENSION));
+
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if ($ext === '') {
+            return false;
+        }
 
         return in_array($ext, $this->extensions, true);
     }

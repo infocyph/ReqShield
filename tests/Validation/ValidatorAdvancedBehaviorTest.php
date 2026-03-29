@@ -325,6 +325,11 @@ test('file rules support uploaded file objects', function () {
         {
         }
 
+        public function getClientFilename(): string
+        {
+            return 'hello.txt';
+        }
+
         public function getClientMediaType(): string
         {
             return 'text/plain';
@@ -351,6 +356,129 @@ test('file rules support uploaded file objects', function () {
     ]);
 
     $result = $validator->validate(['file' => $uploaded]);
+    @unlink($path);
+
+    expect($result->passes())->toBeTrue();
+});
+
+test('mimes rule prefers detected mime over client media type', function () {
+    $path = tempnam(sys_get_temp_dir(), 'rqf');
+    file_put_contents($path, 'plain text content');
+
+    $stream = new class($path) {
+        public function __construct(private string $path)
+        {
+        }
+
+        public function getMetadata(?string $key = null): mixed
+        {
+            if ($key === 'uri') {
+                return $this->path;
+            }
+
+            return ['uri' => $this->path];
+        }
+    };
+
+    $uploaded = new class($stream) {
+        public function __construct(private object $stream)
+        {
+        }
+
+        public function getClientFilename(): string
+        {
+            return 'payload.php';
+        }
+
+        public function getClientMediaType(): string
+        {
+            return 'application/x-httpd-php';
+        }
+
+        public function getError(): int
+        {
+            return UPLOAD_ERR_OK;
+        }
+
+        public function getSize(): int
+        {
+            return 18;
+        }
+
+        public function getStream(): object
+        {
+            return $this->stream;
+        }
+    };
+
+    $allowedText = Validator::make([
+        'file' => 'required|file|mimes:txt',
+    ])->validate(['file' => $uploaded]);
+
+    $allowedPhp = Validator::make([
+        'file' => 'required|file|mimes:php',
+    ])->validate(['file' => $uploaded]);
+
+    @unlink($path);
+
+    expect($allowedText->passes())->toBeTrue();
+    expect($allowedPhp->fails())->toBeTrue();
+})->skip(!function_exists('finfo_open') && !function_exists('mime_content_type'));
+
+test('extensions rule supports uploaded file objects via client filename', function () {
+    $path = tempnam(sys_get_temp_dir(), 'rqf');
+    file_put_contents($path, 'image-bytes');
+
+    $stream = new class($path) {
+        public function __construct(private string $path)
+        {
+        }
+
+        public function getMetadata(?string $key = null): mixed
+        {
+            if ($key === 'uri') {
+                return $this->path;
+            }
+
+            return ['uri' => $this->path];
+        }
+    };
+
+    $uploaded = new class($stream) {
+        public function __construct(private object $stream)
+        {
+        }
+
+        public function getClientFilename(): string
+        {
+            return 'avatar.jpg';
+        }
+
+        public function getClientMediaType(): string
+        {
+            return 'image/jpeg';
+        }
+
+        public function getError(): int
+        {
+            return UPLOAD_ERR_OK;
+        }
+
+        public function getSize(): int
+        {
+            return 11;
+        }
+
+        public function getStream(): object
+        {
+            return $this->stream;
+        }
+    };
+
+    $result = Validator::make([
+        'file' => 'required|file|extensions:jpg,png',
+    ])->validate(['file' => $uploaded]);
+
     @unlink($path);
 
     expect($result->passes())->toBeTrue();
