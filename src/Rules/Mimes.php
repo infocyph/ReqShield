@@ -75,25 +75,41 @@ class Mimes extends BaseRule
      */
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $fileMimeType = $this->getUploadedFileClientMediaType($value);
-        if (!is_string($fileMimeType) || $fileMimeType === '') {
+        $fileMimeType = $this->resolveMimeType($value);
+        if ($fileMimeType === null) {
             return false;
         }
 
-        // Check each extension provided
-        foreach ($this->types as $extension) {
-            // Get allowed MIME types for this extension using MimeTypeResolver
-            // This only loads the category needed (lazy loading)
-            $allowedMimes = MimeTypeResolver::getMimeTypes($extension);
+        return $this->matchesResolvedMimeType($fileMimeType)
+            || in_array($fileMimeType, $this->types, true);
+    }
 
-            // Check if file's MIME type matches any of the allowed MIME types
+    protected function matchesResolvedMimeType(string $fileMimeType): bool
+    {
+        foreach ($this->types as $extension) {
+            $allowedMimes = MimeTypeResolver::getMimeTypes($extension);
             if (in_array($fileMimeType, $allowedMimes, true)) {
                 return true;
             }
         }
 
-        // If extension is not found in resolver, treat as literal MIME type
-        // This provides backward compatibility
-        return in_array($fileMimeType, $this->types, true);
+        return false;
+    }
+
+    protected function resolveMimeType(mixed $value): ?string
+    {
+        $path = $this->getUploadedFilePath($value);
+        if (is_string($path)) {
+            $detected = $this->detectMimeTypeFromPath($path);
+            if ($detected !== null) {
+                return $detected;
+            }
+        }
+
+        $clientMimeType = $this->getUploadedFileClientMediaType($value);
+
+        return is_string($clientMimeType) && $clientMimeType !== ''
+            ? $clientMimeType
+            : null;
     }
 }

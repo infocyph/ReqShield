@@ -17,6 +17,33 @@ abstract class BaseRule implements Rule
     }
 
     /**
+     * Detect MIME type from a local file path using available PHP extensions.
+     */
+    protected function detectMimeTypeFromPath(string $path): ?string
+    {
+        if (!is_file($path)) {
+            return null;
+        }
+
+        if (function_exists('finfo_open') && defined('FILEINFO_MIME_TYPE')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo !== false) {
+                $detected = finfo_file($finfo, $path);
+
+                return is_string($detected) && $detected !== '' ? $detected : null;
+            }
+        }
+
+        if (function_exists('mime_content_type')) {
+            $detected = mime_content_type($path);
+
+            return is_string($detected) && $detected !== '' ? $detected : null;
+        }
+
+        return null;
+    }
+
+    /**
      * Get the size of a value.
      *
      * @return int|float
@@ -49,6 +76,24 @@ abstract class BaseRule implements Rule
         }
 
         return 0;
+    }
+
+    /**
+     * Resolve original client filename from uploaded file payload.
+     */
+    protected function getUploadedFileClientFilename(mixed $value): ?string
+    {
+        if (is_array($value) && isset($value['name']) && is_string($value['name'])) {
+            return $value['name'];
+        }
+
+        if ($this->isUploadedFileObject($value) && method_exists($value, 'getClientFilename')) {
+            $name = $value->getClientFilename();
+
+            return is_string($name) ? $name : null;
+        }
+
+        return null;
     }
 
     /**

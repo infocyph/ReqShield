@@ -28,7 +28,16 @@ class File extends BaseRule
 
         $path = $this->getUploadedFilePath($value);
         if ($path !== null) {
-            return is_uploaded_file($path) || is_file($path);
+            if (is_uploaded_file($path)) {
+                return true;
+            }
+
+            // Allow local-file fallback only in CLI/phpdbg (tests, synthetic uploads).
+            if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
+                return is_file($path);
+            }
+
+            return false;
         }
 
         return $this->isUploadedFileObject($value);
