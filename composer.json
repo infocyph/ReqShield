@@ -56,7 +56,7 @@
         }
     },
     "scripts": {
-        "benchmark": "php benchmarks/validator_bench.php",
+        "benchmark": "php benchmark/validator_bench.php",
         "test:code": "@php vendor/bin/pest --parallel --processes=10",
         "test:security": "@php vendor/bin/psalm --security-analysis --show-info=false --no-progress --threads=1",
         "test:refactor": "@php vendor/bin/rector process --dry-run",

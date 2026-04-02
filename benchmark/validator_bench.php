@@ -7,6 +7,50 @@ use Infocyph\ReqShield\Validator;
 
 require __DIR__ . '/../vendor/autoload.php';
 
+function progressPercent(int $completed, int $total, bool $forceNewline = false): void
+{
+    static $isTty = null;
+    static $lastWidth = 0;
+    static $lastPercent = -1;
+
+    $total = max(1, $total);
+    $percent = (int) floor(($completed / $total) * 100);
+    $percent = max(0, min(100, $percent));
+
+    if ($isTty === null) {
+        $isTty = function_exists('stream_isatty') ? stream_isatty(STDOUT) : false;
+    }
+    if ($percent === $lastPercent) {
+        if ($forceNewline && $isTty && $lastWidth > 0) {
+            echo PHP_EOL;
+            $lastWidth = 0;
+        }
+        return;
+    }
+
+    $text = '[progress] ' . $percent . '%';
+
+    if ($isTty) {
+        $len = strlen($text);
+        $pad = $lastWidth > $len ? str_repeat(' ', $lastWidth - $len) : '';
+        echo "\r" . $text . $pad;
+        $lastWidth = max($lastWidth, $len);
+        if ($forceNewline) {
+            echo PHP_EOL;
+            $lastWidth = 0;
+        }
+    } else {
+        echo $text . PHP_EOL;
+    }
+
+    $lastPercent = $percent;
+
+    if (function_exists('ob_get_level') && ob_get_level() > 0) {
+        @ob_flush();
+    }
+    @flush();
+}
+
 /**
  * @param array<int,float> $samples
  */
@@ -17,7 +61,7 @@ function percentile(array $samples, float $percentile): float
     }
 
     sort($samples);
-    $index = (int)floor((count($samples) - 1) * $percentile);
+    $index = (int) floor((count($samples) - 1) * $percentile);
 
     return $samples[$index] ?? 0.0;
 }
@@ -38,11 +82,18 @@ function runScenario(
     array $payload,
     int $iterations = 3000,
     int $warmup = 300,
+    ?callable $advance = null,
 ): array {
     $validator = $buildValidator();
 
-    for ($i = 0; $i < $warmup; $i++) {
+    $warmReported = 0;
+    $warmTick = max(1, intdiv(max(1, $warmup), 10));
+    for ($i = 1; $i <= $warmup; $i++) {
         $validator->validate($payload);
+        if ($advance !== null && ($i % $warmTick === 0 || $i === $warmup)) {
+            $advance($i - $warmReported);
+            $warmReported = $i;
+        }
     }
 
     if (function_exists('memory_reset_peak_usage')) {
@@ -51,11 +102,18 @@ function runScenario(
 
     $samples = [];
     $start = hrtime(true);
+    $runReported = 0;
+    $runTick = max(1, intdiv(max(1, $iterations), 20)); // 5%
 
-    for ($i = 0; $i < $iterations; $i++) {
+    for ($i = 1; $i <= $iterations; $i++) {
         $lap = hrtime(true);
         $validator->validate($payload);
         $samples[] = (hrtime(true) - $lap) / 1_000_000.0;
+
+        if ($advance !== null && ($i % $runTick === 0 || $i === $iterations)) {
+            $advance($i - $runReported);
+            $runReported = $i;
+        }
     }
 
     $elapsedNs = hrtime(true) - $start;
@@ -125,6 +183,15 @@ $dbPayload = [
 
 $results = [];
 
+$totalUnits = (300 + 3000) + (300 + 3000) + (200 + 2000);
+$completedUnits = 0;
+$advance = static function (int $units) use (&$completedUnits, $totalUnits): void {
+    $completedUnits += max(0, $units);
+    progressPercent($completedUnits, $totalUnits);
+};
+
+progressPercent(0, $totalUnits);
+
 $results[] = runScenario(
     'flat-fast-rules',
     static fn (): Validator => Validator::make([
@@ -139,6 +206,9 @@ $results[] = runScenario(
         'profile' => 'json',
     ]),
     $flatPayload,
+    3000,
+    300,
+    $advance,
 );
 
 $results[] = runScenario(
@@ -149,6 +219,9 @@ $results[] = runScenario(
         'users.*.tags.*' => 'required|string|min:2|max:20',
     ])->enableNestedValidation(),
     $nestedPayload,
+    3000,
+    300,
+    $advance,
 );
 
 $results[] = runScenario(
@@ -163,7 +236,10 @@ $results[] = runScenario(
     $dbPayload,
     2000,
     200,
+    $advance,
 );
+
+progressPercent($totalUnits, $totalUnits, true);
 
 echo PHP_EOL . 'ReqShield Validator Benchmark' . PHP_EOL;
 echo str_repeat('=', 92) . PHP_EOL;
@@ -178,7 +254,7 @@ echo str_repeat('-', 92) . PHP_EOL;
 
 foreach ($results as $row) {
     echo str_pad($row['scenario'], 24)
-        . str_pad((string)$row['iterations'], 10)
+        . str_pad((string) $row['iterations'], 10)
         . str_pad(number_format($row['throughput'], 2), 22)
         . str_pad(number_format($row['p50'], 4), 14)
         . str_pad(number_format($row['p95'], 4), 14)
