@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Contracts;
 
 /**
- * Marker interface for providers that support native batch methods.
+ * @deprecated All DatabaseProvider implementations are treated as
+ * native-batch providers. This marker remains for backwards compatibility.
  */
 interface NativeBatchDatabaseProvider extends DatabaseProvider
 {

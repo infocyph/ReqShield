@@ -35,7 +35,8 @@
         }
     },
     "require": {
-        "php": ">=8.4"
+        "php": ">=8.4",
+        "ext-hash": "*"
     },
     "require-dev": {
         "captainhook/captainhook": "^5.29.2",

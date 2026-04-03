@@ -10,6 +10,18 @@ namespace Infocyph\ReqShield\Rules;
  */
 class ActiveUrl extends BaseRule
 {
+    protected const MAX_DNS_CACHE_ENTRIES = 256;
+
+    /**
+     * @var array<string,bool>
+     */
+    protected static array $dnsCache = [];
+
+    public static function clearDnsCache(): void
+    {
+        self::$dnsCache = [];
+    }
+
     public function cost(): int
     {
         return 150;
@@ -32,11 +44,30 @@ class ActiveUrl extends BaseRule
             return false;
         }
 
-        // Check if host has DNS record
-        return checkdnsrr($url['host'], 'A') || checkdnsrr(
-            $url['host'],
-            'AAAA',
-        );
+        $host = strtolower((string)$url['host']);
+
+        if (isset(self::$dnsCache[$host])) {
+            $cached = self::$dnsCache[$host];
+            unset(self::$dnsCache[$host]);
+            self::$dnsCache[$host] = $cached;
+
+            return $cached;
+        }
+
+        $isActive = checkdnsrr($host, 'A') || checkdnsrr($host, 'AAAA');
+        $this->rememberDnsResult($host, $isActive);
+
+        return $isActive;
     }
 
+    protected function rememberDnsResult(string $host, bool $isActive): void
+    {
+        self::$dnsCache[$host] = $isActive;
+
+        if (count(self::$dnsCache) <= self::MAX_DNS_CACHE_ENTRIES) {
+            return;
+        }
+
+        array_shift(self::$dnsCache);
+    }
 }

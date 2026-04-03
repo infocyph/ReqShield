@@ -1,7 +1,6 @@
 <?php
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
-use Infocyph\ReqShield\Contracts\NativeBatchDatabaseProvider;
 use Infocyph\ReqShield\Executors\BatchExecutor;
 use Infocyph\ReqShield\Rules\Exists;
 use Infocyph\ReqShield\Rules\Unique;
@@ -81,12 +80,15 @@ test('shapeSignature tracks structure but ignores scalar values', function () {
         ->not->toBe(NestedValidator::shapeSignature($c));
 });
 
-test('batch executor dedupes values and splits queries by column', function () {
+test('batch executor groups checks by table and uses structured batch payloads', function () {
     $provider = new class implements DatabaseProvider {
-        public array $queries = [];
+        public array $existsPayloads = [];
+        public int $queryCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->existsPayloads[] = ['table' => $table, 'checks' => $checks];
+
             return [];
         }
 
@@ -114,7 +116,7 @@ test('batch executor dedupes values and splits queries by column', function () {
 
         public function query(string $query, array $params = []): array
         {
-            $this->queries[] = ['query' => $query, 'params' => $params];
+            $this->queryCalls++;
 
             return [];
         }
@@ -142,19 +144,25 @@ test('batch executor dedupes values and splits queries by column', function () {
 
     $executor->executeBatch($batch, $errors);
 
-    expect($provider->queries)->toHaveCount(2);
-    expect($provider->queries[0]['query'])->not->toContain(' OR ');
-    expect($provider->queries[1]['query'])->not->toContain(' OR ');
-    expect($provider->queries[0]['params'])->toEqual(['a@example.com']);
-    expect($provider->queries[1]['params'])->toEqual(['sam']);
+    expect($provider->queryCalls)->toBe(0);
+    expect($provider->existsPayloads)->toHaveCount(1);
+    expect($provider->existsPayloads[0]['table'])->toBe('users');
+    expect($provider->existsPayloads[0]['checks'])->toHaveCount(3);
+    expect($provider->existsPayloads[0]['checks'][0])->toHaveKeys([
+        'column',
+        'value',
+        'field',
+    ]);
 });
 
-test('batch executor chunks large in lists', function () {
+test('batch executor chunks large batch payloads', function () {
     $provider = new class implements DatabaseProvider {
-        public array $queries = [];
+        public array $existsPayloads = [];
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->existsPayloads[] = ['table' => $table, 'checks' => $checks];
+
             return [];
         }
 
@@ -182,8 +190,6 @@ test('batch executor chunks large in lists', function () {
 
         public function query(string $query, array $params = []): array
         {
-            $this->queries[] = ['query' => $query, 'params' => $params];
-
             return [];
         }
     };
@@ -202,13 +208,13 @@ test('batch executor chunks large in lists', function () {
 
     $executor->executeBatch($batch, $errors);
 
-    expect($provider->queries)->toHaveCount(2);
-    expect($provider->queries[0]['params'])->toHaveCount(500);
-    expect($provider->queries[1]['params'])->toHaveCount(1);
+    expect($provider->existsPayloads)->toHaveCount(2);
+    expect($provider->existsPayloads[0]['checks'])->toHaveCount(500);
+    expect($provider->existsPayloads[1]['checks'])->toHaveCount(1);
 });
 
-test('batch executor uses native provider batch methods when available', function () {
-    $provider = new class implements NativeBatchDatabaseProvider {
+test('batch executor records failures returned by provider batch methods', function () {
+    $provider = new class implements DatabaseProvider {
         public int $existsCalls = 0;
         public int $uniqueCalls = 0;
 
@@ -245,7 +251,7 @@ test('batch executor uses native provider batch methods when available', functio
 
         public function query(string $query, array $params = []): array
         {
-            throw new RuntimeException('Query fallback should not execute');
+            throw new RuntimeException('query() should not be used by batch executor');
         }
     };
 

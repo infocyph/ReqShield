@@ -300,6 +300,23 @@ test('regex validation rules pass', function () {
     expect($result->passes())->toBeTrue();
 });
 
+test('pipe-delimited rule strings preserve regex alternation patterns', function () {
+    $validator = Validator::make([
+      'mode' => 'required|regex:/^(foo|bar)$/',
+    ]);
+
+    $pass = $validator->validate([
+      'mode' => 'foo',
+    ]);
+    $fail = $validator->validate([
+      'mode' => 'baz',
+    ]);
+
+    expect($pass->passes())->toBeTrue();
+    expect($fail->fails())->toBeTrue();
+    expect($fail->errors())->toHaveKey('mode');
+});
+
 test('regex validation rules fail', function () {
     $validator = Validator::make([
       'zipcode' => ['regex:/^\d{5}$/'],

@@ -37,6 +37,9 @@ interface DatabaseProvider
     /**
      * Execute a database query.
      *
+     * Kept for compatibility with existing providers and custom rule usage.
+     * Batch DB validation rules use batchExistsCheck()/batchUniqueCheck().
+     *
      * @param string $query The SQL query
      * @param array $params Query parameters
      *

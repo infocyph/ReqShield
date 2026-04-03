@@ -191,9 +191,22 @@ test('schema fragments can be reused and prefixed', function () {
     expect($result->passes())->toBeTrue();
 });
 
-test('unique rule respects soft-delete filter in batch query', function () {
+test('composeSchemas preserves regex rules that contain pipes', function () {
+    $schema = Validator::composeSchemas(
+        ['mode' => 'regex:/^(foo|bar)$/'],
+        ['mode' => 'required'],
+    );
+
+    $validator = Validator::make($schema);
+
+    expect($validator->validate(['mode' => 'foo'])->passes())->toBeTrue();
+    expect($validator->validate(['mode' => 'baz'])->fails())->toBeTrue();
+});
+
+test('unique rule forwards soft-delete options in batch payload', function () {
     $provider = new class implements DatabaseProvider {
-        public array $queries = [];
+        public array $uniquePayloads = [];
+        public int $queryCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
@@ -202,7 +215,17 @@ test('unique rule respects soft-delete filter in batch query', function () {
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
-            return [];
+            $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
+
+            $failed = [];
+            foreach ($checks as $check) {
+                $withTrashed = (bool)($check['with_trashed'] ?? false);
+                if ($withTrashed && ($check['value'] ?? null) === 'taken@example.com') {
+                    $failed[] = $check['field'];
+                }
+            }
+
+            return $failed;
         }
 
         public function compositeUnique(
@@ -224,13 +247,9 @@ test('unique rule respects soft-delete filter in batch query', function () {
 
         public function query(string $query, array $params = []): array
         {
-            $this->queries[] = $query;
+            $this->queryCalls++;
 
-            if (str_contains($query, '`deleted_at` IS NULL')) {
-                return [];
-            }
-
-            return [['email' => 'taken@example.com', 'id' => 10]];
+            return [];
         }
     };
 
@@ -244,12 +263,17 @@ test('unique rule respects soft-delete filter in batch query', function () {
 
     expect($softAware->validate(['email' => 'taken@example.com'])->passes())->toBeTrue();
     expect($withTrashed->validate(['email' => 'taken@example.com'])->fails())->toBeTrue();
-    expect(implode("\n", $provider->queries))->toContain('`deleted_at` IS NULL');
+    expect($provider->queryCalls)->toBe(0);
+    expect($provider->uniquePayloads)->toHaveCount(2);
+    expect($provider->uniquePayloads[0]['checks'][0]['with_trashed'])->toBeFalse();
+    expect($provider->uniquePayloads[0]['checks'][0]['soft_delete_column'])->toBe('deleted_at');
+    expect($provider->uniquePayloads[1]['checks'][0]['with_trashed'])->toBeTrue();
+    expect($provider->uniquePayloads[1]['checks'][0]['soft_delete_column'])->toBe('deleted_at');
 });
 
-test('unique batching separates query groups by id column', function () {
+test('unique string syntax preserves optional parameter positions', function () {
     $provider = new class implements DatabaseProvider {
-        public array $queries = [];
+        public array $uniquePayloads = [];
 
         public function batchExistsCheck(string $table, array $checks): array
         {
@@ -258,6 +282,8 @@ test('unique batching separates query groups by id column', function () {
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
+
             return [];
         }
 
@@ -280,7 +306,61 @@ test('unique batching separates query groups by id column', function () {
 
         public function query(string $query, array $params = []): array
         {
-            $this->queries[] = $query;
+            return [];
+        }
+    };
+
+    $validator = Validator::make([
+        'email' => 'required|email|unique:users,email,,uuid,true,deleted_at',
+    ], $provider);
+
+    $validator->validate([
+        'email' => 'alice@example.com',
+    ]);
+
+    expect($provider->uniquePayloads)->toHaveCount(1);
+    expect($provider->uniquePayloads[0]['checks'][0]['id_column'])->toBe('uuid');
+    expect($provider->uniquePayloads[0]['checks'][0]['with_trashed'])->toBeTrue();
+    expect($provider->uniquePayloads[0]['checks'][0]['soft_delete_column'])->toBe('deleted_at');
+});
+
+test('unique batching preserves id column per check in payload', function () {
+    $provider = new class implements DatabaseProvider {
+        public array $uniquePayloads = [];
+        public int $queryCalls = 0;
+
+        public function batchExistsCheck(string $table, array $checks): array
+        {
+            return [];
+        }
+
+        public function batchUniqueCheck(string $table, array $checks): array
+        {
+            $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
+
+            return [];
+        }
+
+        public function compositeUnique(
+            string $table,
+            array $columns,
+            ?int $ignoreId = null,
+        ): bool {
+            return true;
+        }
+
+        public function exists(
+            string $table,
+            string $column,
+            $value,
+            ?int $ignoreId = null,
+        ): bool {
+            return false;
+        }
+
+        public function query(string $query, array $params = []): array
+        {
+            $this->queryCalls++;
 
             return [];
         }
@@ -296,9 +376,11 @@ test('unique batching separates query groups by id column', function () {
         'email_b' => 'b@example.com',
     ]);
 
-    expect($provider->queries)->toHaveCount(2);
-    expect(implode("\n", $provider->queries))->toContain('`id`');
-    expect(implode("\n", $provider->queries))->toContain('`uuid`');
+    expect($provider->queryCalls)->toBe(0);
+    expect($provider->uniquePayloads)->toHaveCount(1);
+    expect($provider->uniquePayloads[0]['checks'])->toHaveCount(2);
+    expect($provider->uniquePayloads[0]['checks'][0]['id_column'])->toBe('id');
+    expect($provider->uniquePayloads[0]['checks'][1]['id_column'])->toBe('uuid');
 });
 
 test('file rules support uploaded file objects', function () {
@@ -541,6 +623,16 @@ test('schema export and introspection include rule hints', function () {
     expect($jsonSchema['properties']['email']['format'])->toBe('email');
     expect($jsonSchema['required'])->toContain('email');
     expect($introspection['age']['rules'])->toContain('integer');
+});
+
+test('schema export handles regex alternation in string rules', function () {
+    $validator = Validator::make([
+        'mode' => 'regex:/^(foo|bar)$/',
+    ]);
+
+    $schema = $validator->exportSchema('json_schema');
+
+    expect($schema['properties']['mode']['pattern'])->toBe('^(foo|bar)$');
 });
 
 test('schema export includes nested constraints and required chain', function () {
