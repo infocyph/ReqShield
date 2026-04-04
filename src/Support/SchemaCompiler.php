@@ -63,7 +63,7 @@ class SchemaCompiler
         foreach ($rules as $field => $ruleSet) {
             // Convert string rules to array
             if (is_string($ruleSet)) {
-                $ruleSet = explode('|', $ruleSet);
+                $ruleSet = RuleExpressionParser::splitRules($ruleSet);
             }
 
             // Always use flat structure - nested fields with dots are just field names

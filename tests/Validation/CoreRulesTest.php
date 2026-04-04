@@ -175,6 +175,12 @@ test('date validation rules pass', function () {
 });
 
 test('format validation rules pass', function () {
+    $dnsAvailable = function_exists('checkdnsrr')
+        && (checkdnsrr('example.com', 'A') || checkdnsrr('example.com', 'AAAA'));
+    if (!$dnsAvailable) {
+        $this->markTestSkipped('DNS resolution is unavailable for active_url assertions.');
+    }
+
     $validator = Validator::make([
       'email' => 'email',
       'url' => 'url',
@@ -194,7 +200,7 @@ test('format validation rules pass', function () {
     $data = [
       'email' => 'test@example.com',
       'url' => 'https://www.example.com',
-      'active_url' => 'https://google.com', // Assumes google.com is active
+      'active_url' => 'https://example.com',
       'ip_any' => '192.168.1.1',
       'ip_v4' => '192.168.1.1',
       'ip_v6' => '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
@@ -292,6 +298,23 @@ test('regex validation rules pass', function () {
 
     $result = $validator->validate($data);
     expect($result->passes())->toBeTrue();
+});
+
+test('pipe-delimited rule strings preserve regex alternation patterns', function () {
+    $validator = Validator::make([
+      'mode' => 'required|regex:/^(foo|bar)$/',
+    ]);
+
+    $pass = $validator->validate([
+      'mode' => 'foo',
+    ]);
+    $fail = $validator->validate([
+      'mode' => 'baz',
+    ]);
+
+    expect($pass->passes())->toBeTrue();
+    expect($fail->fails())->toBeTrue();
+    expect($fail->errors())->toHaveKey('mode');
 });
 
 test('regex validation rules fail', function () {
@@ -813,10 +836,16 @@ describe('Format Validation Rules', function () {
     });
 
     test('active_url rule validates DNS records', function () {
+        $dnsAvailable = function_exists('checkdnsrr')
+            && (checkdnsrr('example.com', 'A') || checkdnsrr('example.com', 'AAAA'));
+        if (!$dnsAvailable) {
+            $this->markTestSkipped('DNS resolution is unavailable for active_url assertions.');
+        }
+
         $validator = Validator::make(['site' => 'active_url']);
 
         expect(
-            $validator->validate(['site' => 'https://google.com'])->passes(),
+            $validator->validate(['site' => 'https://example.com'])->passes(),
         )->toBeTrue();
     });
 

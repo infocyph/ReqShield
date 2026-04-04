@@ -2,20 +2,15 @@
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
-         colors="true"
-         failOnRisky="false"
-         failOnWarning="false"
-         beStrictAboutOutputDuringTests="false"
-         beStrictAboutTestsThatDoNotTestAnything="false"
-         beStrictAboutChangesToGlobalState="false">
+         colors="true">
     <testsuites>
         <testsuite name="Test Suite">
-            <directory>tests</directory>
+            <directory suffix="Test.php">./tests</directory>
         </testsuite>
     </testsuites>
     <source>
         <include>
-            <directory>src</directory>
+            <directory>./src</directory>
         </include>
     </source>
 </phpunit>

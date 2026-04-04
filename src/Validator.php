@@ -15,6 +15,7 @@ use Infocyph\ReqShield\Services\JsonSchemaExporter;
 use Infocyph\ReqShield\Services\MessageTokenBuilder;
 use Infocyph\ReqShield\Services\SanitizerMapApplier;
 use Infocyph\ReqShield\Support\FieldAlias;
+use Infocyph\ReqShield\Support\RuleExpressionParser;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 use Infocyph\ReqShield\Support\ValidationPlan;
 use Infocyph\ReqShield\Support\ValidationResult;
@@ -157,8 +158,8 @@ class Validator
                 }
 
                 $composed[$field] = array_merge(
-                    is_array($composed[$field]) ? $composed[$field] : explode('|', (string)$composed[$field]),
-                    is_array($rules) ? $rules : explode('|', (string)$rules),
+                    is_array($composed[$field]) ? $composed[$field] : RuleExpressionParser::splitRules((string)$composed[$field]),
+                    is_array($rules) ? $rules : RuleExpressionParser::splitRules((string)$rules),
                 );
             }
         }

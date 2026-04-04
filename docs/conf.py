@@ -6,7 +6,7 @@ from subprocess import Popen, PIPE
 
 # --- Project information -----------------------------------------------------
 project   = "ReqShield"
-author    = "abmmhasan (infocyph)"
+author    = "Infocyph"
 year_now  = datetime.date.today().strftime("%Y")
 copyright = f"2024-{year_now}"
 

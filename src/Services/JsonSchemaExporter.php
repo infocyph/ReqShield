@@ -372,7 +372,7 @@ final class JsonSchemaExporter
         string|array $definition,
         callable $resolveRuleNameForObject,
     ): array {
-        $rules = is_string($definition) ? explode('|', $definition) : $definition;
+        $rules = is_string($definition) ? RuleExpressionParser::splitRules($definition) : $definition;
         $parsed = [];
 
         foreach ($rules as $rule) {

@@ -33,7 +33,7 @@ if ($result->passes()) {
 ## ✨ Features
 
 - 🚀 **103 Built-in Rules** - Basic types, conditional rules, files, database checks, and more
-- 🧹 **50+ Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
+- 🧹 **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
 - ⚡ **Intelligent Batching** - Expensive DB checks are batched automatically
 - 🎯 **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
 - 🔗 **Nested + Wildcard Validation** - Dot notation with wildcard expansion
@@ -152,9 +152,9 @@ ReqShield includes 103 validation rules covering several common scenarios:
 
 ---
 
-## 🧹 Available Sanitizers (50+)
+## 🧹 Available Sanitizers (46 Built-in)
 
-ReqShield includes 50+ sanitizers covering several common scenarios:
+ReqShield includes 46 built-in sanitizers covering several common scenarios:
 
 - Basic Types
 - Case Conversions
@@ -430,6 +430,22 @@ Stops validating a field on first rule failure:
 
 ### 4. **Zero Overhead for Simple Cases**
 Nested validation only activates if you use dot notation. No performance cost for simple flat arrays.
+
+---
+
+## 🧪 Development Commands
+
+```bash
+composer test
+composer tests
+composer test:code
+composer test:lint
+composer test:refactor
+composer test:security
+composer benchmark
+```
+
+`composer benchmark` runs `benchmark/validator_bench.php` and shows total progress in percentage form.
 
 ---
 

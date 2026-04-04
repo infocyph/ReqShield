@@ -447,7 +447,7 @@ trait HasValidatorInternals
      */
     protected function parseRuleDefinitions(string|array $definition): array
     {
-        $rules = is_string($definition) ? explode('|', $definition) : $definition;
+        $rules = is_string($definition) ? RuleExpressionParser::splitRules($definition) : $definition;
         $parsed = [];
 
         foreach ($rules as $rule) {

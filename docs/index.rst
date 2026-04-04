@@ -60,3 +60,10 @@ Table of Contents
    :caption: Reference
 
    rule-reference
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Development
+
+   benchmark
+   development
