@@ -76,35 +76,15 @@ final class JsonSchemaExporter
             return;
         }
 
-        if ($ruleName === 'in' && $params !== []) {
-            $property['enum'] = array_values($params);
-
+        if ($this->applyEnumConstraint($property, $ruleName, $params)) {
             return;
         }
 
-        if ($ruleName === 'digits' && isset($params[0])) {
-            $digits = (int)$params[0];
-            if ($digits > 0) {
-                $property['pattern'] = '^\\d{' . $digits . '}$';
-            }
-
+        if ($this->applyDigitPatternConstraint($property, $ruleName, $params)) {
             return;
         }
 
-        if ($ruleName === 'digits_between' && isset($params[0], $params[1])) {
-            $min = max(0, (int)$params[0]);
-            $max = max($min, (int)$params[1]);
-            $property['pattern'] = '^\\d{' . $min . ',' . $max . '}$';
-
-            return;
-        }
-
-        if ($ruleName === 'regex' && isset($params[0]) && is_string($params[0])) {
-            $pattern = $normalizeRegexForJsonSchema($params[0]);
-            if (is_string($pattern) && $pattern !== '') {
-                $property['pattern'] = $pattern;
-            }
-        }
+        $this->applyRegexConstraint($property, $ruleName, $params, $normalizeRegexForJsonSchema);
     }
     /**
      * @param array<string,string|array<int,mixed>> $rules
@@ -177,18 +157,18 @@ final class JsonSchemaExporter
             return;
         }
 
-        $value = str_contains((string)$rawValue, '.')
-            ? (float)$rawValue
-            : (int)$rawValue;
+        $value = str_contains((string) $rawValue, '.')
+            ? (float) $rawValue
+            : (int) $rawValue;
 
         if ($type === 'string') {
-            $property[$bound === 'min' ? 'minLength' : 'maxLength'] = (int)$value;
+            $property[$bound === 'min' ? 'minLength' : 'maxLength'] = (int) $value;
 
             return;
         }
 
         if ($type === 'array') {
-            $property[$bound === 'min' ? 'minItems' : 'maxItems'] = (int)$value;
+            $property[$bound === 'min' ? 'minItems' : 'maxItems'] = (int) $value;
 
             return;
         }
@@ -235,6 +215,75 @@ final class JsonSchemaExporter
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string,mixed> $property
+     * @param array<int,mixed> $params
+     */
+    protected function applyDigitPatternConstraint(
+        array &$property,
+        string $ruleName,
+        array $params,
+    ): bool {
+        return match ($ruleName) {
+            'digits' => $this->applyFixedDigitPattern($property, $params),
+            'digits_between' => $this->applyDigitRangePattern($property, $params),
+            default => false,
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $property
+     * @param array<int,mixed> $params
+     */
+    protected function applyDigitRangePattern(array &$property, array $params): bool
+    {
+        if (!isset($params[0], $params[1])) {
+            return false;
+        }
+
+        $min = max(0, (int) $params[0]);
+        $max = max($min, (int) $params[1]);
+        $property['pattern'] = '^\\d{' . $min . ',' . $max . '}$';
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $property
+     * @param array<int,mixed> $params
+     */
+    protected function applyEnumConstraint(
+        array &$property,
+        string $ruleName,
+        array $params,
+    ): bool {
+        if ($ruleName !== 'in' || $params === []) {
+            return false;
+        }
+
+        $property['enum'] = array_values($params);
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $property
+     * @param array<int,mixed> $params
+     */
+    protected function applyFixedDigitPattern(array &$property, array $params): bool
+    {
+        if (!isset($params[0])) {
+            return false;
+        }
+
+        $digits = (int) $params[0];
+        if ($digits > 0) {
+            $property['pattern'] = '^\\d{' . $digits . '}$';
+        }
+
+        return true;
     }
 
     /**
@@ -291,6 +340,26 @@ final class JsonSchemaExporter
 
         if (is_array($type) && !in_array('null', $type, true)) {
             $property['type'][] = 'null';
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $property
+     * @param array<int,mixed> $params
+     */
+    protected function applyRegexConstraint(
+        array &$property,
+        string $ruleName,
+        array $params,
+        callable $normalizeRegexForJsonSchema,
+    ): void {
+        if ($ruleName !== 'regex' || !isset($params[0]) || !is_string($params[0])) {
+            return;
+        }
+
+        $pattern = $normalizeRegexForJsonSchema($params[0]);
+        if (is_string($pattern) && $pattern !== '') {
+            $property['pattern'] = $pattern;
         }
     }
 
@@ -395,7 +464,7 @@ final class JsonSchemaExporter
 
         return array_values(array_filter(
             $parsed,
-            static fn (array $entry): bool => $entry['name'] !== '',
+            static fn(array $entry): bool => $entry['name'] !== '',
         ));
     }
 
@@ -407,7 +476,7 @@ final class JsonSchemaExporter
 
         foreach ($type as $item) {
             if ($item !== 'null') {
-                return (string)$item;
+                return (string) $item;
             }
         }
 

@@ -14,8 +14,7 @@ class Dimensions extends BaseRule
         protected string|int|null $minHeight = 0,
         protected string|int|null $maxWidth = 0,
         protected string|int|null $maxHeight = 0,
-    ) {
-    }
+    ) {}
 
     public function cost(): int
     {

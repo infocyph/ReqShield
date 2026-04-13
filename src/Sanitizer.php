@@ -29,17 +29,17 @@ namespace Infocyph\ReqShield;
 class Sanitizer
 {
     // Common character sets
-    private const ALPHA = 'a-zA-Z';
+    private const string ALPHA = 'a-zA-Z';
 
-    private const ALPHANUMERIC = self::ALPHA . self::NUMERIC;
+    private const string ALPHANUMERIC = self::ALPHA . self::NUMERIC;
 
-    private const FILENAME_CHARS = self::ALPHANUMERIC . '._-';
+    private const string FILENAME_CHARS = self::ALPHANUMERIC . '._-';
 
-    private const MAX_PIPELINE_CACHE = 256;
+    private const int MAX_PIPELINE_CACHE = 256;
 
-    private const NUMERIC = '0-9';
+    private const string NUMERIC = '0-9';
 
-    private const SLUG_CHARS = self::ALPHANUMERIC . '_-';
+    private const string SLUG_CHARS = self::ALPHANUMERIC . '_-';
 
     // Cached regex patterns for performance
     private static array $patterns = [];
@@ -135,11 +135,9 @@ class Sanitizer
             return [];
         }
 
-        return array_map(function ($item) {
-            return is_array($item)
-              ? self::array($item)
-              : (is_string($item) ? self::string($item) : $item);
-        }, $value);
+        return array_map(fn($item) => is_array($item)
+          ? self::array($item)
+          : (is_string($item) ? self::string($item) : $item), $value);
     }
 
     // ============================================
@@ -203,9 +201,9 @@ class Sanitizer
             is_int($value) => $value !== 0,
             is_string($value) => match (strtolower(trim($value))) {
                 '1', 'true', 'yes', 'on' => true,
-                default => false
+                default => false,
             },
-            default => (bool)$value
+            default => (bool) $value,
         };
     }
 
@@ -230,8 +228,8 @@ class Sanitizer
         $value = mb_convert_case($value, MB_CASE_TITLE, 'UTF-8');
         $value = str_replace(' ', '', $value);
 
-        return mb_strtolower(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') .
-          mb_substr($value, 1, null, 'UTF-8');
+        return mb_strtolower(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8')
+          . mb_substr($value, 1, null, 'UTF-8');
     }
 
     // ============================================
@@ -285,7 +283,7 @@ class Sanitizer
     public static function currency(mixed $value, string $format = 'USD'): float
     {
         if (!is_string($value)) {
-            return is_numeric($value) ? (float)$value : 0.0;
+            return is_numeric($value) ? (float) $value : 0.0;
         }
 
         // 1. Remove all non-formatting, non-numeric characters (currency symbols, etc.)
@@ -295,11 +293,11 @@ class Sanitizer
         $value = strtoupper($format) === 'EUR' ? str_replace(
             ['.', ','],
             ['', '.'],
-            $value
+            $value,
         ) : str_replace(',', '', $value);
 
         // 3. Cast the cleaned string to float
-        return (float)$value;
+        return (float) $value;
     }
 
     /**
@@ -316,7 +314,7 @@ class Sanitizer
         $value = preg_replace('/^https?:\/\//', '', $value);
 
         // Remove path, query, and fragment
-        $value = explode('/', $value)[0];
+        $value = explode('/', (string) $value)[0];
 
         return strtolower($value);
     }
@@ -377,13 +375,13 @@ class Sanitizer
     {
         return match (true) {
             is_float($value) => $value,
-            is_numeric($value) => (float)$value,
-            is_string($value) => (float)filter_var(
+            is_numeric($value) => (float) $value,
+            is_string($value) => (float) filter_var(
                 $value,
                 FILTER_SANITIZE_NUMBER_FLOAT,
                 FILTER_FLAG_ALLOW_FRACTION,
             ),
-            default => 0.0
+            default => 0.0,
         };
     }
 
@@ -396,13 +394,13 @@ class Sanitizer
         string $currency = 'USD',
         int $decimals = 2,
     ): string {
-        $number = is_numeric($value) ? (float)$value : 0.0;
+        $number = is_numeric($value) ? (float) $value : 0.0;
 
         return match ($currency) {
             'USD' => '$' . number_format($number, $decimals),
             'EUR' => '€' . number_format($number, $decimals, ',', '.'),
             'GBP' => '£' . number_format($number, $decimals),
-            default => $currency . ' ' . number_format($number, $decimals)
+            default => $currency . ' ' . number_format($number, $decimals),
         };
     }
 
@@ -438,12 +436,12 @@ class Sanitizer
     {
         return match (true) {
             is_int($value) => $value,
-            is_numeric($value) => (int)$value,
-            is_string($value) => (int)filter_var(
+            is_numeric($value) => (int) $value,
+            is_string($value) => (int) filter_var(
                 $value,
                 FILTER_SANITIZE_NUMBER_INT,
             ),
-            default => 0
+            default => 0,
         };
     }
 
@@ -467,7 +465,7 @@ class Sanitizer
                 512,
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
             );
-        } catch (\JsonException $e) {
+        } catch (\JsonException) {
             // On error, return the default empty value
             return $associative ? [] : null;
         }
@@ -488,7 +486,7 @@ class Sanitizer
                 $value,
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
             );
-        } catch (\JsonException $e) {
+        } catch (\JsonException) {
             return ''; // Return empty string on encode failure
         }
 
@@ -615,9 +613,9 @@ class Sanitizer
         }
 
         $patterns = [
-          '/(\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b|\bunion\b)/i',
-          '/--.*$/',
-          '/\/\*.*?\*\//s',
+            '/(\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b|\bunion\b)/i',
+            '/--.*$/',
+            '/\/\*.*?\*\//s',
         ];
 
         foreach ($patterns as $pattern) {
@@ -665,8 +663,8 @@ class Sanitizer
             return '';
         }
 
-        return mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') .
-          mb_strtolower(mb_substr($value, 1, null, 'UTF-8'), 'UTF-8');
+        return mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8')
+          . mb_strtolower(mb_substr($value, 1, null, 'UTF-8'), 'UTF-8');
     }
 
     // ============================================
@@ -735,8 +733,8 @@ class Sanitizer
     {
         return match (true) {
             is_string($value) => strip_tags(trim($value)),
-            is_numeric($value) => (string)$value,
-            default => ''
+            is_numeric($value) => (string) $value,
+            default => '',
         };
     }
 
@@ -773,7 +771,7 @@ class Sanitizer
         $value = self::pregReplace(
             '/<script\b[^>]*>.*?<\/script>/is',
             '',
-            $value ?? ''
+            $value ?? '',
         );
 
         return self::stripTags($value, $safeTags);

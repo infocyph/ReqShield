@@ -2,7 +2,7 @@
 
 namespace Infocyph\ReqShield\Database;
 
-use Infocyph\ReqShield\Contracts\NativeBatchDatabaseProvider;
+use Infocyph\ReqShield\Contracts\DatabaseProvider;
 
 /**
  * MockDatabaseProvider
@@ -23,7 +23,7 @@ use Infocyph\ReqShield\Contracts\NativeBatchDatabaseProvider;
  *
  * This mock implementation does NOT provide real security or performance.
  */
-class MockDatabaseProvider implements NativeBatchDatabaseProvider
+class MockDatabaseProvider implements DatabaseProvider
 {
     /**
      * Mock database data.
@@ -56,9 +56,9 @@ class MockDatabaseProvider implements NativeBatchDatabaseProvider
         $rows = $this->data[$table] ?? [];
 
         foreach ($checks as $check) {
-            $column = (string)($check['column'] ?? '');
+            $column = (string) ($check['column'] ?? '');
             $value = $check['value'] ?? null;
-            $identifier = (string)($check['field'] ?? $value);
+            $identifier = (string) ($check['field'] ?? $value);
 
             if ($column === '') {
                 continue;
@@ -89,45 +89,17 @@ class MockDatabaseProvider implements NativeBatchDatabaseProvider
             return $this->legacyBatchUniqueCheck($table, $checks);
         }
 
-        $nonUnique = [];
         $rows = $this->data[$table] ?? [];
+        $nonUnique = [];
 
         foreach ($checks as $check) {
-            $column = (string)($check['column'] ?? '');
-            $value = $check['value'] ?? null;
-            $identifier = (string)($check['field'] ?? $value);
-            $ignoreId = isset($check['ignore_id']) && is_int($check['ignore_id'])
-                ? $check['ignore_id']
-                : null;
-            $idColumn = isset($check['id_column']) && is_string($check['id_column'])
-                ? $check['id_column']
-                : 'id';
-            $withTrashed = isset($check['with_trashed']) && is_bool($check['with_trashed'])
-                ? $check['with_trashed']
-                : true;
-            $softDeleteColumn = isset($check['soft_delete_column']) && is_string($check['soft_delete_column'])
-                ? $check['soft_delete_column']
-                : 'deleted_at';
-
-            if ($column === '') {
+            $normalized = $this->normalizeUniqueCheck($check);
+            if ($normalized['column'] === '') {
                 continue;
             }
 
-            foreach ($rows as $row) {
-                if (!$withTrashed && isset($row[$softDeleteColumn]) && $row[$softDeleteColumn] !== null) {
-                    continue;
-                }
-
-                if (!array_key_exists($column, $row) || $row[$column] !== $value) {
-                    continue;
-                }
-
-                if ($ignoreId !== null && isset($row[$idColumn]) && (int)$row[$idColumn] === $ignoreId) {
-                    continue;
-                }
-
-                $nonUnique[] = $identifier;
-                break;
+            if ($this->hasUniqueConflict($rows, $normalized)) {
+                $nonUnique[] = $normalized['identifier'];
             }
         }
 
@@ -153,7 +125,7 @@ class MockDatabaseProvider implements NativeBatchDatabaseProvider
             }
             $allMatch = array_all(
                 $columns,
-                fn (
+                fn(
                     $value,
                     $column,
                 )
@@ -227,6 +199,31 @@ class MockDatabaseProvider implements NativeBatchDatabaseProvider
         return $results;
     }
 
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @param array{
+     *     column: string,
+     *     value: mixed,
+     *     identifier: string,
+     *     ignore_id: ?int,
+     *     id_column: string,
+     *     with_trashed: bool,
+     *     soft_delete_column: string
+     * } $check
+     */
+    protected function hasUniqueConflict(array $rows, array $check): bool
+    {
+        foreach ($rows as $row) {
+            if ($this->shouldSkipUniqueRow($row, $check)) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     protected function legacyBatchExistsCheck(string $table, array $checks): array
     {
         $missing = [];
@@ -280,6 +277,71 @@ class MockDatabaseProvider implements NativeBatchDatabaseProvider
         $first = array_values($checks)[0] ?? null;
 
         return is_array($first) && array_key_exists('column', $first);
+    }
+
+    /**
+     * @param array<string,mixed> $check
+     *
+     * @return array{
+     *     column: string,
+     *     value: mixed,
+     *     identifier: string,
+     *     ignore_id: ?int,
+     *     id_column: string,
+     *     with_trashed: bool,
+     *     soft_delete_column: string
+     * }
+     */
+    protected function normalizeUniqueCheck(array $check): array
+    {
+        $value = $check['value'] ?? null;
+
+        return [
+            'column' => isset($check['column']) ? (string) $check['column'] : '',
+            'value' => $value,
+            'identifier' => (string) ($check['field'] ?? $value),
+            'ignore_id' => isset($check['ignore_id']) && is_int($check['ignore_id']) ? $check['ignore_id'] : null,
+            'id_column' => isset($check['id_column']) && is_string($check['id_column']) ? $check['id_column'] : 'id',
+            'with_trashed' => isset($check['with_trashed']) && is_bool($check['with_trashed']) ? $check['with_trashed'] : true,
+            'soft_delete_column' => isset($check['soft_delete_column']) && is_string($check['soft_delete_column']) ? $check['soft_delete_column'] : 'deleted_at',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array{
+     *     column: string,
+     *     value: mixed,
+     *     identifier: string,
+     *     ignore_id: ?int,
+     *     id_column: string,
+     *     with_trashed: bool,
+     *     soft_delete_column: string
+     * } $check
+     */
+    protected function shouldSkipUniqueRow(array $row, array $check): bool
+    {
+        if (
+            !$check['with_trashed']
+            && isset($row[$check['soft_delete_column']])
+            && $row[$check['soft_delete_column']] !== null
+        ) {
+            return true;
+        }
+
+        if (!array_key_exists($check['column'], $row) || $row[$check['column']] !== $check['value']) {
+            return true;
+        }
+
+        if (
+            $check['ignore_id'] !== null
+            && isset($row[$check['id_column']])
+            && (int) $row[$check['id_column']] === $check['ignore_id']
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
 }

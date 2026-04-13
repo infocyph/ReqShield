@@ -52,14 +52,14 @@ abstract class BaseRule implements Rule
     {
         // Uploaded file arrays should be measured by file size in KB.
         if (is_array($value) && isset($value['size']) && is_numeric($value['size'])) {
-            return (float)$value['size'] / 1024;
+            return (float) $value['size'] / 1024;
         }
 
         // PSR-7 uploaded files should be measured by size in KB.
         if ($this->isUploadedFileObject($value)) {
             $size = $this->getUploadedFileSize($value);
             if ($size !== null) {
-                return (float)$size / 1024;
+                return (float) $size / 1024;
             }
         }
 
@@ -166,13 +166,13 @@ abstract class BaseRule implements Rule
     protected function getUploadedFileSize(mixed $value): ?int
     {
         if (is_array($value) && isset($value['size']) && is_numeric($value['size'])) {
-            return (int)$value['size'];
+            return (int) $value['size'];
         }
 
         if ($this->isUploadedFileObject($value) && method_exists($value, 'getSize')) {
             $size = $value->getSize();
 
-            return is_int($size) ? $size : (is_numeric($size) ? (int)$size : null);
+            return is_int($size) ? $size : (is_numeric($size) ? (int) $size : null);
         }
 
         return null;
@@ -208,7 +208,7 @@ abstract class BaseRule implements Rule
         }
 
         if (
-            interface_exists('\Psr\Http\Message\UploadedFileInterface')
+            interface_exists(\Psr\Http\Message\UploadedFileInterface::class)
             && $value instanceof \Psr\Http\Message\UploadedFileInterface
         ) {
             return true;

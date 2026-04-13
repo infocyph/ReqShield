@@ -37,7 +37,7 @@ class DoesntStartWith extends BaseRule
 
         return array_all(
             $this->values,
-            fn ($prefix) => !str_starts_with($value, $prefix),
+            fn($prefix) => !str_starts_with($value, (string) $prefix),
         );
     }
 

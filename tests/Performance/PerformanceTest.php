@@ -29,6 +29,5 @@ test('performance benchmark completes', function () {
     $duration = (microtime(true) - $start) * 1000;
 
     expect($duration)->toBeGreaterThanOrEqual(0);
-    echo "\nPerformed {$iterations} validations in {$duration}ms\n";
-
+    expect($duration)->toBeFloat();
 })->group('performance'); // Mark as performance test to be run optionally

@@ -10,12 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class In extends BaseRule
 {
-    protected array $values;
-
-    public function __construct(array $values)
-    {
-        $this->values = $values;
-    }
+    public function __construct(protected array $values) {}
 
     public function cost(): int
     {

@@ -14,13 +14,6 @@ use Exception;
 class ValidationException extends Exception
 {
     /**
-     * Validation errors.
-     *
-     * @var array<string, array<string>>
-     */
-    protected array $errors;
-
-    /**
      * Create a new ValidationException instance.
      *
      * @param string $message Exception message
@@ -30,12 +23,14 @@ class ValidationException extends Exception
      */
     public function __construct(
         string $message = 'Validation failed',
-        array $errors = [],
+        /**
+         * Validation errors.
+         */
+        protected array $errors = [],
         int $code = 0,
         ?\Throwable $previous = null,
     ) {
         parent::__construct($message, $code, $previous);
-        $this->errors = $errors;
     }
 
     /**

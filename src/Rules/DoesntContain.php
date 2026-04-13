@@ -64,7 +64,7 @@ class DoesntContain extends BaseRule
         // Returns true only if ALL checks pass (value doesn't contain any needle)
         return array_all(
             $this->values,
-            fn ($needle) => !str_contains($value, (string)$needle),
+            fn($needle) => !str_contains($value, (string) $needle),
         );
     }
 

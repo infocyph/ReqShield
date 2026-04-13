@@ -26,39 +26,66 @@ class Required extends BaseRule
             return false;
         }
 
-        if (is_string($value) && trim($value) === '') {
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+
+        if (!$this->isEmptyCountable($value)) {
+            return true;
+        }
+
+        if ($this->hasUploadedFile($field)) {
+            return true;
+        }
+
+        if ($this->hasNonEmptyStringRepresentation($value)) {
+            return true;
+        }
+
+        return $this->isStreamResource($value);
+    }
+
+    protected function hasNonEmptyStringRepresentation(mixed $value): bool
+    {
+        if (!is_object($value) || !method_exists($value, '__toString')) {
             return false;
         }
 
-        if ((is_array($value) || is_countable($value)) && count($value) === 0) {
-            // Check for uploaded files in $_FILES superglobal
-            if (isset($_FILES[$field])) {
-                $file = $_FILES[$field];
+        $stringValue = (string) $value;
 
-                // Check if file was actually uploaded
-                if (isset($file['error'])) {
-                    return $file['error'] === UPLOAD_ERR_OK;
-                }
+        return $stringValue !== '' && trim($stringValue) !== '';
+    }
 
-                // Check if file has content
-                return isset($file['size']) && $file['size'] > 0;
-            }
-
-            // Check for objects with __toString method
-            if (is_object($value) && method_exists($value, '__toString')) {
-                $stringValue = (string)$value;
-                return $stringValue !== '' && trim($stringValue) !== '';
-            }
-
-            // Check for stream resources
-            if (is_resource($value)) {
-                return get_resource_type($value) === 'stream';
-            }
-
+    protected function hasUploadedFile(string $field): bool
+    {
+        if (!isset($_FILES[$field])) {
             return false;
         }
 
-        return true;
+        $file = $_FILES[$field];
+        if (!is_array($file)) {
+            return false;
+        }
+
+        if (isset($file['error'])) {
+            return $file['error'] === UPLOAD_ERR_OK;
+        }
+
+        return isset($file['size']) && $file['size'] > 0;
+    }
+
+    protected function isEmptyCountable(mixed $value): bool
+    {
+        return (is_array($value) || is_countable($value)) && count($value) === 0;
+    }
+
+    protected function isStreamResource(mixed $value): bool
+    {
+        if (!is_resource($value)) {
+            return false;
+        }
+
+        return get_resource_type($value) === 'stream';
     }
 
 }

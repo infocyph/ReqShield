@@ -13,7 +13,7 @@ class Extensions extends BaseRule
 
     public function __construct(string ...$extensions)
     {
-        $this->extensions = array_map('strtolower', $extensions);
+        $this->extensions = array_map(strtolower(...), $extensions);
     }
 
     public function cost(): int

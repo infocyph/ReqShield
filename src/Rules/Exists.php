@@ -13,17 +13,9 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
  */
 class Exists extends BaseRule
 {
-    protected string $column;
-
     protected ?DatabaseProvider $db = null;
 
-    protected string $table;
-
-    public function __construct(string $table, string $column)
-    {
-        $this->table = $table;
-        $this->column = $column;
-    }
+    public function __construct(protected string $table, protected string $column) {}
 
     public function cost(): int
     {
@@ -41,6 +33,7 @@ class Exists extends BaseRule
         return $this->table;
     }
 
+    #[\Override]
     public function isBatchable(): bool
     {
         return true;

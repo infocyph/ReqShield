@@ -10,15 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Decimal extends BaseRule
 {
-    protected ?int $max;
-
-    protected ?int $min;
-
-    public function __construct(?int $min = null, ?int $max = null)
-    {
-        $this->min = $min;
-        $this->max = $max;
-    }
+    public function __construct(protected ?int $min = null, protected ?int $max = null) {}
 
     public function cost(): int
     {
@@ -46,7 +38,7 @@ class Decimal extends BaseRule
             return false;
         }
 
-        $stringValue = (string)$value;
+        $stringValue = (string) $value;
 
         // Must have a decimal point
         if (!str_contains($stringValue, '.')) {

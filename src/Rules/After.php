@@ -10,12 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class After extends BaseRule
 {
-    protected string $date;
-
-    public function __construct(string $date)
-    {
-        $this->date = $date;
-    }
+    public function __construct(protected string $date) {}
 
     public function cost(): int
     {

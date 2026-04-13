@@ -13,8 +13,7 @@ class DeclinedIf extends BaseRule
     public function __construct(
         protected string $otherField,
         protected mixed $value,
-    ) {
-    }
+    ) {}
 
     public function cost(): int
     {

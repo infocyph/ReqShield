@@ -127,6 +127,229 @@ class SchemaCompiler
     }
 
     /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyAcceptedDeclinedPlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (!in_array($ruleName, ['required_if_accepted', 'required_if_declined'], true)) {
+            return;
+        }
+
+        $placeholders['other'] = implode(', ', array_map(strval(...), $params));
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyAggregateOtherPlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (!in_array(
+            $ruleName,
+            ['required_with', 'required_with_all', 'required_without', 'required_without_all', 'present_with', 'present_with_all', 'exclude_with', 'exclude_without', 'prohibits'],
+            true,
+        )) {
+            return;
+        }
+
+        $placeholders['other'] = implode(', ', array_map(strval(...), $params));
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyComparisonPlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (!in_array($ruleName, ['same', 'different', 'gt', 'gte', 'lt', 'lte'], true)) {
+            return;
+        }
+
+        $placeholders['other'] = $params[0] ?? null;
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyConditionalPlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (!in_array(
+            $ruleName,
+            ['required_if', 'required_unless', 'present_if', 'present_unless', 'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless', 'accepted_if', 'declined_if'],
+            true,
+        )) {
+            return;
+        }
+
+        $placeholders['other'] = $params[0] ?? null;
+        $placeholders['value'] = implode(', ', array_map(strval(...), array_slice($params, 1)));
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyDatabasePlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if ($ruleName === 'unique') {
+            $placeholders['table'] = $params[0] ?? null;
+            $placeholders['column'] = $params[1] ?? null;
+            $placeholders['ignore'] = $params[2] ?? null;
+            $placeholders['id_column'] = $params[3] ?? null;
+            $placeholders['with_trashed'] = $params[4] ?? null;
+            $placeholders['soft_delete_column'] = $params[5] ?? null;
+            return;
+        }
+
+        if ($ruleName !== 'exists') {
+            return;
+        }
+
+        $placeholders['table'] = $params[0] ?? null;
+        $placeholders['column'] = $params[1] ?? null;
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyDatePlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (!in_array(
+            $ruleName,
+            ['before', 'before_or_equal', 'after', 'after_or_equal', 'date_equals', 'date_format'],
+            true,
+        )) {
+            return;
+        }
+
+        $placeholders['date'] = $params[0] ?? null;
+        $placeholders['format'] = $params[0] ?? null;
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyPatternPlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (!in_array($ruleName, ['regex', 'not_regex'], true)) {
+            return;
+        }
+
+        $placeholders['pattern'] = $params[0] ?? null;
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyRangePlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (in_array($ruleName, ['between', 'digits_between'], true)) {
+            $placeholders['min'] = $params[0] ?? null;
+            $placeholders['max'] = $params[1] ?? null;
+            return;
+        }
+
+        if ($ruleName !== 'decimal') {
+            return;
+        }
+
+        $placeholders['min'] = $params[0] ?? null;
+        $placeholders['max'] = $params[1] ?? ($params[0] ?? null);
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applySingleValuePlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        $key = match ($ruleName) {
+            'min' => 'min',
+            'max' => 'max',
+            'size' => 'size',
+            'digits' => 'digits',
+            'min_digits' => 'min',
+            'max_digits' => 'max',
+            'multiple_of' => 'multiple',
+            default => null,
+        };
+
+        if ($key === null) {
+            return;
+        }
+
+        $placeholders[$key] = $params[0] ?? null;
+    }
+
+    /**
+     * @param array<string,mixed> $placeholders
+     * @param array<int,mixed> $params
+     */
+    protected function applyValuesPlaceholder(
+        array &$placeholders,
+        string $ruleName,
+        array $params,
+    ): void {
+        if (!in_array(
+            $ruleName,
+            ['in', 'not_in', 'contains', 'doesnt_contain', 'starts_with', 'ends_with', 'doesnt_start_with', 'doesnt_end_with', 'required_array_keys'],
+            true,
+        )) {
+            return;
+        }
+
+        $placeholders['values'] = implode(', ', array_map(strval(...), $params));
+    }
+
+    /**
+     * @param array<int,mixed> $params
+     *
+     * @return array<string,mixed>
+     */
+    protected function buildIndexedPlaceholders(array $params): array
+    {
+        $placeholders = [];
+
+        foreach ($params as $index => $value) {
+            $placeholders['param' . ($index + 1)] = $value;
+        }
+
+        return $placeholders;
+    }
+
+    /**
      * Build placeholder token map for a parsed rule.
      *
      * @param array<int,mixed> $params
@@ -137,110 +360,26 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): array {
-        $params = array_values(array_filter(
-            $params,
-            fn (mixed $value): bool => $value !== '' && $value !== null,
-        ));
-
-        if (empty($params)) {
+        $params = $this->normalizePlaceholderParams($params);
+        if ($params === []) {
             return [];
         }
 
-        $placeholders = [];
-        foreach ($params as $index => $value) {
-            $placeholders['param' . ($index + 1)] = $value;
-        }
-
-        $singleValueRules = ['min', 'max', 'size', 'digits', 'min_digits', 'max_digits', 'multiple_of'];
-        if (in_array($ruleName, $singleValueRules, true)) {
-            $key = match ($ruleName) {
-                'max' => 'max',
-                'size' => 'size',
-                'digits' => 'digits',
-                'min_digits' => 'min',
-                'max_digits' => 'max',
-                'multiple_of' => 'multiple',
-                default => 'min',
-            };
-            $placeholders[$key] = $params[0];
-        }
-
-        if (in_array($ruleName, ['between', 'digits_between'], true)) {
-            $placeholders['min'] = $params[0] ?? null;
-            $placeholders['max'] = $params[1] ?? null;
-        }
-
-        if ($ruleName === 'decimal') {
-            $placeholders['min'] = $params[0] ?? null;
-            $placeholders['max'] = $params[1] ?? ($params[0] ?? null);
-        }
-
-        if (in_array($ruleName, ['same', 'different', 'gt', 'gte', 'lt', 'lte'], true)) {
-            $placeholders['other'] = $params[0] ?? null;
-        }
-
-        if (in_array(
-            $ruleName,
-            ['in', 'not_in', 'contains', 'doesnt_contain', 'starts_with', 'ends_with', 'doesnt_start_with', 'doesnt_end_with', 'required_array_keys'],
-            true,
-        )) {
-            $placeholders['values'] = implode(', ', array_map('strval', $params));
-        }
-
-        if (in_array(
-            $ruleName,
-            ['required_with', 'required_with_all', 'required_without', 'required_without_all', 'present_with', 'present_with_all', 'exclude_with', 'exclude_without', 'prohibits'],
-            true,
-        )) {
-            $placeholders['other'] = implode(', ', array_map('strval', $params));
-        }
-
-        if (in_array(
-            $ruleName,
-            ['required_if', 'required_unless', 'present_if', 'present_unless', 'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless', 'accepted_if', 'declined_if'],
-            true,
-        )) {
-            $placeholders['other'] = $params[0] ?? null;
-            $placeholders['value'] = implode(
-                ', ',
-                array_map('strval', array_slice($params, 1)),
-            );
-        }
-
-        if (in_array($ruleName, ['required_if_accepted', 'required_if_declined'], true)) {
-            $placeholders['other'] = implode(', ', array_map('strval', $params));
-        }
-
-        if (in_array(
-            $ruleName,
-            ['before', 'before_or_equal', 'after', 'after_or_equal', 'date_equals', 'date_format'],
-            true,
-        )) {
-            $placeholders['date'] = $params[0] ?? null;
-            $placeholders['format'] = $params[0] ?? null;
-        }
-
-        if (in_array($ruleName, ['regex', 'not_regex'], true)) {
-            $placeholders['pattern'] = $params[0] ?? null;
-        }
-
-        if ($ruleName === 'unique') {
-            $placeholders['table'] = $params[0] ?? null;
-            $placeholders['column'] = $params[1] ?? null;
-            $placeholders['ignore'] = $params[2] ?? null;
-            $placeholders['id_column'] = $params[3] ?? null;
-            $placeholders['with_trashed'] = $params[4] ?? null;
-            $placeholders['soft_delete_column'] = $params[5] ?? null;
-        }
-
-        if ($ruleName === 'exists') {
-            $placeholders['table'] = $params[0] ?? null;
-            $placeholders['column'] = $params[1] ?? null;
-        }
+        $placeholders = $this->buildIndexedPlaceholders($params);
+        $this->applySingleValuePlaceholder($placeholders, $ruleName, $params);
+        $this->applyRangePlaceholder($placeholders, $ruleName, $params);
+        $this->applyComparisonPlaceholder($placeholders, $ruleName, $params);
+        $this->applyValuesPlaceholder($placeholders, $ruleName, $params);
+        $this->applyAggregateOtherPlaceholder($placeholders, $ruleName, $params);
+        $this->applyConditionalPlaceholder($placeholders, $ruleName, $params);
+        $this->applyAcceptedDeclinedPlaceholder($placeholders, $ruleName, $params);
+        $this->applyDatePlaceholder($placeholders, $ruleName, $params);
+        $this->applyPatternPlaceholder($placeholders, $ruleName, $params);
+        $this->applyDatabasePlaceholder($placeholders, $ruleName, $params);
 
         return array_filter(
             $placeholders,
-            fn (mixed $value): bool => $value !== null && $value !== '',
+            fn(mixed $value): bool => $value !== null && $value !== '',
         );
     }
 
@@ -250,16 +389,14 @@ class SchemaCompiler
      */
     protected function castParameters(array $params): array
     {
-        return array_map(function ($param) {
-            return match (true) {
-                $param === '' || $param === 'null' => null,
-                $param === 'true' => true,
-                $param === 'false' => false,
-                is_numeric($param) => str_contains($param, '.')
-                  ? (float)$param
-                  : (int)$param,
-                default => $param,
-            };
+        return array_map(fn($param) => match (true) {
+            $param === '' || $param === 'null' => null,
+            $param === 'true' => true,
+            $param === 'false' => false,
+            is_numeric($param) => str_contains($param, '.')
+              ? (float) $param
+              : (int) $param,
+            default => $param,
         }, $params);
     }
 
@@ -339,6 +476,19 @@ class SchemaCompiler
         }
 
         $this->ruleMap = require $mapPath;
+    }
+
+    /**
+     * @param array<int,mixed> $params
+     *
+     * @return array<int,mixed>
+     */
+    protected function normalizePlaceholderParams(array $params): array
+    {
+        return array_values(array_filter(
+            $params,
+            fn(mixed $value): bool => $value !== '' && $value !== null,
+        ));
     }
 
     /**

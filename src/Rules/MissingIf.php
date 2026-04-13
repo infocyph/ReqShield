@@ -9,15 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class MissingIf extends BaseRule
 {
-    protected string $otherField;
-
-    protected mixed $value;
-
-    public function __construct(string $otherField, mixed $value)
-    {
-        $this->otherField = $otherField;
-        $this->value = $value;
-    }
+    public function __construct(protected string $otherField, protected mixed $value) {}
 
     public function cost(): int
     {

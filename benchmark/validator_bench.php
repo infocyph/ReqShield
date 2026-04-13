@@ -194,7 +194,7 @@ progressPercent(0, $totalUnits);
 
 $results[] = runScenario(
     'flat-fast-rules',
-    static fn (): Validator => Validator::make([
+    static fn(): Validator => Validator::make([
         'email' => 'required|email|max:255',
         'username' => 'required|string|min:3|max:50|alpha_dash',
         'age' => 'required|integer|min:18|max:120',
@@ -213,7 +213,7 @@ $results[] = runScenario(
 
 $results[] = runScenario(
     'nested-wildcard',
-    static fn (): Validator => Validator::make([
+    static fn(): Validator => Validator::make([
         'users.*.email' => 'required|email',
         'users.*.age' => 'required|integer|min:18',
         'users.*.tags.*' => 'required|string|min:2|max:20',
@@ -226,7 +226,7 @@ $results[] = runScenario(
 
 $results[] = runScenario(
     'db-heavy-batched',
-    static fn (): Validator => Validator::make([
+    static fn(): Validator => Validator::make([
         'email' => 'required|email|unique:users,email',
         'username' => 'required|alpha_dash|unique:users,username',
         'backup_email' => 'required|email|unique:users,email',

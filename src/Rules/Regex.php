@@ -10,12 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Regex extends BaseRule
 {
-    protected string $pattern;
-
-    public function __construct(string $pattern)
-    {
-        $this->pattern = $pattern;
-    }
+    public function __construct(protected string $pattern) {}
 
     public function cost(): int
     {

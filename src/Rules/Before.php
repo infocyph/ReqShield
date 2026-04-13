@@ -10,12 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Before extends BaseRule
 {
-    protected string $date;
-
-    public function __construct(string $date)
-    {
-        $this->date = $date;
-    }
+    public function __construct(protected string $date) {}
 
     public function cost(): int
     {
@@ -31,7 +26,7 @@ class Before extends BaseRule
     {
         try {
             return new \DateTime($value) < new \DateTime($this->date);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }

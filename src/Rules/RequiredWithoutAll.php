@@ -33,7 +33,7 @@ class RequiredWithoutAll extends BaseRule
     {
         $hasAny = array_any(
             $this->fields,
-            fn ($f) => array_key_exists($f, $data) && !$this->isEmpty($data[$f]),
+            fn($f) => array_key_exists($f, $data) && !$this->isEmpty($data[$f]),
         );
         return $hasAny || !$this->isEmpty($value);
     }

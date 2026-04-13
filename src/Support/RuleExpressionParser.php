@@ -28,7 +28,7 @@ final class RuleExpressionParser
         if ($name !== 'unique') {
             $params = array_values(array_filter(
                 $params,
-                static fn (string $value): bool => $value !== '',
+                static fn(string $value): bool => $value !== '',
             ));
         }
 
@@ -47,79 +47,37 @@ final class RuleExpressionParser
 
         $tokens = [];
         $current = '';
-        $inRegex = false;
-        $regexLocked = false;
-        $regexDelimiter = '';
-        $escaped = false;
-        $inCharacterClass = false;
+        $state = self::newRegexState();
         $length = strlen($rules);
 
         for ($index = 0; $index < $length; $index++) {
             $char = $rules[$index];
 
-            if (!$inRegex && $char === '|') {
-                $trimmed = trim($current);
-                if ($trimmed !== '') {
-                    $tokens[] = $trimmed;
-                }
-
+            if (self::isRuleBoundary($char, (bool) $state['inRegex'])) {
+                self::appendToken($tokens, $current);
                 $current = '';
-                $regexLocked = false;
-                $escaped = false;
-                $inCharacterClass = false;
-                $regexDelimiter = '';
+                $state = self::newRegexState();
                 continue;
             }
 
             $current .= $char;
-
-            if (!$inRegex) {
-                if (!$regexLocked) {
-                    $detectedDelimiter = self::detectRegexDelimiter($current);
-
-                    if ($detectedDelimiter !== null) {
-                        $inRegex = true;
-                        $regexLocked = true;
-                        $regexDelimiter = $detectedDelimiter;
-                        $escaped = false;
-                        $inCharacterClass = false;
-                    }
-                }
-
-                continue;
-            }
-
-            if ($escaped) {
-                $escaped = false;
-                continue;
-            }
-
-            if ($char === '\\') {
-                $escaped = true;
-                continue;
-            }
-
-            if ($char === '[') {
-                $inCharacterClass = true;
-                continue;
-            }
-
-            if ($char === ']' && $inCharacterClass) {
-                $inCharacterClass = false;
-                continue;
-            }
-
-            if (!$inCharacterClass && $char === $regexDelimiter) {
-                $inRegex = false;
-            }
+            self::updateRegexState($state, $current, $char);
         }
 
+        self::appendToken($tokens, $current);
+
+        return $tokens;
+    }
+
+    /**
+     * @param array<int,string> $tokens
+     */
+    protected static function appendToken(array &$tokens, string $current): void
+    {
         $trimmed = trim($current);
         if ($trimmed !== '') {
             $tokens[] = $trimmed;
         }
-
-        return $tokens;
     }
 
     protected static function detectRegexDelimiter(string $token): ?string
@@ -152,5 +110,98 @@ final class RuleExpressionParser
         }
 
         return $delimiter;
+    }
+
+    protected static function isRuleBoundary(string $char, bool $inRegex): bool
+    {
+        return $char === '|' && !$inRegex;
+    }
+
+    /**
+     * @return array{
+     *     inRegex: bool,
+     *     regexLocked: bool,
+     *     regexDelimiter: string,
+     *     escaped: bool,
+     *     inCharacterClass: bool
+     * }
+     */
+    protected static function newRegexState(): array
+    {
+        return [
+            'inRegex' => false,
+            'regexLocked' => false,
+            'regexDelimiter' => '',
+            'escaped' => false,
+            'inCharacterClass' => false,
+        ];
+    }
+
+    /**
+     * @param array{
+     *     inRegex: bool,
+     *     regexLocked: bool,
+     *     regexDelimiter: string,
+     *     escaped: bool,
+     *     inCharacterClass: bool
+     * } $state
+     */
+    protected static function tryEnterRegexMode(array &$state, string $current): void
+    {
+        if ($state['regexLocked']) {
+            return;
+        }
+
+        $detectedDelimiter = self::detectRegexDelimiter($current);
+        if ($detectedDelimiter === null) {
+            return;
+        }
+
+        $state['inRegex'] = true;
+        $state['regexLocked'] = true;
+        $state['regexDelimiter'] = $detectedDelimiter;
+        $state['escaped'] = false;
+        $state['inCharacterClass'] = false;
+    }
+
+    /**
+     * @param array{
+     *     inRegex: bool,
+     *     regexLocked: bool,
+     *     regexDelimiter: string,
+     *     escaped: bool,
+     *     inCharacterClass: bool
+     * } $state
+     */
+    protected static function updateRegexState(array &$state, string $current, string $char): void
+    {
+        if (!$state['inRegex']) {
+            self::tryEnterRegexMode($state, $current);
+            return;
+        }
+
+        if ($state['escaped']) {
+            $state['escaped'] = false;
+            return;
+        }
+
+        if ($char === '\\') {
+            $state['escaped'] = true;
+            return;
+        }
+
+        if ($char === '[') {
+            $state['inCharacterClass'] = true;
+            return;
+        }
+
+        if ($char === ']' && $state['inCharacterClass']) {
+            $state['inCharacterClass'] = false;
+            return;
+        }
+
+        if (!$state['inCharacterClass'] && $char === $state['regexDelimiter']) {
+            $state['inRegex'] = false;
+        }
     }
 }

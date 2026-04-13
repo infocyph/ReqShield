@@ -1,7 +1,7 @@
 Complete Rule Reference
 =======================
 
-ReqShield supports 103 validation rules, covering a vast range of validation scenarios from basic type checks to complex database and conditional logic.
+ReqShield supports 107 validation rules, covering a vast range of validation scenarios from basic type checks to complex database and conditional logic.
 
 This page serves as a complete reference, categorized for easy lookup.
 
@@ -682,8 +682,8 @@ The field under validation must exist within the given database table.
 
 **Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`database-rules`.
 
-File Rules (7)
---------------
+File Rules (11)
+---------------
 
 file
 ~~~~
@@ -751,6 +751,54 @@ The file under validation must be an image meeting the dimension constraints.
 
     'avatar' => 'dimensions:100,100,1000,1000' // minWidth,minHeight,maxWidth,maxHeight
     'logo' => 'dimensions:200,200,200,200'      // exact 200x200
+
+safe_filename
+~~~~~~~~~~~~~
+The field under validation must be a safe client filename.
+It rejects path separators, traversal-like names, control characters, and reserved
+characters often abused in upload attacks.
+
+.. code-block:: php
+
+    'filename' => 'safe_filename'
+
+upload_id
+~~~~~~~~~
+The field under validation must be a valid upload/chunk identifier.
+Allowed characters are letters, numbers, ``-`` and ``_``.
+
+.. code-block:: php
+
+    'upload_id' => 'upload_id'
+    'upload_id' => 'upload_id:64'  // Optional max length override
+
+upload_meta
+~~~~~~~~~~~
+The field under validation must contain valid upload metadata
+(``name``, ``size``, ``error`` and related properties) for array-style payloads
+or PSR-7-like uploaded file objects.
+
+Modes:
+
+* ``upload_meta``: validates shape and safe filename semantics.
+* ``upload_meta:success`` (or ``upload_meta:strict``): additionally requires
+  successful upload state (``UPLOAD_ERR_OK``).
+
+.. code-block:: php
+
+    'upload' => 'upload_meta'
+    'upload' => 'upload_meta:success'
+
+secure_file
+~~~~~~~~~~~
+Composite upload rule that combines ``file`` and ``upload_meta`` checks.
+Use this as the default upload rule when you want both file validity and
+metadata hardening in one place.
+
+.. code-block:: php
+
+    'upload' => 'secure_file'
+    'upload' => 'secure_file:success,255' // mode, max filename length
 
 Array Rules (5)
 ---------------

@@ -9,12 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Digits extends BaseRule
 {
-    protected int $length;
-
-    public function __construct(int $length)
-    {
-        $this->length = $length;
-    }
+    public function __construct(protected int $length) {}
 
     public function cost(): int
     {
@@ -28,7 +23,7 @@ class Digits extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_numeric($value) && strlen((string)$value) === $this->length;
+        return is_numeric($value) && strlen((string) $value) === $this->length;
     }
 
 }

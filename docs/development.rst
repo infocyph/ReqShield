@@ -28,7 +28,7 @@ What They Run
 * ``test:lint`` / ``lint``: Pint
 * ``test:refactor`` / ``refactor``: Rector
 * ``test:security`` / ``security:scan``: Psalm security analysis
-* ``benchmark``: validator benchmark script
+* ``benchmark``: PhpBench validator benchmark suite
 
 Git Hooks
 ---------

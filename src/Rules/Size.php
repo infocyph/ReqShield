@@ -10,9 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Size extends BaseRule
 {
-    public function __construct(protected int|float $size)
-    {
-    }
+    public function __construct(protected int|float $size) {}
 
     public function cost(): int
     {

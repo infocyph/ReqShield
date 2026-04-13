@@ -9,15 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class DigitsBetween extends BaseRule
 {
-    protected int $max;
-
-    protected int $min;
-
-    public function __construct(int $min, int $max)
-    {
-        $this->min = $min;
-        $this->max = $max;
-    }
+    public function __construct(protected int $min, protected int $max) {}
 
     public function cost(): int
     {
@@ -34,7 +26,7 @@ class DigitsBetween extends BaseRule
         if (!is_numeric($value)) {
             return false;
         }
-        $length = strlen((string)$value);
+        $length = strlen((string) $value);
 
         return $length >= $this->min && $length <= $this->max;
     }

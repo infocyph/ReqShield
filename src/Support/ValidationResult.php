@@ -119,7 +119,7 @@ class ValidationResult
     {
         return array_values(array_filter(
             $this->failures,
-            fn (array $failure): bool => ($failure['field'] ?? null) === $field,
+            fn(array $failure): bool => ($failure['field'] ?? null) === $field,
         ));
     }
 
@@ -281,11 +281,11 @@ class ValidationResult
     public function toArray(): array
     {
         return [
-          'valid' => $this->passes(),
-          'errors' => $this->errors,
-          'failures' => $this->failures,
-          'validated' => $this->validated,
-          'typed' => $this->typed(),
+            'valid' => $this->passes(),
+            'errors' => $this->errors,
+            'failures' => $this->failures,
+            'validated' => $this->validated,
+            'typed' => $this->typed(),
         ];
     }
 
@@ -301,12 +301,12 @@ class ValidationResult
             return $this->buildDto($this->dtoClass, $payload);
         }
 
-        return (object)[
-          'success' => $this->passes(),
-          'errors' => $this->errors,
-          'failures' => $this->failures,
-          'data' => $payload,
-          'errorCount' => $this->errorCount(),
+        return (object) [
+            'success' => $this->passes(),
+            'errors' => $this->errors,
+            'failures' => $this->failures,
+            'data' => $payload,
+            'errorCount' => $this->errorCount(),
         ];
     }
 
@@ -369,7 +369,7 @@ class ValidationResult
             $reflection = new \ReflectionClass($class);
             $instance = $this->instantiateDto($reflection, $payload);
         } catch (\Throwable) {
-            return (object)$payload;
+            return (object) $payload;
         }
 
         foreach ($payload as $key => $value) {

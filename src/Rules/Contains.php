@@ -9,12 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Contains extends BaseRule
 {
-    protected mixed $needle;
-
-    public function __construct(mixed $needle)
-    {
-        $this->needle = $needle;
-    }
+    public function __construct(protected mixed $needle) {}
 
     public function cost(): int
     {
@@ -29,7 +24,7 @@ class Contains extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         if (is_string($value)) {
-            return str_contains($value, (string)$this->needle);
+            return str_contains($value, (string) $this->needle);
         }
 
         if (is_array($value)) {

@@ -9,12 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class MinDigits extends BaseRule
 {
-    protected int $min;
-
-    public function __construct(int $min)
-    {
-        $this->min = $min;
-    }
+    public function __construct(protected int $min) {}
 
     public function cost(): int
     {
@@ -28,7 +23,7 @@ class MinDigits extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return is_numeric($value) && strlen((string)$value) >= $this->min;
+        return is_numeric($value) && strlen((string) $value) >= $this->min;
     }
 
 }

@@ -9,12 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class GreaterThanOrEqual extends BaseRule
 {
-    protected string $otherField;
-
-    public function __construct(string $otherField)
-    {
-        $this->otherField = $otherField;
-    }
+    public function __construct(protected string $otherField) {}
 
     public function cost(): int
     {

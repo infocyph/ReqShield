@@ -12,12 +12,7 @@ class BatchExecutor
 {
     protected const BATCH_CHECK_CHUNK_SIZE = 500;
 
-    protected ?DatabaseProvider $db;
-
-    public function __construct(?DatabaseProvider $db = null)
-    {
-        $this->db = $db;
-    }
+    public function __construct(protected ?DatabaseProvider $db = null) {}
 
     /**
      * Execute a batch of expensive rules.
@@ -66,8 +61,8 @@ class BatchExecutor
     protected function categorizeRulesByTypeAndTable(array $batch): array
     {
         $categorized = [
-          'unique' => [],
-          'exists' => [],
+            'unique' => [],
+            'exists' => [],
         ];
 
         foreach ($batch as $item) {
@@ -96,7 +91,7 @@ class BatchExecutor
         foreach ($checks as $check) {
             $field = isset($check['field']) && is_string($check['field'])
                 ? $check['field']
-                : (string)($check['field'] ?? '');
+                : (string) ($check['field'] ?? '');
 
             if ($field === '') {
                 continue;
@@ -122,7 +117,7 @@ class BatchExecutor
         } elseif (is_null($value)) {
             $value = 'null';
         } else {
-            $value = (string)$value;
+            $value = (string) $value;
         }
 
         return $value;
@@ -224,7 +219,7 @@ class BatchExecutor
         foreach ($failedFields as $failedField) {
             $field = is_string($failedField)
                 ? $failedField
-                : (string)$failedField;
+                : (string) $failedField;
 
             if (!isset($checksByField[$field])) {
                 continue;

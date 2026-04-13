@@ -433,6 +433,98 @@ test('file rules fail', function () {
     // and does not report an error.
     // This assertion checks for the errors that *are* correctly reported.
 });
+
+test('upload metadata and identifier rules pass', function () {
+    $testFile = __FILE__;
+    $fileInfo = [
+      'name' => 'avatar.png',
+      'type' => 'image/png',
+      'size' => filesize($testFile),
+      'tmp_name' => $testFile,
+      'error' => UPLOAD_ERR_OK,
+    ];
+
+    $validator = Validator::make([
+      'upload' => 'required|upload_meta:success',
+      'filename' => 'required|safe_filename',
+      'upload_id' => 'required|upload_id',
+    ]);
+
+    $result = $validator->validate([
+      'upload' => $fileInfo,
+      'filename' => 'avatar.png',
+      'upload_id' => 'session_123-abc',
+    ]);
+
+    expect($result->passes())->toBeTrue();
+});
+
+test('upload metadata and identifier rules fail for unsafe values', function () {
+    $testFile = __FILE__;
+    $fileInfo = [
+      'name' => '../evil.php',
+      'type' => 'application/x-httpd-php',
+      'size' => filesize($testFile),
+      'tmp_name' => $testFile,
+      'error' => UPLOAD_ERR_OK,
+    ];
+
+    $validator = Validator::make([
+      'upload' => 'required|upload_meta:success',
+      'filename' => 'required|safe_filename',
+      'upload_id' => 'required|upload_id',
+    ]);
+
+    $result = $validator->validate([
+      'upload' => $fileInfo,
+      'filename' => '..\\payload.php',
+      'upload_id' => 'session/../../bad',
+    ]);
+
+    expect($result->fails())
+      ->toBeTrue()
+      ->and($result->errors())->toHaveKeys(['upload', 'filename', 'upload_id']);
+});
+
+test('secure_file rule passes for valid upload payload', function () {
+    $testFile = __FILE__;
+    $fileInfo = [
+      'name' => 'report.txt',
+      'type' => 'text/plain',
+      'size' => filesize($testFile),
+      'tmp_name' => $testFile,
+      'error' => UPLOAD_ERR_OK,
+    ];
+
+    $validator = Validator::make([
+      'upload' => 'required|secure_file',
+    ]);
+
+    $result = $validator->validate(['upload' => $fileInfo]);
+
+    expect($result->passes())->toBeTrue();
+});
+
+test('secure_file rule fails for unsafe upload payload', function () {
+    $testFile = __FILE__;
+    $fileInfo = [
+      'name' => '../shell.php',
+      'type' => 'application/x-httpd-php',
+      'size' => filesize($testFile),
+      'tmp_name' => $testFile,
+      'error' => UPLOAD_ERR_OK,
+    ];
+
+    $validator = Validator::make([
+      'upload' => 'required|secure_file',
+    ]);
+
+    $result = $validator->validate(['upload' => $fileInfo]);
+
+    expect($result->fails())
+      ->toBeTrue()
+      ->and($result->errors())->toHaveKey('upload');
+});
 describe('Basic Type Rules', function () {
     test('required rule validates presence', function () {
         $validator = Validator::make(['name' => 'required']);

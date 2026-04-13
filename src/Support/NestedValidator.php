@@ -206,7 +206,7 @@ class NestedValidator
         $flattened = [];
 
         foreach ($data as $key => $value) {
-            $newKey = $prefix === '' ? (string)$key : "{$prefix}.{$key}";
+            $newKey = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
 
             if (is_array($value)) {
                 // Keep the original key so array-level rules still work.
@@ -301,7 +301,7 @@ class NestedValidator
         $paths = [];
 
         foreach ($data as $key => $value) {
-            $newKey = $prefix === '' ? (string)$key : "{$prefix}.{$key}";
+            $newKey = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
 
             if (is_array(
                 $value,
@@ -361,14 +361,14 @@ class NestedValidator
         $parsed = [];
 
         foreach ($rules as $key => $rule) {
-            $hasWildcard = str_contains($key, '*');
-            $hasDot = str_contains($key, '.');
+            $hasWildcard = str_contains((string) $key, '*');
+            $hasDot = str_contains((string) $key, '.');
 
             $parsed[$key] = [
-              'path' => $key,
-              'segments' => $hasDot ? explode('.', $key) : [$key],
-              'rule' => $rule,
-              'is_wildcard' => $hasWildcard,
+                'path' => $key,
+                'segments' => $hasDot ? explode('.', (string) $key) : [$key],
+                'rule' => $rule,
+                'is_wildcard' => $hasWildcard,
             ];
         }
 
@@ -489,7 +489,7 @@ class NestedValidator
             return "{$index}.{$after}";
         }
 
-        return (string)$index;
+        return (string) $index;
     }
 
     protected static function expandWildcardRule(
@@ -597,7 +597,7 @@ class NestedValidator
         hash_update($context, '{');
 
         $keys = array_keys($data);
-        usort($keys, fn ($left, $right) => strcmp((string)$left, (string)$right));
+        usort($keys, fn($left, $right) => strcmp((string) $left, (string) $right));
 
         foreach ($keys as $key) {
             $value = $data[$key];

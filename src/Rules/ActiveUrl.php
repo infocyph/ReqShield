@@ -44,7 +44,7 @@ class ActiveUrl extends BaseRule
             return false;
         }
 
-        $host = strtolower((string)$url['host']);
+        $host = strtolower($url['host']);
 
         if (isset(self::$dnsCache[$host])) {
             $cached = self::$dnsCache[$host];

@@ -10,12 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class DateFormat extends BaseRule
 {
-    protected string $format;
-
-    public function __construct(string $format)
-    {
-        $this->format = $format;
-    }
+    public function __construct(protected string $format) {}
 
     public function cost(): int
     {

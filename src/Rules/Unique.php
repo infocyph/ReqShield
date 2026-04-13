@@ -13,41 +13,22 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
  */
 class Unique extends BaseRule
 {
-    protected ?string $column;
-
     protected ?DatabaseProvider $db = null;
 
-    protected ?string $idColumn;
-
-    protected ?int $ignoreId;
-
-    /**
-     * Soft delete column name.
-     */
-    protected string $softDeleteColumn = 'deleted_at';
-
-    protected string $table;
-
-    /**
-     * Whether to consider soft deletes.
-     */
-    protected bool $withTrashed = false;
-
     public function __construct(
-        string $table,
-        ?string $column = null,
-        ?int $ignoreId = null,
-        ?string $idColumn = 'id',
-        bool $withTrashed = false,
-        string $softDeleteColumn = 'deleted_at',
-    ) {
-        $this->table = $table;
-        $this->column = $column;
-        $this->ignoreId = $ignoreId;
-        $this->idColumn = $idColumn;
-        $this->withTrashed = $withTrashed;
-        $this->softDeleteColumn = $softDeleteColumn;
-    }
+        protected string $table,
+        protected ?string $column = null,
+        protected ?int $ignoreId = null,
+        protected ?string $idColumn = 'id',
+        /**
+         * Whether to consider soft deletes.
+         */
+        protected bool $withTrashed = false,
+        /**
+         * Soft delete column name.
+         */
+        protected string $softDeleteColumn = 'deleted_at',
+    ) {}
 
     public function cost(): int
     {
@@ -85,6 +66,7 @@ class Unique extends BaseRule
         return $this->withTrashed;
     }
 
+    #[\Override]
     public function isBatchable(): bool
     {
         return true;

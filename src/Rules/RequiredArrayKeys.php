@@ -37,7 +37,7 @@ class RequiredArrayKeys extends BaseRule
 
         return array_all(
             $this->keys,
-            fn ($key) => array_key_exists($key, $value),
+            fn($key) => array_key_exists($key, $value),
         );
     }
 
