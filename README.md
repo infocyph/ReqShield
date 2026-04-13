@@ -8,7 +8,7 @@
 ![GitHub Code Size](https://img.shields.io/github/languages/code-size/infocyph/ReqShield)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://docs.infocyph.com/projects/reqshield)
 
-**Fast, modern PHP request validation and sanitization.** Schema-based rules, fail-fast execution, intelligent batching, and 103 built-in validation rules.
+**Fast, modern PHP request validation and sanitization.** Schema-based rules, fail-fast execution, intelligent batching, and 107 built-in validation rules.
 
 ```php
 $validator = Validator::make([
@@ -32,7 +32,7 @@ if ($result->passes()) {
 
 ## ✨ Features
 
-- 🚀 **103 Built-in Rules** - Basic types, conditional rules, files, database checks, and more
+- 🚀 **107 Built-in Rules** - Basic types, conditional rules, files, database checks, and more
 - 🧹 **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
 - ⚡ **Intelligent Batching** - Expensive DB checks are batched automatically
 - 🎯 **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
@@ -45,6 +45,7 @@ if ($result->passes()) {
 - 🧱 **Schema Export** - JSON Schema, OpenAPI shape, and introspection metadata
 - 🧰 **Typed Output + DTO Mapping** - Cast map + `toDTO()` support
 - 📤 **Uploaded File Object Support** - Array-style uploads and PSR-7 style objects
+- 🛡️ **Upload Hardening Rules** - `safe_filename`, `upload_meta`, `upload_id`, `secure_file`
 - 🛠️ **PHP 8.4+** - Built with modern PHP features
 
 ---
@@ -131,9 +132,9 @@ $clean = sanitize('<b>TEXT</b>', ['string', 'lowercase']); // 'text'
 
 ---
 
-## 📚 Available Rules (103)
+## 📚 Available Rules (107)
 
-ReqShield includes 103 validation rules covering several common scenarios:
+ReqShield includes 107 validation rules covering several common scenarios:
 
 - Basic Types
 - Formats
@@ -149,6 +150,21 @@ ReqShield includes 103 validation rules covering several common scenarios:
 - Additional
 
 **[📖 View Complete Rule Reference](https://docs.infocyph.com/projects/reqshield/en/latest/rule-reference.html)**
+
+### Upload Hardening Rules
+
+Use upload-focused rules for request metadata and filename safety:
+
+```php
+$validator = Validator::make([
+    'upload' => 'required|secure_file',
+    'filename' => 'required|safe_filename',
+    'upload_id' => 'required|upload_id',
+]);
+```
+
+`secure_file` combines `file` and `upload_meta` so you can enforce
+payload validity and safe upload metadata in one rule.
 
 ---
 
