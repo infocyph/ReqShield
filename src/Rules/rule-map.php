@@ -140,6 +140,10 @@ return [
     'mimetypes' => \Infocyph\ReqShield\Rules\MimeTypes::class,
     'extensions' => \Infocyph\ReqShield\Rules\Extensions::class,
     'dimensions' => \Infocyph\ReqShield\Rules\Dimensions::class,
+    'secure_file' => \Infocyph\ReqShield\Rules\SecureFile::class,
+    'safe_filename' => \Infocyph\ReqShield\Rules\SafeFilename::class,
+    'upload_meta' => \Infocyph\ReqShield\Rules\UploadMeta::class,
+    'upload_id' => \Infocyph\ReqShield\Rules\UploadId::class,
 
     // ==========================================
     // Array Validations

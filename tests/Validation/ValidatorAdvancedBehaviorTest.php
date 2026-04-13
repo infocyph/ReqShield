@@ -443,6 +443,126 @@ test('file rules support uploaded file objects', function () {
     expect($result->passes())->toBeTrue();
 });
 
+test('upload_meta rule supports uploaded file objects', function () {
+    $path = tempnam(sys_get_temp_dir(), 'rqf');
+    file_put_contents($path, 'hello world');
+
+    $stream = new class($path) {
+        public function __construct(private string $path)
+        {
+        }
+
+        public function getMetadata(?string $key = null): mixed
+        {
+            if ($key === 'uri') {
+                return $this->path;
+            }
+
+            return ['uri' => $this->path];
+        }
+    };
+
+    $uploaded = new class($stream) {
+        public function __construct(private object $stream)
+        {
+        }
+
+        public function getClientFilename(): string
+        {
+            return 'payload.txt';
+        }
+
+        public function getClientMediaType(): string
+        {
+            return 'text/plain';
+        }
+
+        public function getError(): int
+        {
+            return UPLOAD_ERR_OK;
+        }
+
+        public function getSize(): int
+        {
+            return 11;
+        }
+
+        public function getStream(): object
+        {
+            return $this->stream;
+        }
+    };
+
+    $validator = Validator::make([
+        'file' => 'required|upload_meta:success',
+    ]);
+
+    $result = $validator->validate(['file' => $uploaded]);
+    @unlink($path);
+
+    expect($result->passes())->toBeTrue();
+});
+
+test('secure_file rule supports uploaded file objects', function () {
+    $path = tempnam(sys_get_temp_dir(), 'rqf');
+    file_put_contents($path, 'hello world');
+
+    $stream = new class($path) {
+        public function __construct(private string $path)
+        {
+        }
+
+        public function getMetadata(?string $key = null): mixed
+        {
+            if ($key === 'uri') {
+                return $this->path;
+            }
+
+            return ['uri' => $this->path];
+        }
+    };
+
+    $uploaded = new class($stream) {
+        public function __construct(private object $stream)
+        {
+        }
+
+        public function getClientFilename(): string
+        {
+            return 'payload.txt';
+        }
+
+        public function getClientMediaType(): string
+        {
+            return 'text/plain';
+        }
+
+        public function getError(): int
+        {
+            return UPLOAD_ERR_OK;
+        }
+
+        public function getSize(): int
+        {
+            return 11;
+        }
+
+        public function getStream(): object
+        {
+            return $this->stream;
+        }
+    };
+
+    $validator = Validator::make([
+        'file' => 'required|secure_file',
+    ]);
+
+    $result = $validator->validate(['file' => $uploaded]);
+    @unlink($path);
+
+    expect($result->passes())->toBeTrue();
+});
+
 test('mimes rule prefers detected mime over client media type', function () {
     $path = tempnam(sys_get_temp_dir(), 'rqf');
     file_put_contents($path, 'plain text content');
