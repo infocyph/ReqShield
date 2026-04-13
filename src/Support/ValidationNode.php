@@ -244,15 +244,15 @@ class ValidationNode
     public function getStats(): array
     {
         $stats = [
-          'cheap_rules' => count($this->cheapRules),
-          'medium_rules' => count($this->mediumRules),
-          'expensive_rules' => count($this->expensiveRules),
-          'total_rules' => $this->getRuleCount(),
-          'is_optional' => $this->isOptional,
-          'requires_validation_when_missing' => $this->requiresValidationWhenMissing,
-          'has_exclude_rules' => $this->hasExcludeRules,
-          'has_filled_rule' => $this->hasFilledRule,
-          'has_bail_rule' => $this->hasBailRule,
+            'cheap_rules' => count($this->cheapRules),
+            'medium_rules' => count($this->mediumRules),
+            'expensive_rules' => count($this->expensiveRules),
+            'total_rules' => $this->getRuleCount(),
+            'is_optional' => $this->isOptional,
+            'requires_validation_when_missing' => $this->requiresValidationWhenMissing,
+            'has_exclude_rules' => $this->hasExcludeRules,
+            'has_filled_rule' => $this->hasFilledRule,
+            'has_bail_rule' => $this->hasBailRule,
         ];
 
         // Add detailed rule names for debugging
@@ -316,7 +316,7 @@ class ValidationNode
             ];
         }
 
-        usort($paired, fn (array $left, array $right) => $left[0]->cost() <=> $right[0]->cost());
+        usort($paired, fn(array $left, array $right) => $left[0]->cost() <=> $right[0]->cost());
 
         $rules = [];
         $ruleNames = [];

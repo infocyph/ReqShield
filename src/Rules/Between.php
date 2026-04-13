@@ -10,15 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Between extends BaseRule
 {
-    protected $max;
-
-    protected $min;
-
-    public function __construct($min, $max)
-    {
-        $this->min = $min;
-        $this->max = $max;
-    }
+    public function __construct(protected $min, protected $max) {}
 
     public function cost(): int
     {

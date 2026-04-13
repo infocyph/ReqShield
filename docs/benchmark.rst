@@ -1,7 +1,7 @@
 Benchmarking
 ============
 
-ReqShield includes a benchmark script for validator throughput and latency profiles.
+ReqShield includes a PhpBench benchmark suite for validator throughput and latency profiles.
 
 Run Benchmark
 -------------
@@ -12,9 +12,9 @@ Use Composer:
 
     composer benchmark
 
-This runs:
+This runs the PhpBench suite in:
 
-* ``benchmark/validator_bench.php``
+* ``benchmarks/ValidatorBench.php``
 
 What It Measures
 ----------------
@@ -30,17 +30,13 @@ Output Metrics
 
 Each scenario reports:
 
-* ``iterations``
-* ``throughput (ops/s)``
-* ``p50 (ms)``
-* ``p95 (ms)``
-* ``peak MB``
+* ``revs`` (revolutions per iteration)
+* ``its`` (iterations)
+* ``mem_peak``
+* ``mode`` (dominant execution time)
+* ``rstdev`` (relative standard deviation)
 
-Progress Display
-----------------
+Output Format
+-------------
 
-Progress output is shown as total percentage only:
-
-* ``[progress] 0%`` ... ``[progress] 100%``
-
-This avoids noisy per-step logs while still showing liveness during longer runs.
+PhpBench prints aggregate timing and memory reports per benchmark subject.

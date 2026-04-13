@@ -79,7 +79,7 @@ final class MessageTokenBuilder
         }
 
         $tokens['other'] = implode(', ', array_map(
-            static fn (mixed $other): string => $resolveAlias((string)$other),
+            static fn(mixed $other): string => $resolveAlias((string) $other),
             $otherFields,
         ));
     }

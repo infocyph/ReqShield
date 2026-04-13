@@ -117,7 +117,7 @@ class Validator
         foreach ($rules as $field => $rule) {
             if (!is_string($field)) {
                 throw InvalidRuleException::invalidFormat(
-                    (string)$field,
+                    (string) $field,
                     'Field names must be strings',
                 );
             }
@@ -158,8 +158,8 @@ class Validator
                 }
 
                 $composed[$field] = array_merge(
-                    is_array($composed[$field]) ? $composed[$field] : RuleExpressionParser::splitRules((string)$composed[$field]),
-                    is_array($rules) ? $rules : RuleExpressionParser::splitRules((string)$rules),
+                    is_array($composed[$field]) ? $composed[$field] : RuleExpressionParser::splitRules((string) $composed[$field]),
+                    is_array($rules) ? $rules : RuleExpressionParser::splitRules((string) $rules),
                 );
             }
         }
@@ -230,7 +230,7 @@ class Validator
                 'required' => $jsonSchema['required'],
             ],
             'introspection' => $this->schemaIntrospection(),
-            default => throw new InvalidRuleException("Unsupported schema export format: {$format}")
+            default => throw new InvalidRuleException("Unsupported schema export format: {$format}"),
         };
     }
 

@@ -23,8 +23,8 @@ class MimeTypes extends BaseRule
 
     public function message(string $field): string
     {
-        return "The {$field} must have one of these MIME types: " .
-          implode(', ', $this->types) . '.';
+        return "The {$field} must have one of these MIME types: "
+          . implode(', ', $this->types) . '.';
     }
 
     public function passes(mixed $value, string $field, array $data): bool

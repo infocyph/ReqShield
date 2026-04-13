@@ -9,7 +9,7 @@ use Countable;
 use Iterator;
 use JsonSerializable;
 
-class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
+class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable, \Stringable
 {
     // Cache for expensive operations
     protected ?array $flatCache = null;
@@ -20,12 +20,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
 
     protected ?int $messageCount = null;
 
-    protected array $messages = [];
-
-    public function __construct(array $messages = [])
-    {
-        $this->messages = $messages;
-    }
+    public function __construct(protected array $messages = []) {}
 
     /**
      * Magic method to convert to string
@@ -345,9 +340,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
      */
     public function map(callable $callback): self
     {
-        $mapped = array_map(function ($messages) use ($callback) {
-            return array_map($callback, $messages);
-        }, $this->messages);
+        $mapped = array_map(fn($messages) => array_map($callback, $messages), $this->messages);
 
         return new self($mapped);
     }
@@ -530,7 +523,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
 
         foreach ($this->flatten() as $message) {
             $html .= '<li>' . htmlspecialchars(
-                $message,
+                (string) $message,
                 ENT_QUOTES,
                 'UTF-8',
             ) . '</li>';
@@ -599,9 +592,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
      */
     public function unique(): self
     {
-        $unique = array_map(function ($messages) {
-            return array_values(array_unique($messages));
-        }, $this->messages);
+        $unique = array_map(fn($messages) => array_values(array_unique($messages)), $this->messages);
 
         return new self($unique);
     }
@@ -616,7 +607,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable
      */
     protected static function isValidFormat(array $messages): bool
     {
-        return array_all($messages, fn ($value) => is_array($value));
+        return array_all($messages, fn($value) => is_array($value));
     }
 
     // ============================================

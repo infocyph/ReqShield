@@ -151,7 +151,7 @@ final class SanitizerMapApplier
     {
         return array_any(
             array_keys($sanitizerMap),
-            static fn (string $field): bool => str_contains($field, '*'),
+            static fn(string $field): bool => str_contains($field, '*'),
         );
     }
 }

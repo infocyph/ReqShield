@@ -58,7 +58,7 @@ trait HasValidatorSchemaCasting
         $typed = $validated;
 
         foreach ($castMap as $field => $castDefinition) {
-            if (str_contains($field, '*')) {
+            if (str_contains((string) $field, '*')) {
                 continue;
             }
 
@@ -74,7 +74,7 @@ trait HasValidatorSchemaCasting
 
         $wildcardCasts = array_filter(
             $castMap,
-            fn (mixed $_, string $field): bool => str_contains($field, '*'),
+            fn(mixed $_, string $field): bool => str_contains($field, '*'),
             ARRAY_FILTER_USE_BOTH,
         );
 
@@ -82,7 +82,7 @@ trait HasValidatorSchemaCasting
             $pattern = $this->wildcardPatternToRegex($fieldPattern);
 
             foreach ($typed as $field => $value) {
-                if (preg_match($pattern, $field) !== 1) {
+                if (preg_match($pattern, (string) $field) !== 1) {
                     continue;
                 }
 
@@ -98,7 +98,7 @@ trait HasValidatorSchemaCasting
         array $sanitizerMap,
     ): array {
         foreach ($sanitizerMap as $field => $pipeline) {
-            if (str_contains($field, '*')) {
+            if (str_contains((string) $field, '*')) {
                 continue;
             }
 
@@ -144,19 +144,19 @@ trait HasValidatorSchemaCasting
             return;
         }
 
-        $value = str_contains((string)$rawValue, '.')
-            ? (float)$rawValue
-            : (int)$rawValue;
+        $value = str_contains((string) $rawValue, '.')
+            ? (float) $rawValue
+            : (int) $rawValue;
 
         if ($type === 'string') {
             $key = $bound === 'min' ? 'minLength' : 'maxLength';
-            $property[$key] = (int)$value;
+            $property[$key] = (int) $value;
             return;
         }
 
         if ($type === 'array') {
             $key = $bound === 'min' ? 'minItems' : 'maxItems';
-            $property[$key] = (int)$value;
+            $property[$key] = (int) $value;
             return;
         }
 
@@ -209,7 +209,7 @@ trait HasValidatorSchemaCasting
         array $params,
     ): bool {
         if ($ruleName === 'digits' && isset($params[0])) {
-            $digits = (int)$params[0];
+            $digits = (int) $params[0];
             if ($digits > 0) {
                 $property['pattern'] = '^\\d{' . $digits . '}$';
             }
@@ -218,8 +218,8 @@ trait HasValidatorSchemaCasting
         }
 
         if ($ruleName === 'digits_between' && isset($params[0], $params[1])) {
-            $min = max(0, (int)$params[0]);
-            $max = max($min, (int)$params[1]);
+            $min = max(0, (int) $params[0]);
+            $max = max($min, (int) $params[1]);
             $property['pattern'] = '^\\d{' . $min . ',' . $max . '}$';
 
             return true;
@@ -314,7 +314,7 @@ trait HasValidatorSchemaCasting
             $property,
             $ruleName,
             $params,
-            fn (string $pattern): ?string => $this->normalizeRegexForJsonSchema($pattern),
+            fn(string $pattern): ?string => $this->normalizeRegexForJsonSchema($pattern),
         );
     }
 
@@ -353,9 +353,9 @@ trait HasValidatorSchemaCasting
         return $this->sanitizerMapApplier->apply(
             $data,
             $sanitizerMap,
-            fn (mixed $pipeline): array => $this->normalizeSanitizerPipeline($pipeline),
-            fn (mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, $pipeline),
-            fn (string $pattern): string => $this->wildcardPatternToRegex($pattern),
+            fn(mixed $pipeline): array => $this->normalizeSanitizerPipeline($pipeline),
+            fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, $pipeline),
+            fn(string $pattern): string => $this->wildcardPatternToRegex($pattern),
         );
     }
 
@@ -372,8 +372,8 @@ trait HasValidatorSchemaCasting
         $normalized = strtolower($cast);
 
         return match ($normalized) {
-            'int', 'integer' => (int)$value,
-            'float', 'double', 'real' => (float)$value,
+            'int', 'integer' => (int) $value,
+            'float', 'double', 'real' => (float) $value,
             'bool', 'boolean' => $this->castToBoolean($value),
             'string' => $this->castToString($value),
             'array' => is_array($value)
@@ -381,7 +381,7 @@ trait HasValidatorSchemaCasting
                 : (is_string($value)
                     ? (json_decode($value, true) ?: [$value])
                     : [$value]),
-            'object' => is_object($value) ? $value : (object)(
+            'object' => is_object($value) ? $value : (object) (
                 is_array($value) ? $value : ['value' => $value]
             ),
             'json' => is_string($value)
@@ -405,7 +405,7 @@ trait HasValidatorSchemaCasting
         $flattened = NestedValidator::flattenData($data);
 
         foreach ($sanitizerMap as $field => $pipeline) {
-            if (!str_contains($field, '*')) {
+            if (!str_contains((string) $field, '*')) {
                 continue;
             }
 
@@ -432,7 +432,7 @@ trait HasValidatorSchemaCasting
         $pattern = $this->wildcardPatternToRegex($fieldPattern);
 
         foreach ($flattened as $path => $value) {
-            if (preg_match($pattern, $path) !== 1) {
+            if (preg_match($pattern, (string) $path) !== 1) {
                 continue;
             }
 
@@ -498,7 +498,7 @@ trait HasValidatorSchemaCasting
     {
         return array_any(
             array_keys($sanitizerMap),
-            fn (string $field): bool => str_contains($field, '*'),
+            fn(string $field): bool => str_contains($field, '*'),
         );
     }
 }

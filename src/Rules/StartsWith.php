@@ -38,7 +38,7 @@ class StartsWith extends BaseRule
 
         return array_any(
             $this->values,
-            fn ($prefix) => str_starts_with($value, $prefix),
+            fn($prefix) => str_starts_with($value, (string) $prefix),
         );
     }
 

@@ -10,12 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Min extends BaseRule
 {
-    protected $min;
-
-    public function __construct($min)
-    {
-        $this->min = $min;
-    }
+    public function __construct(protected $min) {}
 
     public function cost(): int
     {

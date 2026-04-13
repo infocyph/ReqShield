@@ -111,7 +111,7 @@ class Uuid extends BaseRule
 
         // Single version: use exact digit
         if ($count === 1) {
-            return (string)$this->allowedVersions[0];
+            return (string) $this->allowedVersions[0];
         }
 
         // All versions: use \d
@@ -130,7 +130,7 @@ class Uuid extends BaseRule
     protected function parseExcludeVersion(string $version): void
     {
         $this->excludeMode = true;
-        $excludedVersion = (int)substr($version, 1);
+        $excludedVersion = (int) substr($version, 1);
 
         // Validate excluded version is in range 1-9
         if ($excludedVersion >= 1 && $excludedVersion <= 9) {
@@ -152,7 +152,7 @@ class Uuid extends BaseRule
         if ($length !== 1) {
             $versions = [];
             for ($i = 0; $i < $length; $i++) {
-                $digit = (int)$version[$i];
+                $digit = (int) $version[$i];
                 if ($digit >= 1 && $digit <= 9) {
                     $versions[] = $digit;
                 }
@@ -161,7 +161,7 @@ class Uuid extends BaseRule
 
             return;
         }
-        $singleVersion = (int)$version;
+        $singleVersion = (int) $version;
         if ($singleVersion >= 1 && $singleVersion <= 9) {
             $this->allowedVersions = [$singleVersion];
         }
@@ -174,8 +174,8 @@ class Uuid extends BaseRule
     protected function parseRangeVersion(string $version): void
     {
         $parts = explode('-', $version, 2);
-        $start = max(1, min(9, (int)$parts[0]));
-        $end = max(1, min(9, (int)$parts[1]));
+        $start = max(1, min(9, (int) $parts[0]));
+        $end = max(1, min(9, (int) $parts[1]));
 
         $this->allowedVersions = range(min($start, $end), max($start, $end));
     }
@@ -187,7 +187,7 @@ class Uuid extends BaseRule
     protected function parseVersionSpec(string|int|null $version): void
     {
         if ($version !== null && $version !== '') {
-            $version = trim((string)$version);
+            $version = trim((string) $version);
             match (true) {
                 $version[0] === '!' => $this->parseExcludeVersion($version),
                 str_contains($version, '-') => $this->parseRangeVersion(

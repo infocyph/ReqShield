@@ -9,12 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class BeforeOrEqual extends BaseRule
 {
-    protected string $date;
-
-    public function __construct(string $date)
-    {
-        $this->date = $date;
-    }
+    public function __construct(protected string $date) {}
 
     public function cost(): int
     {
@@ -29,7 +24,7 @@ class BeforeOrEqual extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         try {
-            return new \DateTime((string)$value) <= new \DateTime($this->date);
+            return new \DateTime((string) $value) <= new \DateTime($this->date);
         } catch (\Exception) {
             return false;
         }

@@ -31,7 +31,7 @@ class PresentWith extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $hasAny = array_any($this->fields, fn ($f) => array_key_exists($f, $data));
+        $hasAny = array_any($this->fields, fn($f) => array_key_exists($f, $data));
 
         return !$hasAny || array_key_exists($field, $data);
     }

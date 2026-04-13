@@ -9,12 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class NotRegex extends BaseRule
 {
-    protected string $pattern;
-
-    public function __construct(string $pattern)
-    {
-        $this->pattern = $pattern;
-    }
+    public function __construct(protected string $pattern) {}
 
     public function cost(): int
     {
@@ -32,7 +27,7 @@ class NotRegex extends BaseRule
             return false;
         }
 
-        return preg_match($this->pattern, (string)$value) === 0;
+        return preg_match($this->pattern, (string) $value) === 0;
     }
 
 }

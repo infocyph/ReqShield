@@ -12,8 +12,7 @@ class Path extends BaseRule
 {
     public function __construct(
         protected ?string $mode = null, // absolute|relative|null
-    ) {
-    }
+    ) {}
 
     public function cost(): int
     {

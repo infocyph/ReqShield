@@ -45,7 +45,7 @@ trait HasValidatorRuntime
         }
 
         $tokens['other'] = implode(', ', array_map(
-            fn (mixed $other): string => $this->fieldAliasResolver->get((string)$other),
+            fn(mixed $other): string => $this->fieldAliasResolver->get((string) $other),
             $otherFields,
         ));
     }
@@ -144,9 +144,9 @@ trait HasValidatorRuntime
             $rule,
             $data,
             $rulePlaceholders,
-            fn (mixed $tokenValue): string => $this->stringifyTokenValue($tokenValue),
-            fn (string $path): string => $this->fieldAliasResolver->get($path),
-            fn (string $other): string => $this->normalizeOtherPlaceholder($other),
+            fn(mixed $tokenValue): string => $this->stringifyTokenValue($tokenValue),
+            fn(string $path): string => $this->fieldAliasResolver->get($path),
+            fn(string $other): string => $this->normalizeOtherPlaceholder($other),
         );
     }
 
@@ -207,7 +207,7 @@ trait HasValidatorRuntime
         }
 
         if (is_int($value) || is_float($value)) {
-            return (float)$value !== 0.0;
+            return (float) $value !== 0.0;
         }
 
         if (is_string($value)) {
@@ -222,7 +222,7 @@ trait HasValidatorRuntime
             }
         }
 
-        return (bool)$value;
+        return (bool) $value;
     }
 
     protected function castToDateTimeImmutable(mixed $value): mixed
@@ -240,7 +240,7 @@ trait HasValidatorRuntime
         }
 
         try {
-            return new \DateTimeImmutable((string)$value);
+            return new \DateTimeImmutable((string) $value);
         } catch (\Throwable) {
             return $value;
         }
@@ -253,11 +253,11 @@ trait HasValidatorRuntime
         }
 
         if (is_scalar($value)) {
-            return (string)$value;
+            return (string) $value;
         }
 
         if (is_object($value) && method_exists($value, '__toString')) {
-            return (string)$value;
+            return (string) $value;
         }
 
         try {
@@ -291,17 +291,15 @@ trait HasValidatorRuntime
                 'field_label' => $fieldLabel,
                 // Build error messages lazily. Most expensive checks pass, so
                 // this avoids token/template work in the hot path.
-                'message_resolver' => function () use ($rule, $ruleName, $value, $field, $fieldLabel, $data, $placeholders): string {
-                    return $this->buildRuleFailureMessage(
-                        $rule,
-                        $ruleName,
-                        $value,
-                        $field,
-                        $fieldLabel,
-                        $data,
-                        $placeholders,
-                    );
-                },
+                'message_resolver' => fn(): string => $this->buildRuleFailureMessage(
+                    $rule,
+                    $ruleName,
+                    $value,
+                    $field,
+                    $fieldLabel,
+                    $data,
+                    $placeholders,
+                ),
             ];
         }
     }
@@ -358,7 +356,7 @@ trait HasValidatorRuntime
             return false;
         }
 
-        return (bool)$this->invokeCallbackWithSupportedArity(
+        return (bool) $this->invokeCallbackWithSupportedArity(
             $condition,
             [$data, $rules, $this],
         );
@@ -394,8 +392,8 @@ trait HasValidatorRuntime
             $this->schema,
             $this->schemaSanitizers,
             $this->schemaCasts,
-            fn (object $rule): string => $this->compiler->getRuleNameForRule($rule),
-            fn (string $pattern): ?string => $this->normalizeRegexForJsonSchema($pattern),
+            fn(object $rule): string => $this->compiler->getRuleNameForRule($rule),
+            fn(string $pattern): ?string => $this->normalizeRegexForJsonSchema($pattern),
         );
     }
 

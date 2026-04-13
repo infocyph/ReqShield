@@ -445,7 +445,7 @@ composer test:security
 composer benchmark
 ```
 
-`composer benchmark` runs `benchmark/validator_bench.php` and shows total progress in percentage form.
+`composer benchmark` runs the PhpBench suite in `benchmarks/ValidatorBench.php`.
 
 ---
 

@@ -10,17 +10,12 @@ readonly class ValidationPlan
      * @var array<int,string>
      */
     public array $fields;
-    /**
-     * @var array<string,ValidationNode>
-     */
-    public array $schema;
 
     /**
      * @param array<string,ValidationNode> $schema
      */
-    public function __construct(array $schema)
+    public function __construct(public array $schema)
     {
-        $this->schema = $schema;
-        $this->fields = array_keys($schema);
+        $this->fields = array_keys($this->schema);
     }
 }

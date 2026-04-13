@@ -9,12 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class MultipleOf extends BaseRule
 {
-    protected int|float $divisor;
-
-    public function __construct(int|float $divisor)
-    {
-        $this->divisor = $divisor;
-    }
+    public function __construct(protected int|float $divisor) {}
 
     public function cost(): int
     {
@@ -32,7 +27,7 @@ class MultipleOf extends BaseRule
             return false;
         }
 
-        return fmod((float)$value, (float)$this->divisor) === 0.0;
+        return fmod((float) $value, (float) $this->divisor) === 0.0;
     }
 
 }

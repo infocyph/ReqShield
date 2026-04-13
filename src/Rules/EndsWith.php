@@ -38,7 +38,7 @@ class EndsWith extends BaseRule
 
         return array_any(
             $this->values,
-            fn ($suffix) => str_ends_with($value, $suffix),
+            fn($suffix) => str_ends_with($value, (string) $suffix),
         );
     }
 

@@ -10,12 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Max extends BaseRule
 {
-    protected $max;
-
-    public function __construct($max)
-    {
-        $this->max = $max;
-    }
+    public function __construct(protected $max) {}
 
     public function cost(): int
     {

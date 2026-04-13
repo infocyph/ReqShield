@@ -128,7 +128,7 @@ trait HasValidatorInternals
         }
 
         throw InvalidRuleException::invalidFormat(
-            (string)$field,
+            (string) $field,
             'Field names must be strings',
         );
     }
@@ -141,14 +141,14 @@ trait HasValidatorInternals
 
         if (is_array($callback)) {
             $target = is_object($callback[0])
-                ? get_class($callback[0]) . '#' . spl_object_id($callback[0])
-                : (string)$callback[0];
+                ? $callback[0]::class . '#' . spl_object_id($callback[0])
+                : (string) $callback[0];
 
             return 'array:' . $target . '::' . $callback[1];
         }
 
         if (is_object($callback)) {
-            return 'invokable:' . get_class($callback) . '#' . spl_object_id($callback);
+            return 'invokable:' . $callback::class . '#' . spl_object_id($callback);
         }
 
         if (is_string($callback)) {
@@ -228,7 +228,7 @@ trait HasValidatorInternals
         $candidates[] = 'en';
 
         return array_values(array_unique(array_map(
-            fn (string $item): string => trim($item),
+            trim(...),
             $candidates,
         )));
     }
@@ -270,8 +270,8 @@ trait HasValidatorInternals
     protected function normalizeOtherPlaceholder(string $value): string
     {
         $parts = array_values(array_filter(
-            array_map('trim', explode(',', $value)),
-            fn (string $part): bool => $part !== '',
+            array_map(trim(...), explode(',', $value)),
+            fn(string $part): bool => $part !== '',
         ));
 
         if (empty($parts)) {
@@ -351,7 +351,7 @@ trait HasValidatorInternals
         }
 
         if (is_object($value)) {
-            return get_class($value) . '#' . spl_object_id($value);
+            return $value::class . '#' . spl_object_id($value);
         }
 
         if (is_bool($value)) {
@@ -362,7 +362,7 @@ trait HasValidatorInternals
             return 'null';
         }
 
-        return (string)$value;
+        return (string) $value;
     }
 
     protected function normalizeSanitizerPipeline(mixed $pipeline): array
@@ -518,7 +518,7 @@ trait HasValidatorInternals
 
         $hasNestedRules = array_any(
             array_keys($rules),
-            fn ($field) => str_contains($field, '.') || str_contains($field, '*'),
+            fn($field) => str_contains((string) $field, '.') || str_contains((string) $field, '*'),
         );
 
         if (!$hasNestedRules) {
@@ -527,7 +527,7 @@ trait HasValidatorInternals
 
         $hasWildcardRules = array_any(
             array_keys($rules),
-            fn ($field) => str_contains($field, '*'),
+            fn($field) => str_contains((string) $field, '*'),
         );
 
         if ($hasWildcardRules) {
@@ -581,7 +581,7 @@ trait HasValidatorInternals
 
         foreach ($type as $item) {
             if ($item !== 'null') {
-                return (string)$item;
+                return (string) $item;
             }
         }
 
@@ -920,18 +920,18 @@ trait HasValidatorInternals
         }
 
         if (is_scalar($value)) {
-            return (string)$value;
+            return (string) $value;
         }
 
         if (is_array($value)) {
             return implode(', ', array_map(
-                fn (mixed $item): string => $this->stringifyTokenValue($item),
+                fn(mixed $item): string => $this->stringifyTokenValue($item),
                 $value,
             ));
         }
 
         if (is_object($value) && method_exists($value, '__toString')) {
-            return (string)$value;
+            return (string) $value;
         }
 
         try {
