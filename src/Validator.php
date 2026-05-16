@@ -31,35 +31,42 @@ class Validator
     use HasValidatorSchemaCasting;
 
     protected const MAX_COMPILED_SCHEMA_CACHE = 64;
+
     protected const MAX_WILDCARD_SCHEMA_CACHE = 64;
 
+    /** @var array<int|string,array<int|string,mixed>> */
     protected static array $fragments = [];
 
     protected BatchExecutor $batchExecutor;
 
+    /** @var array<string,mixed> */
     protected array $casts = [];
 
-    /**
-     * @var array<string,ValidationPlan>
-     */
+    /** @var array<string,ValidationPlan> */
     protected array $compiledSchemaCache = [];
 
     protected SchemaCompiler $compiler;
 
+    /** @var array<int,array{field:string,rules:string|array<int,mixed>,condition:callable}> */
     protected array $conditionalRules = [];
 
+    /** @var array<string,string> */
     protected array $customMessageExact = [];
 
+    /** @var array<string,string> */
     protected array $customMessages = [];
 
+    /** @var array<string,string> */
     protected array $customMessageWildcard = [];
 
+    /** @var array<int,array{pattern:string,message:string}> */
     protected array $customMessageWildcardPatterns = [];
 
     protected ?string $dtoClass = null;
 
     protected bool $failFast = true;
 
+    /** @var array<string,string> */
     protected array $fieldAliases = [];
 
     protected FieldAlias $fieldAliasResolver;
@@ -70,6 +77,7 @@ class Validator
 
     protected bool $localeMessagesEnabled = false;
 
+    /** @var array<string,array<string,mixed>> */
     protected array $localePacks = [];
 
     protected MessageTokenBuilder $messageTokenBuilder;
@@ -78,18 +86,23 @@ class Validator
 
     protected bool $nestedValidation = false;
 
+    /** @var array<int|string,mixed> */
     protected array $rules;
 
     protected string $rulesCacheKey = '';
 
     protected SanitizerMapApplier $sanitizerMapApplier;
 
+    /** @var array<string,mixed> */
     protected array $sanitizers = [];
 
+    /** @var array<int|string,mixed> */
     protected array $schema;
 
+    /** @var array<string,mixed> */
     protected array $schemaCasts = [];
 
+    /** @var array<string,mixed> */
     protected array $schemaSanitizers = [];
 
     protected bool $stopOnFirstError = false;
@@ -98,13 +111,15 @@ class Validator
 
     protected ValidationPlan $validationPlan;
 
+    /** @var array<int,array<string,mixed>> */
     protected array $whenCallbacks = [];
 
-    /**
-     * @var array<string,ValidationPlan>
-     */
+    /** @var array<string,ValidationPlan> */
     protected array $wildcardSchemaCache = [];
 
+    /**
+     * @param array<int|string,mixed> $rules
+     */
     public function __construct(array $rules, ?DatabaseProvider $db = null)
     {
         if (empty($rules)) {
@@ -137,7 +152,9 @@ class Validator
         $this->rulesCacheKey = $this->buildRulesCacheKey($normalizedRules);
         $this->localePacks = $this->defaultLocalePacks();
         $this->compiler = new SchemaCompiler();
-        $this->schema = $this->compiler->compile($normalizedRules);
+        $this->schema = $this->normalizeCompiledSchema(
+            $this->compiler->compile($normalizedRules),
+        );
         $this->validationPlan = new ValidationPlan($this->schema);
         $this->fieldAliasResolver = new FieldAlias($this->fieldAliases);
         $this->messageTokenBuilder = new MessageTokenBuilder();
@@ -146,32 +163,29 @@ class Validator
         $this->batchExecutor = new BatchExecutor($db);
     }
 
+    /**
+     * @param array<int|string,mixed> ...$schemas
+     *
+     * @return array<int|string,mixed>
+     */
     public static function composeSchemas(array ...$schemas): array
     {
         $composed = [];
 
         foreach ($schemas as $schema) {
-            foreach ($schema as $field => $rules) {
-                if (!isset($composed[$field])) {
-                    $composed[$field] = $rules;
-                    continue;
-                }
-
-                $composed[$field] = array_merge(
-                    is_array($composed[$field]) ? $composed[$field] : RuleExpressionParser::splitRules((string) $composed[$field]),
-                    is_array($rules) ? $rules : RuleExpressionParser::splitRules((string) $rules),
-                );
-            }
+            $composed = static::mergeComposedSchema($composed, $schema);
         }
 
         return $composed;
     }
 
+    /** @param array<int|string,mixed> $rules */
     public static function defineFragment(string $name, array $rules): void
     {
         static::$fragments[$name] = $rules;
     }
 
+    /** @return array<int|string,mixed> */
     public static function fragment(string $name, string $prefix = ''): array
     {
         if (!isset(static::$fragments[$name])) {
@@ -184,6 +198,10 @@ class Validator
 
         $prefixed = [];
         foreach (static::$fragments[$name] as $field => $rules) {
+            if (!is_string($field)) {
+                continue;
+            }
+
             $prefixed["{$prefix}.{$field}"] = $rules;
         }
 
@@ -195,6 +213,9 @@ class Validator
         return array_key_exists($name, static::$fragments);
     }
 
+    /**
+     * @param array<int|string,mixed> $rules
+     */
     public static function make(
         array $rules,
         ?DatabaseProvider $db = null,
@@ -202,6 +223,7 @@ class Validator
         return new static($rules, $db);
     }
 
+    /** @param array<string,string> $messages */
     public function addLocalePack(string $locale, array $messages): self
     {
         $this->localePacks[$locale] = $messages;
@@ -218,6 +240,7 @@ class Validator
         return $this;
     }
 
+    /** @return array<int|string,mixed> */
     public function exportSchema(string $format = 'json_schema'): array
     {
         $jsonSchema = $this->exportJsonSchema();
@@ -234,11 +257,13 @@ class Validator
         };
     }
 
+    /** @return array<int|string,mixed> */
     public function getSchema(): array
     {
         return $this->schema;
     }
 
+    /** @return array<int|string,mixed> */
     public function getSchemaStats(): array
     {
         $stats = [
@@ -247,6 +272,10 @@ class Validator
         ];
 
         foreach ($this->schema as $field => $node) {
+            if (!is_string($field) || !$node instanceof \Infocyph\ReqShield\Support\ValidationNode) {
+                continue;
+            }
+
             $stats['fields'][$field] = $node->getStats();
         }
 
@@ -256,7 +285,9 @@ class Validator
     public function registerRule(string $name, string $class): self
     {
         $this->compiler->registerRule($name, $class);
-        $this->schema = $this->compiler->compile($this->rules);
+        $this->schema = $this->normalizeCompiledSchema(
+            $this->compiler->compile($this->rules),
+        );
         $this->validationPlan = new ValidationPlan($this->schema);
         $this->compiledSchemaCache = [];
         $this->wildcardSchemaCache = [];
@@ -264,11 +295,16 @@ class Validator
         return $this;
     }
 
+    /** @return array<string,array<string,mixed>> */
     public function schemaIntrospection(): array
     {
         $meta = [];
 
         foreach ($this->schema as $field => $node) {
+            if (!is_string($field) || !$node instanceof \Infocyph\ReqShield\Support\ValidationNode) {
+                continue;
+            }
+
             $meta[$field] = [
                 'rules' => $node->getAllRuleNames(),
                 'optional' => $node->isOptional,
@@ -281,6 +317,7 @@ class Validator
         return $meta;
     }
 
+    /** @param array<string,mixed> $casts */
     public function setCasts(array $casts): self
     {
         $this->casts = $casts;
@@ -288,9 +325,10 @@ class Validator
         return $this;
     }
 
+    /** @param array<int|string,mixed> $messages */
     public function setCustomMessages(array $messages): self
     {
-        $this->customMessages = $messages;
+        $this->customMessages = [];
         $this->customMessageExact = [];
         $this->customMessageWildcard = [];
         $this->customMessageWildcardPatterns = [];
@@ -300,12 +338,15 @@ class Validator
                 continue;
             }
 
+            $this->customMessages[$key] = $message;
+
             if (str_contains($key, '*')) {
                 $this->customMessageWildcard[$key] = $message;
                 $this->customMessageWildcardPatterns[] = [
                     'pattern' => WildcardPath::toRegex($key),
                     'message' => $message,
                 ];
+
                 continue;
             }
 
@@ -329,6 +370,7 @@ class Validator
         return $this;
     }
 
+    /** @param array<string,string> $aliases */
     public function setFieldAliases(array $aliases): self
     {
         $this->fieldAliases = $aliases;
@@ -345,6 +387,7 @@ class Validator
         return $this;
     }
 
+    /** @param array<string,array<string,mixed>> $packs */
     public function setLocalePacks(array $packs): self
     {
         $this->localePacks = $packs;
@@ -366,9 +409,7 @@ class Validator
         return $this;
     }
 
-    /**
-     * @param array<string,string|callable|array<int,string|callable>> $sanitizers
-     */
+    /** @param array<string,string|callable|array<int,string|callable>> $sanitizers */
     public function setSanitizers(array $sanitizers): self
     {
         $this->sanitizers = $sanitizers;
@@ -383,6 +424,7 @@ class Validator
         return $this;
     }
 
+    /** @param string|array<int,mixed> $rules */
     public function sometimes(
         string $field,
         string|array $rules,
@@ -406,15 +448,23 @@ class Validator
 
     public function useFragment(string $name, string $prefix = ''): self
     {
-        [$fragmentRules, $fragmentSanitizers, $fragmentCasts] = $this->normalizeRuleDefinitions(
+        $fragment = array_filter(
             static::fragment($name, $prefix),
+            is_string(...),
+            ARRAY_FILTER_USE_KEY,
+        );
+
+        [$fragmentRules, $fragmentSanitizers, $fragmentCasts] = $this->normalizeRuleDefinitions(
+            $fragment,
         );
 
         $this->rules = static::composeSchemas($this->rules, $fragmentRules);
         $this->schemaSanitizers = array_merge($this->schemaSanitizers, $fragmentSanitizers);
         $this->schemaCasts = array_merge($this->schemaCasts, $fragmentCasts);
         $this->rulesCacheKey = $this->buildRulesCacheKey($this->rules);
-        $this->schema = $this->compiler->compile($this->rules);
+        $this->schema = $this->normalizeCompiledSchema(
+            $this->compiler->compile($this->rules),
+        );
         $this->validationPlan = new ValidationPlan($this->schema);
         $this->fieldAliasResolver->setBatch($this->fieldAliases, true);
         $this->compiledSchemaCache = [];
@@ -423,6 +473,7 @@ class Validator
         return $this;
     }
 
+    /** @param array<int|string,mixed> $data */
     public function validate(array $data): ValidationResult
     {
         [$data, $plan] = $this->prepareValidationDataAndSchema($data);
@@ -430,7 +481,10 @@ class Validator
         $this->validateResolvedFields($data, $plan, $context);
         $this->executeBatchedRules($context);
         $result = $this->buildValidationResult($context);
-        $this->throwIfValidationShouldFail($result, $context['errors']);
+        $errors = isset($context['errors']) && is_array($context['errors'])
+            ? $this->normalizeErrorMap($context['errors'])
+            : [];
+        $this->throwIfValidationShouldFail($result, $errors);
 
         return $result;
     }
@@ -449,17 +503,108 @@ class Validator
         return $this;
     }
 
+    /**
+     * @param array<int|string,mixed> $composed
+     * @param array<int|string,mixed> $schema
+     *
+     * @return array<int|string,mixed>
+     */
+    protected static function mergeComposedSchema(array $composed, array $schema): array
+    {
+        foreach ($schema as $field => $rules) {
+            if (!is_string($field)) {
+                continue;
+            }
+
+            $existing = $composed[$field] ?? [];
+            $composed[$field] = array_merge(
+                static::normalizeComposedRuleSet($existing),
+                static::normalizeComposedRuleSet($rules),
+            );
+        }
+
+        return $composed;
+    }
+
+    /** @return array<int|string,mixed> */
+    protected static function normalizeComposedRuleSet(mixed $rules): array
+    {
+        if (is_array($rules)) {
+            return array_values($rules);
+        }
+
+        if (is_string($rules)) {
+            return RuleExpressionParser::splitRules($rules);
+        }
+
+        return [];
+    }
+
+    /** @param array<int|string,mixed> $context */
     protected function buildValidationResult(array $context): ValidationResult
     {
+        $errors = isset($context['errors']) && is_array($context['errors'])
+            ? $this->normalizeErrorMap($context['errors'])
+            : [];
+        $validated = isset($context['validated']) && is_array($context['validated']) ? $context['validated'] : [];
+        $failures = isset($context['failures']) && is_array($context['failures']) ? $context['failures'] : [];
+
         return new ValidationResult(
-            $context['errors'],
-            $context['validated'],
-            $context['failures'],
-            $this->applyCasts($context['validated']),
+            $errors,
+            $validated,
+            $failures,
+            $this->applyCasts($validated),
             $this->dtoClass,
         );
     }
 
+    /**
+     * @param array<int|string,mixed> $schema
+     *
+     * @return array<string,\Infocyph\ReqShield\Support\ValidationNode>
+     */
+    protected function normalizeCompiledSchema(array $schema): array
+    {
+        $normalized = [];
+
+        foreach ($schema as $field => $node) {
+            if (!is_string($field) || !$node instanceof \Infocyph\ReqShield\Support\ValidationNode) {
+                continue;
+            }
+
+            $normalized[$field] = $node;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int|string,mixed> $errors
+     * @return array<string,array<int,string>>
+     */
+    protected function normalizeErrorMap(array $errors): array
+    {
+        $normalized = [];
+
+        foreach ($errors as $field => $messages) {
+            if (!is_string($field) || !is_array($messages)) {
+                continue;
+            }
+
+            $normalized[$field] = array_values(array_filter(
+                $messages,
+                is_string(...),
+            ));
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int|string,mixed> $data
+     *
+     * @return array{0:array<int|string,mixed>,1:ValidationPlan}
+     */
     protected function prepareValidationDataAndSchema(array $data): array
     {
         if (!empty($this->sanitizers) || !empty($this->schemaSanitizers)) {
@@ -487,6 +632,7 @@ class Validator
         return [$data, $plan];
     }
 
+    /** @param array<string,array<int,string>> $errors */
     protected function throwIfValidationShouldFail(
         ValidationResult $result,
         array $errors,
@@ -502,6 +648,22 @@ class Validator
         );
     }
 
+    /**
+     * @param array<int|string,mixed> $data
+     * @param array{
+     *   errors:array<string,array<int,string>>,
+     *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
+     *   validated:array<string,mixed>,
+     *   expensiveBatch:array<int,array{
+     *     rule:\Infocyph\ReqShield\Contracts\Rule,
+     *     rule_name:string,
+     *     value:mixed,
+     *     field:string,
+     *     field_label:string,
+     *     message_resolver:callable(): string
+     *   }>
+     * } $context
+     */
     protected function validateResolvedFields(
         array $data,
         ValidationPlan $plan,
@@ -527,5 +689,4 @@ class Validator
             }
         }
     }
-
 }

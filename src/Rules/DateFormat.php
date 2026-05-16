@@ -24,6 +24,7 @@ class DateFormat extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if (!is_string($value)) {
             return false;
         }
@@ -32,5 +33,4 @@ class DateFormat extends BaseRule
 
         return $date && $date->format($this->format) === $value;
     }
-
 }

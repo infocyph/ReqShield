@@ -11,6 +11,7 @@ namespace Infocyph\ReqShield\Rules;
 class SecureFile extends BaseRule
 {
     private readonly File $fileRule;
+
     private readonly UploadMeta $uploadMetaRule;
 
     public function __construct(
@@ -33,6 +34,8 @@ class SecureFile extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return $this->fileRule->passes($value, $field, $data)
             && $this->uploadMetaRule->passes($value, $field, $data);
     }

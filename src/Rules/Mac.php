@@ -8,7 +8,7 @@ namespace Infocyph\ReqShield\Rules;
  * Mac Rule - Cost: 15
  * Value must be a valid MAC address
  */
-class Mac extends BaseRule
+class Mac extends AbstractFilterVarRule
 {
     public function cost(): int
     {
@@ -20,13 +20,8 @@ class Mac extends BaseRule
         return "The {$field} must be a valid MAC address.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function filterType(): int
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        return filter_var($value, FILTER_VALIDATE_MAC) !== false;
+        return FILTER_VALIDATE_MAC;
     }
-
 }

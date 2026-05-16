@@ -24,6 +24,7 @@ final class ValidatorBench
      * @var array<string,mixed>
      */
     private array $flatPayload;
+
     private Validator $flatValidator;
 
     /**

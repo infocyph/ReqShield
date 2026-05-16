@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Infocyph\ReqShield\Exceptions;
 
 class InvalidRuleException extends ValidationException
@@ -15,6 +17,7 @@ class InvalidRuleException extends ValidationException
         if ($reason) {
             $message .= ". {$reason}";
         }
+
         return new self($message);
     }
 
@@ -33,5 +36,4 @@ class InvalidRuleException extends ValidationException
     {
         return new self("Unknown validation rule: '{$ruleName}'");
     }
-
 }

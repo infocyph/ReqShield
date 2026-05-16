@@ -6,6 +6,7 @@
 *~
 *.patch
 *.txt
+*.log
 !docs/requirements.txt
 AI_CONTEXT.md
 composer.lock

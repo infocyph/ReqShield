@@ -5,49 +5,58 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Rules;
 
 use Infocyph\ReqShield\Contracts\Rule;
+use Infocyph\ReqShield\Support\ValueStringifier;
 
 abstract class BaseRule implements Rule
 {
-    /**
-     * Default implementation - rules are not batchable unless overridden.
-     */
     public function isBatchable(): bool
     {
         return false;
     }
 
-    /**
-     * Detect MIME type from a local file path using available PHP extensions.
-     */
+    protected function consumeRuleContext(mixed ...$values): void {}
+
     protected function detectMimeTypeFromPath(string $path): ?string
     {
         if (!is_file($path)) {
             return null;
         }
 
-        if (function_exists('finfo_open') && defined('FILEINFO_MIME_TYPE')) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            if ($finfo !== false) {
-                $detected = finfo_file($finfo, $path);
-
-                return is_string($detected) && $detected !== '' ? $detected : null;
-            }
+        $detected = $this->detectMimeTypeUsingFileinfo($path);
+        if ($detected !== null) {
+            return $detected;
         }
 
-        if (function_exists('mime_content_type')) {
-            $detected = mime_content_type($path);
-
-            return is_string($detected) && $detected !== '' ? $detected : null;
-        }
-
-        return null;
+        return $this->detectMimeTypeUsingContentType($path);
     }
 
-    /**
-     * Get the size of a value.
-     *
-     * @return int|float
-     */
+    protected function detectMimeTypeUsingContentType(string $path): ?string
+    {
+        if (!function_exists('mime_content_type')) {
+            return null;
+        }
+
+        $detected = mime_content_type($path);
+
+        return is_string($detected) && $detected !== '' ? $detected : null;
+    }
+
+    protected function detectMimeTypeUsingFileinfo(string $path): ?string
+    {
+        if (!function_exists('finfo_open') || !defined('FILEINFO_MIME_TYPE')) {
+            return null;
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo === false) {
+            return null;
+        }
+
+        $detected = finfo_file($finfo, $path);
+
+        return is_string($detected) && $detected !== '' ? $detected : null;
+    }
+
     protected function getSize(mixed $value): float|int|string
     {
         // Uploaded file arrays should be measured by file size in KB.
@@ -78,52 +87,27 @@ abstract class BaseRule implements Rule
         return 0;
     }
 
-    /**
-     * Resolve original client filename from uploaded file payload.
-     */
     protected function getUploadedFileClientFilename(mixed $value): ?string
     {
-        if (is_array($value) && isset($value['name']) && is_string($value['name'])) {
-            return $value['name'];
-        }
-
-        if ($this->isUploadedFileObject($value) && method_exists($value, 'getClientFilename')) {
-            $name = $value->getClientFilename();
-
-            return is_string($name) ? $name : null;
-        }
-
-        return null;
+        return is_array($value)
+            ? $this->arrayStringValue($value, 'name')
+            : $this->uploadedFileObjectStringValue($value, 'getClientFilename');
     }
 
-    /**
-     * Resolve client MIME type from uploaded file payload.
-     */
     protected function getUploadedFileClientMediaType(mixed $value): ?string
     {
-        if (is_array($value) && isset($value['type']) && is_string($value['type'])) {
-            return $value['type'];
-        }
-
-        if ($this->isUploadedFileObject($value) && method_exists($value, 'getClientMediaType')) {
-            $type = $value->getClientMediaType();
-
-            return is_string($type) ? $type : null;
-        }
-
-        return null;
+        return is_array($value)
+            ? $this->arrayStringValue($value, 'type')
+            : $this->uploadedFileObjectStringValue($value, 'getClientMediaType');
     }
 
-    /**
-     * Get uploaded file error code for array or object payloads.
-     */
     protected function getUploadedFileError(mixed $value): ?int
     {
         if (is_array($value) && isset($value['error']) && is_int($value['error'])) {
             return $value['error'];
         }
 
-        if ($this->isUploadedFileObject($value) && method_exists($value, 'getError')) {
+        if (is_object($value) && $this->isUploadedFileObject($value) && method_exists($value, 'getError')) {
             $error = $value->getError();
 
             return is_int($error) ? $error : null;
@@ -132,16 +116,13 @@ abstract class BaseRule implements Rule
         return null;
     }
 
-    /**
-     * Resolve a temporary path for uploaded file content.
-     */
     protected function getUploadedFilePath(mixed $value): ?string
     {
         if (is_array($value) && isset($value['tmp_name']) && is_string($value['tmp_name'])) {
             return $value['tmp_name'];
         }
 
-        if (!$this->isUploadedFileObject($value) || !method_exists($value, 'getStream')) {
+        if (!is_object($value) || !$this->isUploadedFileObject($value) || !method_exists($value, 'getStream')) {
             return null;
         }
 
@@ -160,16 +141,13 @@ abstract class BaseRule implements Rule
         return is_string($uri) && $uri !== '' ? $uri : null;
     }
 
-    /**
-     * Get uploaded file size for array or object payloads.
-     */
     protected function getUploadedFileSize(mixed $value): ?int
     {
         if (is_array($value) && isset($value['size']) && is_numeric($value['size'])) {
             return (int) $value['size'];
         }
 
-        if ($this->isUploadedFileObject($value) && method_exists($value, 'getSize')) {
+        if (is_object($value) && $this->isUploadedFileObject($value) && method_exists($value, 'getSize')) {
             $size = $value->getSize();
 
             return is_int($size) ? $size : (is_numeric($size) ? (int) $size : null);
@@ -178,9 +156,6 @@ abstract class BaseRule implements Rule
         return null;
     }
 
-    /**
-     * Helper method to check if value is empty.
-     */
     protected function isEmpty(mixed $value): bool
     {
         if (is_null($value)) {
@@ -198,9 +173,33 @@ abstract class BaseRule implements Rule
         return false;
     }
 
-    /**
-     * Check if a value is a PSR-7 style uploaded file object.
-     */
+    protected function isNullOrBlankString(mixed $value): bool
+    {
+        return is_null($value) || (is_string($value) && trim($value) === '');
+    }
+
+    protected function isSafeFilenameString(string $name): bool
+    {
+        $trimmed = trim($name);
+        if ($trimmed === '' || str_contains($trimmed, "\0")) {
+            return false;
+        }
+
+        if (preg_match('/[\/\\\\]/', $trimmed) === 1) {
+            return false;
+        }
+
+        if ($trimmed === '.' || $trimmed === '..') {
+            return false;
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F]/', $trimmed) === 1) {
+            return false;
+        }
+
+        return preg_match('/^[^<>:"|?*]+$/', $trimmed) === 1;
+    }
+
     protected function isUploadedFileObject(mixed $value): bool
     {
         if (!is_object($value)) {
@@ -219,4 +218,27 @@ abstract class BaseRule implements Rule
             && method_exists($value, 'getStream');
     }
 
+    protected function stringifyValue(mixed $value): string
+    {
+        return ValueStringifier::stringify($value);
+    }
+
+    /** @param array<array-key, mixed> $value */
+    private function arrayStringValue(array $value, string $key): ?string
+    {
+        return isset($value[$key]) && is_string($value[$key])
+            ? $value[$key]
+            : null;
+    }
+
+    private function uploadedFileObjectStringValue(mixed $value, string $method): ?string
+    {
+        if (!is_object($value) || !$this->isUploadedFileObject($value) || !method_exists($value, $method)) {
+            return null;
+        }
+
+        $result = $value->{$method}();
+
+        return is_string($result) ? $result : null;
+    }
 }

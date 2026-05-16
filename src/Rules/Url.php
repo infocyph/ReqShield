@@ -8,7 +8,7 @@ namespace Infocyph\ReqShield\Rules;
  * URL Rule - Cost: 10
  * Validates that a value is a valid URL.
  */
-class Url extends BaseRule
+class Url extends AbstractFilterVarRule
 {
     public function cost(): int
     {
@@ -20,13 +20,8 @@ class Url extends BaseRule
         return "The {$field} must be a valid URL.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function filterType(): int
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        return filter_var($value, FILTER_VALIDATE_URL) !== false;
+        return FILTER_VALIDATE_URL;
     }
-
 }

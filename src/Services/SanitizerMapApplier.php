@@ -9,7 +9,12 @@ use Infocyph\ReqShield\Support\NestedValidator;
 final class SanitizerMapApplier
 {
     /**
-     * @param array<string,mixed> $sanitizerMap
+     * @param array<int|string, mixed> $data
+     * @param array<int|string, mixed> $sanitizerMap
+     * @param callable(mixed): array<int, mixed> $normalizePipeline
+     * @param callable(mixed, array<int, mixed>): mixed $applyPipeline
+     * @param callable(string): string $wildcardPatternToRegex
+     * @return array<int|string, mixed>
      */
     public function apply(
         array $data,
@@ -39,7 +44,11 @@ final class SanitizerMapApplier
     }
 
     /**
-     * @param array<string,mixed> $sanitizerMap
+     * @param array<int|string, mixed> $data
+     * @param array<int|string, mixed> $sanitizerMap
+     * @param callable(mixed): array<int, mixed> $normalizePipeline
+     * @param callable(mixed, array<int, mixed>): mixed $applyPipeline
+     * @return array<int|string, mixed>
      */
     protected function applyDirectFieldSanitizers(
         array $data,
@@ -48,19 +57,22 @@ final class SanitizerMapApplier
         callable $applyPipeline,
     ): array {
         foreach ($sanitizerMap as $field => $pipeline) {
-            if (!is_string($field) || str_contains($field, '*')) {
+            if (str_contains((string) $field, '*')) {
+                continue;
+            }
+            if (!is_string($field)) {
                 continue;
             }
 
             $normalizedPipeline = $normalizePipeline($pipeline);
-            if (!is_array($normalizedPipeline) || $normalizedPipeline === []) {
+            if ($normalizedPipeline === []) {
                 continue;
             }
 
             $this->applyFieldSanitizer(
                 $data,
                 $field,
-                $normalizedPipeline,
+                array_values($normalizedPipeline),
                 $applyPipeline,
             );
         }
@@ -69,7 +81,9 @@ final class SanitizerMapApplier
     }
 
     /**
-     * @param array<int,mixed> $pipeline
+     * @param array<int|string, mixed> $data
+     * @param array<int, mixed> $pipeline
+     * @param callable(mixed, array<int, mixed>): mixed $applyPipeline
      */
     protected function applyFieldSanitizer(
         array &$data,
@@ -102,7 +116,12 @@ final class SanitizerMapApplier
     }
 
     /**
-     * @param array<string,mixed> $sanitizerMap
+     * @param array<int|string, mixed> $data
+     * @param array<int|string, mixed> $sanitizerMap
+     * @param callable(mixed): array<int, mixed> $normalizePipeline
+     * @param callable(mixed, array<int, mixed>): mixed $applyPipeline
+     * @param callable(string): string $wildcardPatternToRegex
+     * @return array<int|string, mixed>
      */
     protected function applyWildcardFieldSanitizers(
         array $data,
@@ -118,22 +137,25 @@ final class SanitizerMapApplier
         $flattened = NestedValidator::flattenData($data);
 
         foreach ($sanitizerMap as $field => $pipeline) {
-            if (!is_string($field) || !str_contains($field, '*')) {
+            if (!str_contains((string) $field, '*')) {
+                continue;
+            }
+            if (!is_string($field)) {
                 continue;
             }
 
             $normalizedPipeline = $normalizePipeline($pipeline);
-            if (!is_array($normalizedPipeline) || $normalizedPipeline === []) {
+            if ($normalizedPipeline === []) {
                 continue;
             }
 
             $regex = $wildcardPatternToRegex($field);
-            if (!is_string($regex) || $regex === '') {
+            if ($regex === '') {
                 continue;
             }
 
             foreach ($flattened as $path => $value) {
-                if (preg_match($regex, $path) !== 1) {
+                if (preg_match($regex, (string) $path) !== 1) {
                     continue;
                 }
 
@@ -144,14 +166,12 @@ final class SanitizerMapApplier
         return NestedValidator::unflattenData($flattened);
     }
 
-    /**
-     * @param array<string,mixed> $sanitizerMap
-     */
+    /** @param array<int|string, mixed> $sanitizerMap */
     protected function hasWildcardSanitizers(array $sanitizerMap): bool
     {
         return array_any(
             array_keys($sanitizerMap),
-            static fn(string $field): bool => str_contains($field, '*'),
+            static fn(int|string $field): bool => str_contains((string) $field, '*'),
         );
     }
 }

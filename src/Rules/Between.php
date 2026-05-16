@@ -10,7 +10,10 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Between extends BaseRule
 {
-    public function __construct(protected $min, protected $max) {}
+    public function __construct(
+        protected int|float $min,
+        protected int|float $max,
+    ) {}
 
     public function cost(): int
     {
@@ -24,8 +27,9 @@ class Between extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         $size = $this->getSize($value);
+
         return $size >= $this->min && $size <= $this->max;
     }
-
 }

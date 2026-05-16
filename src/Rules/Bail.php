@@ -21,7 +21,8 @@ class Bail extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return true; // Always passes, used as marker for stopping validation
     }
-
 }

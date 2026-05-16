@@ -8,30 +8,19 @@ namespace Infocyph\ReqShield\Rules;
  * AcceptedIf Rule - Cost: 2
  * Field must be accepted if another field equals a value
  */
-class AcceptedIf extends BaseRule
+class AcceptedIf extends AbstractComparisonStateConditionRule
 {
-    public function __construct(
-        protected string $otherField,
-        protected mixed $value,
-    ) {}
-
-    public function cost(): int
-    {
-        return 2;
-    }
+    /** @var list<string|int|bool> */
+    private const array ACCEPTED_VALUES = ['yes', 'on', '1', 1, true, 'true'];
 
     public function message(string $field): string
     {
-        return "The {$field} must be accepted when {$this->otherField} is {$this->value}.";
+        return "The {$field} must be accepted when {$this->otherField} is "
+            . $this->stringifyValue($this->value) . '.';
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function validStates(): array
     {
-        if (!array_key_exists($this->otherField, $data) || $data[$this->otherField] !== $this->value) {
-            return true;
-        }
-
-        return in_array($value, ['yes', 'on', '1', 1, true, 'true'], true);
+        return self::ACCEPTED_VALUES;
     }
-
 }

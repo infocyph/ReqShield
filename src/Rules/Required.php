@@ -22,12 +22,9 @@ class Required extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (is_null($value)) {
+        $this->consumeRuleContext($value, $field, $data);
+        if ($this->isNullOrBlankString($value)) {
             return false;
-        }
-
-        if (is_string($value)) {
-            return trim($value) !== '';
         }
 
         if (!$this->isEmptyCountable($value)) {
@@ -87,5 +84,4 @@ class Required extends BaseRule
 
         return get_resource_type($value) === 'stream';
     }
-
 }

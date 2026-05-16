@@ -22,6 +22,7 @@ class Date extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if ($value instanceof \DateTimeInterface) {
             return true;
         }
@@ -38,5 +39,4 @@ class Date extends BaseRule
             return false;
         }
     }
-
 }

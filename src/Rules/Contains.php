@@ -23,8 +23,9 @@ class Contains extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if (is_string($value)) {
-            return str_contains($value, (string) $this->needle);
+            return str_contains($value, $this->stringifyValue($this->needle));
         }
 
         if (is_array($value)) {
@@ -33,5 +34,4 @@ class Contains extends BaseRule
 
         return false;
     }
-
 }

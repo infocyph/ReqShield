@@ -22,7 +22,8 @@ class Alpha extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return is_string($value) && preg_match('/^[a-zA-Z]+$/', $value) === 1;
     }
-
 }

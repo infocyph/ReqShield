@@ -8,23 +8,15 @@ namespace Infocyph\ReqShield\Rules;
  * Size Rule - Cost: 2
  * Validates exact size (string length, array count, file size in KB)
  */
-class Size extends BaseRule
+class Size extends AbstractSizeRule
 {
-    public function __construct(protected int|float $size) {}
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must be exactly {$this->size}.";
+        return "The {$field} must be exactly {$this->target}.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function passesForSize(int|float|string $size): bool
     {
-        return $this->getSize($value) === $this->size;
+        return $size === $this->target;
     }
-
 }

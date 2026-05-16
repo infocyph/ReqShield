@@ -22,7 +22,8 @@ class Numeric extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return is_numeric($value);
     }
-
 }

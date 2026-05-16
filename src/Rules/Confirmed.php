@@ -22,6 +22,7 @@ class Confirmed extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         $confirmationField = $field . '_confirmation';
 
         return array_key_exists(
@@ -29,5 +30,4 @@ class Confirmed extends BaseRule
             $data,
         ) && $value === $data[$confirmationField];
     }
-
 }

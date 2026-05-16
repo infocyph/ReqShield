@@ -8,7 +8,7 @@ namespace Infocyph\ReqShield\Rules;
  * SafeFilename Rule - Cost: 8
  * Validates a client-supplied filename for path traversal and control characters.
  */
-class SafeFilename extends BaseRule
+class SafeFilename extends AbstractTrimmedStringRule
 {
     public function cost(): int
     {
@@ -20,29 +20,8 @@ class SafeFilename extends BaseRule
         return "The {$field} must be a safe file name.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function passesNormalized(string $value): bool
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        $name = trim($value);
-        if ($name === '' || str_contains($name, "\0")) {
-            return false;
-        }
-
-        if (preg_match('/[\/\\\\]/', $name) === 1) {
-            return false;
-        }
-
-        if ($name === '.' || $name === '..') {
-            return false;
-        }
-
-        if (preg_match('/[\x00-\x1F\x7F]/', $name) === 1) {
-            return false;
-        }
-
-        return preg_match('/^[^<>:"|?*]+$/', $name) === 1;
+        return $this->isSafeFilenameString($value);
     }
 }

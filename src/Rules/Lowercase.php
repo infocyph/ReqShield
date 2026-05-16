@@ -8,7 +8,7 @@ namespace Infocyph\ReqShield\Rules;
  * Lowercase Rule - Cost: 5
  * String must be lowercase
  */
-class Lowercase extends BaseRule
+class Lowercase extends AbstractCaseTransformRule
 {
     public function cost(): int
     {
@@ -20,13 +20,8 @@ class Lowercase extends BaseRule
         return "The {$field} must be lowercase.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function transform(string $value): string
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        return $value === mb_strtolower($value);
+        return mb_strtolower($value);
     }
-
 }

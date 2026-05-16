@@ -4,19 +4,15 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Rules;
 
-use Infocyph\ReqShield\Contracts\DatabaseProvider;
-
 /**
  * Unique Rule - Cost: 100
  * Validates that a value is unique in a database table.
  * This rule is batchable for performance optimization.
  */
-class Unique extends BaseRule
+class Unique extends AbstractDatabaseTableRule
 {
-    protected ?DatabaseProvider $db = null;
-
     public function __construct(
-        protected string $table,
+        string $table,
         protected ?string $column = null,
         protected ?int $ignoreId = null,
         protected ?string $idColumn = 'id',
@@ -28,11 +24,8 @@ class Unique extends BaseRule
          * Soft delete column name.
          */
         protected string $softDeleteColumn = 'deleted_at',
-    ) {}
-
-    public function cost(): int
-    {
-        return 100;
+    ) {
+        parent::__construct($table);
     }
 
     public function getColumn(): ?string
@@ -55,21 +48,9 @@ class Unique extends BaseRule
         return $this->softDeleteColumn;
     }
 
-    // Getters for batch executor
-    public function getTable(): string
-    {
-        return $this->table;
-    }
-
     public function getWithTrashed(): bool
     {
         return $this->withTrashed;
-    }
-
-    #[\Override]
-    public function isBatchable(): bool
-    {
-        return true;
     }
 
     public function message(string $field): string
@@ -79,6 +60,7 @@ class Unique extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         // This will be handled by the batch executor
         // Individual execution is only for non-batched scenarios
         if (!$this->db) {
@@ -94,10 +76,4 @@ class Unique extends BaseRule
             $this->ignoreId,
         );
     }
-
-    public function setDatabaseProvider(DatabaseProvider $db): void
-    {
-        $this->db = $db;
-    }
-
 }

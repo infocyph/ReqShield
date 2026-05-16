@@ -8,27 +8,17 @@ namespace Infocyph\ReqShield\Rules;
  * After Rule - Cost: 25
  * Validates that a date is after another date.
  */
-class After extends BaseRule
+class After extends DateComparisonRule
 {
-    public function __construct(protected string $date) {}
-
-    public function cost(): int
-    {
-        return 25;
-    }
-
     public function message(string $field): string
     {
         return "The {$field} must be a date after {$this->date}.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
-    {
-        try {
-            return new \DateTime($value) > new \DateTime($this->date);
-        } catch (\Exception) {
-            return false;
-        }
+    protected function compareDates(
+        \DateTimeImmutable $valueDate,
+        \DateTimeImmutable $referenceDate,
+    ): bool {
+        return $valueDate > $referenceDate;
     }
-
 }

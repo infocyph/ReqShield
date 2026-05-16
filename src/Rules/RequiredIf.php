@@ -8,32 +8,19 @@ namespace Infocyph\ReqShield\Rules;
  * RequiredIf Rule - Cost: 2
  * Field is required if another field equals a specific value
  */
-class RequiredIf extends BaseRule
+class RequiredIf extends AbstractComparisonConditionRule
 {
-    public function __construct(
-        protected string $otherField,
-        protected mixed $value,
-    ) {}
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} field is required when {$this->otherField} is {$this->value}.";
+        return "The {$field} field is required when {$this->otherField} is "
+            . $this->stringifyValue($this->value) . '.';
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    /** @param array<array-key, mixed> $data */
+    protected function passesWhenConditionApplies(mixed $value, string $field, array $data): bool
     {
-        // If condition is not met, field is not required
-        if (!array_key_exists($this->otherField, $data) || $data[$this->otherField] !== $this->value) {
-            return true;
-        }
+        unset($field, $data);
 
-        // Condition is met, field must have value
         return !$this->isEmpty($value);
     }
-
 }

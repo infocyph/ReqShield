@@ -22,7 +22,8 @@ class Boolean extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return in_array($value, [true, false, 0, 1, '0', '1'], true);
     }
-
 }

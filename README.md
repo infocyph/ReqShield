@@ -1,4 +1,4 @@
-# 🛡️ ReqShield
+# ReqShield
 
 [![Security & Standards](https://github.com/infocyph/ReqShield/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/infocyph/ReqShield/actions/workflows/build.yml)
 ![Packagist Downloads](https://img.shields.io/packagist/dt/infocyph/ReqShield?color=green&link=https%3A%2F%2Fpackagist.org%2Fpackages%2Finfocyph%2FReqShield)
@@ -24,33 +24,29 @@ $result = $validator->validate($data);
 
 if ($result->passes()) {
     $clean = $result->typed();
-    // ✅ All good!
+    // All good!
 }
 ```
 
----
+## Features
 
-## ✨ Features
+-  **107 Built-in Rules** - Basic types, conditional rules, files, database checks, and more
+-  **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
+-  **Intelligent Batching** - Expensive DB checks are batched automatically
+-  **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
+-  **Nested + Wildcard Validation** - Dot notation with wildcard expansion
+-  **Custom Messages + Placeholders** - `:field`, `:rule`, `:min`, and more
+-  **Locale Packs** - Per-rule localized message templates with fallback
+-  **Failure Metadata** - Structured failures (`field`, `rule`, `message`, `value`)
+-  **Schema Fragments + Composition** - Reuse validation contracts across endpoints
+-  **Conditional Closures** - `sometimes()` and `when()` for dynamic rule activation
+-  **Schema Export** - JSON Schema, OpenAPI shape, and introspection metadata
+-  **Typed Output + DTO Mapping** - Cast map + `toDTO()` support
+-  **Uploaded File Object Support** - Array-style uploads and PSR-7 style objects
+- ️ **Upload Hardening Rules** - `safe_filename`, `upload_meta`, `upload_id`, `secure_file`
+- ️ **PHP 8.4+** - Built with modern PHP features
 
-- 🚀 **107 Built-in Rules** - Basic types, conditional rules, files, database checks, and more
-- 🧹 **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
-- ⚡ **Intelligent Batching** - Expensive DB checks are batched automatically
-- 🎯 **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
-- 🔗 **Nested + Wildcard Validation** - Dot notation with wildcard expansion
-- 🧾 **Custom Messages + Placeholders** - `:field`, `:rule`, `:min`, and more
-- 🌍 **Locale Packs** - Per-rule localized message templates with fallback
-- 🧠 **Failure Metadata** - Structured failures (`field`, `rule`, `message`, `value`)
-- 📦 **Schema Fragments + Composition** - Reuse validation contracts across endpoints
-- 🔁 **Conditional Closures** - `sometimes()` and `when()` for dynamic rule activation
-- 🧱 **Schema Export** - JSON Schema, OpenAPI shape, and introspection metadata
-- 🧰 **Typed Output + DTO Mapping** - Cast map + `toDTO()` support
-- 📤 **Uploaded File Object Support** - Array-style uploads and PSR-7 style objects
-- 🛡️ **Upload Hardening Rules** - `safe_filename`, `upload_meta`, `upload_id`, `secure_file`
-- 🛠️ **PHP 8.4+** - Built with modern PHP features
-
----
-
-## 📦 Installation
+## Installation
 
 ```bash
 composer require infocyph/reqshield
@@ -58,9 +54,7 @@ composer require infocyph/reqshield
 
 **Requirements:** PHP 8.4+ and `ext-hash` with `xxh3` support
 
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Validation
 
@@ -130,9 +124,7 @@ $clean = sanitize('  TEST@ex.com  ', 'email');           // 'TEST@ex.com'
 $clean = sanitize('<b>TEXT</b>', ['string', 'lowercase']); // 'text'
 ```
 
----
-
-## 📚 Available Rules (107)
+## Available Rules (107)
 
 ReqShield includes 107 validation rules covering several common scenarios:
 
@@ -149,7 +141,7 @@ ReqShield includes 107 validation rules covering several common scenarios:
 - Patterns
 - Additional
 
-**[📖 View Complete Rule Reference](https://docs.infocyph.com/projects/reqshield/en/latest/rule-reference.html)**
+**[View Complete Rule Reference](https://docs.infocyph.com/projects/reqshield/en/latest/rule-reference.html)**
 
 ### Upload Hardening Rules
 
@@ -168,7 +160,7 @@ payload validity and safe upload metadata in one rule.
 
 ---
 
-## 🧹 Available Sanitizers (46 Built-in)
+## Available Sanitizers (46 Built-in)
 
 ReqShield includes 46 built-in sanitizers covering several common scenarios:
 
@@ -181,11 +173,11 @@ ReqShield includes 46 built-in sanitizers covering several common scenarios:
 - Encoding
 - Array Operations
 
-**[📖 View Complete Sanitizer Reference](https://docs.infocyph.com/projects/reqshield/en/latest/sanitization.html)**
+**[View Complete Sanitizer Reference](https://docs.infocyph.com/projects/reqshield/en/latest/sanitization.html)**
 
 ---
 
-## 🎯 Advanced Features
+## Advanced Features
 
 ### Nested Validation
 
@@ -388,9 +380,9 @@ $validator = Validator::make([
 ```
 
 **Benefits:**
-- 🚀 **Automatic batching** - Multiple checks become one query
-- 🎯 **Update support** - `unique:users,email,5` ignores ID 5
-- 🧾 **Soft-delete aware unique** - `unique:users,email,,id,false,deleted_at`
+- **Automatic batching** - Multiple checks become one query
+- **Update support** - `unique:users,email,5` ignores ID 5
+- **Soft-delete aware unique** - `unique:users,email,,id,false,deleted_at`
 
 ### Schema Export / Introspection
 
@@ -414,15 +406,11 @@ $result = $validator->validate($data);
 
 ---
 
-## ⚡ Performance
+## Performance
 
 ReqShield is built for speed:
 
 ### 1. **Cost-Based Rule Sorting**
-Rules automatically execute in order of complexity:
-- **Cheap** (< 50): Type checks, empty checks
-- **Medium** (50-99): String operations, regex
-- **Expensive** (100+): Database queries, API calls
 
 ### 2. **Intelligent Batching**
 Database rules are automatically batched:
@@ -447,40 +435,18 @@ Stops validating a field on first rule failure:
 ### 4. **Zero Overhead for Simple Cases**
 Nested validation only activates if you use dot notation. No performance cost for simple flat arrays.
 
----
+## Security
 
-## 🧪 Development Commands
-
-```bash
-composer test
-composer tests
-composer test:code
-composer test:lint
-composer test:refactor
-composer test:security
-composer benchmark
-```
-
-`composer benchmark` runs the PhpBench suite in `benchmarks/ValidatorBench.php`.
+Protected by [PHPForge](https://github.com/infocyph/PHPForge) — an automated quality and security gate for PHP projects.
 
 ---
 
-## 📄 License
-
-ReqShield is open-sourced software licensed under the [MIT license](LICENSE).
-
----
-
-## 🌟 Show Your Support
-
-If you find ReqShield helpful, please consider giving it a ⭐️ on GitHub!
-
----
-
-<div align="center">
-
-**Made with ❤️ for the PHP community**
-
-[Documentation](https://docs.infocyph.com/projects/reqshield) • [Report Bug](https://github.com/infocyph/reqshield/issues) • [Request Feature](https://github.com/infocyph/reqshield/issues)
-
+<div style="text-align:center;">
+  <sub><strong>Made with ❤️ for the PHP community</strong></sub><br />
+  <sub><a href="LICENSE">MIT Licensed</a></sub><br />
+  <a href="https://docs.infocyph.com/projects/reqshield">Documentation</a> •
+  <a href="SECURITY.md">Security</a> •
+  <a href="CODE_OF_CONDUCT.md">Code of Conduct</a> •
+  <a href="https://github.com/infocyph/reqshield/issues">Report Bug</a> •
+  <a href="https://github.com/infocyph/reqshield/issues">Request Feature</a>
 </div>

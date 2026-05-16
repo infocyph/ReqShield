@@ -4,24 +4,16 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
-/**
- * Represents the result of a validation operation with comprehensive error
- * handling.
- *
- * This class encapsulates the results of data validation, including both
- * validation errors and successfully validated data. It provides a fluent
- * interface for common validation result operations and transformations.
- *
- * Key features:
- * - Access validated data as object properties or via array access
- * - Chainable methods for fluent validation result processing
- * - Support for error message aggregation and filtering
- * - Conversion to various formats (array, JSON, DTO)
- */
 class ValidationResult
 {
     protected MessageBag $messageBag;
 
+    /**
+     * @param array<string,array<int,string>> $errors
+     * @param array<int|string,mixed> $validated
+     * @param array<int|string,mixed> $failures
+     * @param array<int|string,mixed> $typed
+     */
     public function __construct(
         protected array $errors,
         protected array $validated = [],
@@ -32,182 +24,119 @@ class ValidationResult
         $this->messageBag = new MessageBag($errors);
     }
 
-    /**
-     * Magic method to get validated data as property
-     */
     public function __get(string $key): mixed
     {
         return $this->get($key);
     }
 
-    /**
-     * Magic method to check if validated data has property
-     */
     public function __isset(string $key): bool
     {
         return $this->has($key);
     }
 
-    /**
-     * Magic method to set validated data as property
-     */
     public function __set(string $key, mixed $value): void
     {
         $this->validated[$key] = $value;
     }
 
-    /**
-     * Get all error messages as a flat array
-     */
+    /** @return array<int,string> */
     public function allErrors(): array
     {
         return $this->messageBag->flatten();
     }
 
-    /**
-     * Get count of fields with errors
-     */
     public function errorCount(): int
     {
         return $this->messageBag->count();
     }
 
-    /**
-     * Get all validation errors
-     */
+    /** @return array<string,array<int,string>> */
     public function errors(): array
     {
         return $this->errors;
     }
 
-    /**
-     * Get errors for a specific field
-     */
+    /** @return array<int,string> */
     public function errorsFor(string $field): array
     {
         return $this->errors[$field] ?? [];
     }
 
     /**
-     * Get validated data except specific fields
+     * @param array<int,string> $fields
+     *
+     * @return array<int|string,mixed>
      */
     public function except(array $fields): array
     {
         return array_diff_key($this->validated, array_flip($fields));
     }
 
-    /**
-     * Check if validation failed
-     */
     public function fails(): bool
     {
         return !empty($this->errors);
     }
 
-    /**
-     * Get structured failed rule metadata.
-     */
+    /** @return array<int|string,mixed> */
     public function failures(): array
     {
         return $this->failures;
     }
 
-    /**
-     * Get failed rule metadata for a single field.
-     */
+    /** @return array<int,array<int|string,mixed>> */
     public function failuresFor(string $field): array
     {
         return array_values(array_filter(
             $this->failures,
-            fn(array $failure): bool => ($failure['field'] ?? null) === $field,
+            fn(mixed $failure): bool => is_array($failure)
+                && ($failure['field'] ?? null) === $field,
         ));
     }
 
-    /**
-     * Filters the validated data using a callback function.
-     *
-     * This method allows for flexible filtering of the validated data based on
-     * custom criteria. The callback receives both the value and key of each
-     * element.
-     *
-     * @param callable $callback The callback function to use for filtering.
-     *                              The callback should return true to include
-     *   the element in the result. Signature: `function(mixed $value,
-     *   string|int $key): bool`
-     *
-     * @return array The filtered array containing only the elements that
-     *   passed the callback test.
-     *
-     * @see array_filter() The underlying PHP function used for filtering
-     * @see ValidationResult::map() To transform values instead of filtering
-     * @see ValidationResult::only() To filter by specific keys
-     * @example
-     * // Filter to get only numeric values
-     * $numbers = $result->filter(fn($value) => is_numeric($value));
-     *
-     * // Filter based on both key and value
-     * $filtered = $result->filter(fn($value, $key) => str_starts_with($key,
-     *   'user_'));
-     *
-     */
+    /** @return array<int|string,mixed> */
     public function filter(callable $callback): array
     {
         return array_filter($this->validated, $callback, ARRAY_FILTER_USE_BOTH);
     }
 
-    /**
-     * Get first error message for a field (alias for firstError).
-     */
     public function first(string $field): ?string
     {
-        return $this->errors[$field][0] ?? null;
+        $fieldErrors = $this->errors[$field] ?? null;
+        if (!is_array($fieldErrors)) {
+            return null;
+        }
+
+        $first = $fieldErrors[0] ?? null;
+
+        return is_string($first) ? $first : null;
     }
 
-    /**
-     * Get the first error message for a field
-     */
     public function firstError(?string $field = null): ?string
     {
         return $this->messageBag->first($field);
     }
 
-    /**
-     * Get a specific validated value
-     */
     public function get(string $key, mixed $default = null): mixed
     {
         return $this->validated[$key] ?? $default;
     }
 
-    /**
-     * Check if validated data has a specific key
-     */
     public function has(string $key): bool
     {
         return array_key_exists($key, $this->validated);
     }
 
-    /**
-     * Check if a field has errors
-     */
     public function hasError(string $field): bool
     {
         return $this->messageBag->has($field);
     }
 
-    /**
-     * Map validated data with callback
-     * NEW: Added for data transformation
-     */
+    /** @return array<int|string,mixed> */
     public function map(callable $callback): array
     {
         return array_map($callback, $this->validated);
     }
 
-    /**
-     * Merge another ValidationResult
-     * NEW: Added for combining multiple validation results
-     */
     public function merge(ValidationResult $other): self
     {
         $this->errors = array_merge($this->errors, $other->errors());
@@ -219,32 +148,30 @@ class ValidationResult
         return $this;
     }
 
-    /**
-     * Get MessageBag instance for advanced error handling
-     */
     public function messages(): MessageBag
     {
         return $this->messageBag;
     }
 
     /**
-     * Get only specific validated fields
+     * @param array<int,string> $fields
+     *
+     * @return array<int|string,mixed>
      */
     public function only(array $fields): array
     {
         return array_intersect_key($this->validated, array_flip($fields));
     }
 
-    /**
-     * Check if validation passed
-     */
     public function passes(): bool
     {
         return empty($this->errors);
     }
 
     /**
-     * Get safe data (validated + additional safe fields)
+     * @param array<int,string> $additionalFields
+     *
+     * @return array<int|string,mixed>
      */
     public function safe(array $additionalFields = []): array
     {
@@ -259,10 +186,6 @@ class ValidationResult
         return $safe;
     }
 
-    /**
-     * Throw exception if validation failed
-     * NEW: Added for fail-fast validation
-     */
     public function throw(): self
     {
         if ($this->fails()) {
@@ -275,9 +198,7 @@ class ValidationResult
         return $this;
     }
 
-    /**
-     * Convert to array representation
-     */
+    /** @return array<string,mixed> */
     public function toArray(): array
     {
         return [
@@ -289,10 +210,6 @@ class ValidationResult
         ];
     }
 
-    /**
-     * Get a DTO-friendly representation
-     * NEW: Added for framework integration
-     */
     public function toDTO(): object
     {
         $payload = $this->typed();
@@ -310,34 +227,23 @@ class ValidationResult
         ];
     }
 
-    /**
-     * Convert errors to JSON
-     */
     public function toJson(): string
     {
         return $this->messageBag->toJson();
     }
 
-    /**
-     * Get typed output after casts are applied.
-     */
+    /** @return array<int|string,mixed> */
     public function typed(): array
     {
         return empty($this->typed) ? $this->validated : $this->typed;
     }
 
-    /**
-     * Get validated data
-     */
+    /** @return array<int|string,mixed> */
     public function validated(): array
     {
         return $this->validated;
     }
 
-    /**
-     * Execute callback if validation fails
-     * NEW: Added for fluent handling
-     */
     public function whenFails(callable $callback): self
     {
         if ($this->fails()) {
@@ -347,10 +253,6 @@ class ValidationResult
         return $this;
     }
 
-    /**
-     * Execute callback if validation passes
-     * NEW: Added for fluent handling
-     */
     public function whenPasses(callable $callback): self
     {
         if ($this->passes()) {
@@ -361,7 +263,8 @@ class ValidationResult
     }
 
     /**
-     * Build DTO instance from data.
+     * @param class-string $class
+     * @param array<int|string,mixed> $payload
      */
     protected function buildDto(string $class, array $payload): object
     {
@@ -384,7 +287,8 @@ class ValidationResult
     }
 
     /**
-     * Build DTO instance with constructor mapping when possible.
+     * @param \ReflectionClass<object> $reflection
+     * @param array<int|string,mixed> $payload
      */
     protected function instantiateDto(
         \ReflectionClass $reflection,
@@ -409,7 +313,7 @@ class ValidationResult
     }
 
     /**
-     * Resolve constructor parameter from payload/defaults.
+     * @param array<int|string,mixed> $payload
      *
      * @return array{resolved:bool,value:mixed}
      */
@@ -441,5 +345,4 @@ class ValidationResult
 
         return ['resolved' => false, 'value' => null];
     }
-
 }

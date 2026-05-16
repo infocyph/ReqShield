@@ -17,13 +17,16 @@ class Nullable extends BaseRule
 
     public function message(string $field): string
     {
+        $this->consumeRuleContext($field);
+
         return '';
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         // Always passes
         return true;
     }
-
 }

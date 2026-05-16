@@ -4,13 +4,27 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Services;
 
+use Infocyph\ReqShield\Support\JsonSchemaTypeHelper;
 use Infocyph\ReqShield\Support\RuleExpressionParser;
+use Infocyph\ReqShield\Support\ValidationNode;
 
+/**
+ * @phpstan-type JsonNode array<int|string, mixed>
+ * @phpstan-type RuleDefinition string|array<int, mixed>
+ * @phpstan-type ParsedRule array{name:string, params:array<int, mixed>}
+ * @phpstan-type ParsedRuleList array<int, ParsedRule>
+ */
 final class JsonSchemaExporter
 {
+    public function __construct(
+        protected ?JsonSchemaNodeBuilder $nodeBuilder = null,
+    ) {
+        $this->nodeBuilder ??= new JsonSchemaNodeBuilder();
+    }
+
     /**
-     * @param array<string,mixed> $schema
-     * @param array<string,mixed> $property
+     * @param JsonNode $schema
+     * @param JsonNode $property
      */
     public function addProperty(
         array &$schema,
@@ -18,47 +32,13 @@ final class JsonSchemaExporter
         array $property,
         bool $required,
     ): void {
-        $segments = explode('.', $path);
-        $node = &$schema;
-        $lastIndex = count($segments) - 1;
-
-        foreach ($segments as $index => $segment) {
-            $isLast = $index === $lastIndex;
-
-            if ($segment === '*') {
-                $this->ensureArrayNode($node);
-                $node = &$node['items'];
-                continue;
-            }
-
-            $this->ensureObjectNode($node);
-
-            if ($isLast) {
-                $node['properties'][$segment] = $property;
-                if ($required) {
-                    $node['required'] ??= [];
-                    $node['required'][] = $segment;
-                }
-
-                return;
-            }
-
-            if ($required) {
-                $node['required'] ??= [];
-                $node['required'][] = $segment;
-            }
-
-            if (!isset($node['properties'][$segment]) || !is_array($node['properties'][$segment])) {
-                $node['properties'][$segment] = ['type' => 'object', 'properties' => []];
-            }
-
-            $node = &$node['properties'][$segment];
-        }
+        $this->nodeBuilder?->addProperty($schema, $path, $property, $required);
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
+     * @param callable(string): ?string $normalizeRegexForJsonSchema
      */
     public function applyRuleConstraint(
         array &$property,
@@ -66,7 +46,18 @@ final class JsonSchemaExporter
         array $params,
         callable $normalizeRegexForJsonSchema,
     ): void {
-        $type = $this->primaryType($property['type'] ?? 'string');
+        $rawType = $property['type'] ?? 'string';
+        if (is_string($rawType)) {
+            $type = $this->primaryType($rawType);
+        } elseif (is_array($rawType)) {
+            $types = array_values(array_filter(
+                $rawType,
+                is_string(...),
+            ));
+            $type = $this->primaryType($types === [] ? 'string' : $types);
+        } else {
+            $type = 'string';
+        }
 
         if ($this->applyFormatConstraint($property, $ruleName)) {
             return;
@@ -86,13 +77,15 @@ final class JsonSchemaExporter
 
         $this->applyRegexConstraint($property, $ruleName, $params, $normalizeRegexForJsonSchema);
     }
+
     /**
-     * @param array<string,string|array<int,mixed>> $rules
-     * @param array<string,mixed> $schema
-     * @param array<string,mixed> $schemaSanitizers
-     * @param array<string,mixed> $schemaCasts
-     *
-     * @return array<string,mixed>
+     * @param array<int|string, mixed> $rules
+     * @param array<int|string, mixed> $schema
+     * @param array<int|string, mixed> $schemaSanitizers
+     * @param array<int|string, mixed> $schemaCasts
+     * @param callable(object): string $resolveRuleNameForObject
+     * @param callable(string): ?string $normalizeRegexForJsonSchema
+     * @return JsonNode
      */
     public function export(
         array $rules,
@@ -102,51 +95,35 @@ final class JsonSchemaExporter
         callable $resolveRuleNameForObject,
         callable $normalizeRegexForJsonSchema,
     ): array {
-        $document = [
-            '$schema' => 'https://json-schema.org/draft/2020-12/schema',
-            'type' => 'object',
-            'properties' => [],
-            'required' => [],
-        ];
+        $document = $this->initializeDocument();
 
         foreach ($rules as $field => $definition) {
-            $parsedRules = $this->parseRuleDefinitions($definition, $resolveRuleNameForObject);
-            $ruleNames = array_column($parsedRules, 'name');
-            $property = ['type' => $this->inferJsonSchemaType($ruleNames)];
-
-            foreach ($parsedRules as $rule) {
-                $this->applyRuleConstraint(
-                    $property,
-                    $rule['name'],
-                    $rule['params'],
-                    $normalizeRegexForJsonSchema,
-                );
+            if (!is_string($field) || (!is_string($definition) && !is_array($definition))) {
+                continue;
             }
+            $ruleDefinition = is_array($definition) ? array_values($definition) : $definition;
 
-            if (in_array('nullable', $ruleNames, true)) {
-                $this->applyNullableType($property);
-            }
-
-            if (isset($schemaSanitizers[$field])) {
-                $property['x-reqshield-sanitizers'] = $schemaSanitizers[$field];
-            }
-
-            if (isset($schemaCasts[$field])) {
-                $property['x-reqshield-cast'] = $schemaCasts[$field];
-            }
-
-            $isRequired = isset($schema[$field]) && !$schema[$field]->isOptional;
+            $property = $this->buildPropertyForField(
+                $field,
+                $ruleDefinition,
+                $schemaSanitizers,
+                $schemaCasts,
+                $resolveRuleNameForObject,
+                $normalizeRegexForJsonSchema,
+            );
+            $node = $schema[$field] ?? null;
+            $isRequired = $node instanceof ValidationNode && !$node->isOptional;
             $this->addProperty($document, $field, $property, $isRequired);
         }
 
-        $this->normalizeSchemaNode($document);
+        if ($this->nodeBuilder !== null) {
+            $this->nodeBuilder->normalizeNode($document);
+        }
 
-        return $document;
+        return $this->finalizeDocument($document);
     }
 
-    /**
-     * @param array<string,mixed> $property
-     */
+    /** @param JsonNode $property */
     protected function applyBound(
         array &$property,
         string $type,
@@ -179,8 +156,8 @@ final class JsonSchemaExporter
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyBoundedConstraint(
         array &$property,
@@ -218,8 +195,8 @@ final class JsonSchemaExporter
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyDigitPatternConstraint(
         array &$property,
@@ -234,12 +211,12 @@ final class JsonSchemaExporter
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyDigitRangePattern(array &$property, array $params): bool
     {
-        if (!isset($params[0], $params[1])) {
+        if (!isset($params[0], $params[1]) || !is_numeric($params[0]) || !is_numeric($params[1])) {
             return false;
         }
 
@@ -251,8 +228,8 @@ final class JsonSchemaExporter
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyEnumConstraint(
         array &$property,
@@ -269,12 +246,12 @@ final class JsonSchemaExporter
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyFixedDigitPattern(array &$property, array $params): bool
     {
-        if (!isset($params[0])) {
+        if (!isset($params[0]) || !is_numeric($params[0])) {
             return false;
         }
 
@@ -286,9 +263,7 @@ final class JsonSchemaExporter
         return true;
     }
 
-    /**
-     * @param array<string,mixed> $property
-     */
+    /** @param JsonNode $property */
     protected function applyFormatConstraint(
         array &$property,
         string $ruleName,
@@ -326,26 +301,16 @@ final class JsonSchemaExporter
         return false;
     }
 
-    /**
-     * @param array<string,mixed> $property
-     */
+    /** @param JsonNode $property */
     protected function applyNullableType(array &$property): void
     {
-        $type = $property['type'] ?? 'string';
-        if (is_string($type)) {
-            $property['type'] = [$type, 'null'];
-
-            return;
-        }
-
-        if (is_array($type) && !in_array('null', $type, true)) {
-            $property['type'][] = 'null';
-        }
+        JsonSchemaTypeHelper::applyNullableType($property);
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
+     * @param callable(string): ?string $normalizeRegexForJsonSchema
      */
     protected function applyRegexConstraint(
         array &$property,
@@ -364,31 +329,71 @@ final class JsonSchemaExporter
     }
 
     /**
-     * @param array<string,mixed> $node
+     * @param RuleDefinition $definition
+     * @param array<int|string, mixed> $schemaSanitizers
+     * @param array<int|string, mixed> $schemaCasts
+     * @param callable(object): string $resolveRuleNameForObject
+     * @param callable(string): ?string $normalizeRegexForJsonSchema
+     * @return JsonNode
      */
-    protected function ensureArrayNode(array &$node): void
-    {
-        $node['type'] = 'array';
-        if (!isset($node['items']) || !is_array($node['items'])) {
-            $node['items'] = ['type' => 'object', 'properties' => []];
+    protected function buildPropertyForField(
+        string $field,
+        string|array $definition,
+        array $schemaSanitizers,
+        array $schemaCasts,
+        callable $resolveRuleNameForObject,
+        callable $normalizeRegexForJsonSchema,
+    ): array {
+        $parsedRules = $this->parseRuleDefinitions($definition, $resolveRuleNameForObject);
+        $ruleNames = array_values(array_filter(
+            array_column($parsedRules, 'name'),
+            static fn(string $name): bool => $name !== '',
+        ));
+        $property = ['type' => $this->inferJsonSchemaType($ruleNames)];
+
+        foreach ($parsedRules as $rule) {
+            $this->applyRuleConstraint(
+                $property,
+                $rule['name'],
+                $rule['params'],
+                $normalizeRegexForJsonSchema,
+            );
         }
+
+        if (in_array('nullable', $ruleNames, true)) {
+            $this->applyNullableType($property);
+        }
+
+        if (isset($schemaSanitizers[$field])) {
+            $property['x-reqshield-sanitizers'] = $schemaSanitizers[$field];
+        }
+
+        if (isset($schemaCasts[$field])) {
+            $property['x-reqshield-cast'] = $schemaCasts[$field];
+        }
+
+        return $property;
     }
 
     /**
-     * @param array<string,mixed> $node
+     * @param JsonNode $document
+     * @return JsonNode
      */
-    protected function ensureObjectNode(array &$node): void
+    protected function finalizeDocument(array $document): array
     {
-        if (($node['type'] ?? 'object') !== 'object') {
-            $node['type'] = 'object';
-        }
-
-        $node['properties'] ??= [];
+        return [
+            '$schema' => is_string($document['$schema'] ?? null)
+                ? $document['$schema']
+                : 'https://json-schema.org/draft/2020-12/schema',
+            'type' => is_string($document['type'] ?? null) ? $document['type'] : 'object',
+            'properties' => isset($document['properties']) && is_array($document['properties'])
+                ? $document['properties']
+                : [],
+            'required' => $this->requiredListFromDocument($document),
+        ];
     }
 
-    /**
-     * @param array<int,string> $ruleNames
-     */
+    /** @param array<int, string> $ruleNames */
     protected function inferJsonSchemaType(array $ruleNames): string
     {
         if (in_array('array', $ruleNames, true) || in_array('is_list', $ruleNames, true)) {
@@ -410,37 +415,24 @@ final class JsonSchemaExporter
         return 'string';
     }
 
-    /**
-     * @param array<string,mixed> $node
-     */
-    protected function normalizeSchemaNode(array &$node): void
+    /** @return JsonNode */
+    protected function initializeDocument(): array
     {
-        if (isset($node['required']) && is_array($node['required'])) {
-            $node['required'] = array_values(array_unique($node['required']));
-        }
-
-        if (isset($node['properties']) && is_array($node['properties'])) {
-            foreach ($node['properties'] as &$child) {
-                if (is_array($child)) {
-                    $this->normalizeSchemaNode($child);
-                }
-            }
-        }
-
-        if (isset($node['items']) && is_array($node['items'])) {
-            $this->normalizeSchemaNode($node['items']);
-        }
+        return [
+            '$schema' => 'https://json-schema.org/draft/2020-12/schema',
+            'type' => 'object',
+            'properties' => [],
+            'required' => [],
+        ];
     }
 
     /**
-     * @param string|array<int,mixed> $definition
-     *
-     * @return array<int,array{name:string,params:array<int,mixed>}>
+     * @param RuleDefinition $definition
+     * @param callable(object): string $resolveRuleNameForObject
+     * @return ParsedRuleList
      */
-    protected function parseRuleDefinitions(
-        string|array $definition,
-        callable $resolveRuleNameForObject,
-    ): array {
+    protected function parseRuleDefinitions(string|array $definition, callable $resolveRuleNameForObject): array
+    {
         $rules = is_string($definition) ? RuleExpressionParser::splitRules($definition) : $definition;
         $parsed = [];
 
@@ -448,6 +440,7 @@ final class JsonSchemaExporter
             if (is_string($rule)) {
                 [$name, $params] = RuleExpressionParser::parse($rule);
                 $parsed[] = ['name' => $name, 'params' => $params];
+
                 continue;
             }
 
@@ -457,7 +450,7 @@ final class JsonSchemaExporter
 
             $name = $resolveRuleNameForObject($rule);
             $parsed[] = [
-                'name' => is_string($name) ? $name : '',
+                'name' => $name,
                 'params' => [],
             ];
         }
@@ -468,6 +461,7 @@ final class JsonSchemaExporter
         ));
     }
 
+    /** @param string|array<int, string> $type */
     protected function primaryType(string|array $type): string
     {
         if (is_string($type)) {
@@ -476,10 +470,26 @@ final class JsonSchemaExporter
 
         foreach ($type as $item) {
             if ($item !== 'null') {
-                return (string) $item;
+                return $item;
             }
         }
 
         return 'string';
+    }
+
+    /**
+     * @param JsonNode $document
+     * @return array<int, string>
+     */
+    protected function requiredListFromDocument(array $document): array
+    {
+        if (!isset($document['required']) || !is_array($document['required'])) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $document['required'],
+            is_string(...),
+        ));
     }
 }

@@ -10,7 +10,6 @@ require __DIR__ . '/../vendor/autoload.php';
 function progressPercent(int $completed, int $total, bool $forceNewline = false): void
 {
     static $isTty = null;
-    static $lastWidth = 0;
     static $lastPercent = -1;
 
     $total = max(1, $total);
@@ -18,41 +17,52 @@ function progressPercent(int $completed, int $total, bool $forceNewline = false)
     $percent = max(0, min(100, $percent));
 
     if ($isTty === null) {
-        $isTty = function_exists('stream_isatty') ? stream_isatty(STDOUT) : false;
+        $isTty = function_exists('stream_isatty') && stream_isatty(STDOUT);
     }
-    if ($percent === $lastPercent) {
-        if ($forceNewline && $isTty && $lastWidth > 0) {
-            echo PHP_EOL;
-            $lastWidth = 0;
-        }
+    if ($percent === $lastPercent && !$forceNewline) {
         return;
     }
 
     $text = '[progress] ' . $percent . '%';
-
-    if ($isTty) {
-        $len = strlen($text);
-        $pad = $lastWidth > $len ? str_repeat(' ', $lastWidth - $len) : '';
-        echo "\r" . $text . $pad;
-        $lastWidth = max($lastWidth, $len);
-        if ($forceNewline) {
-            echo PHP_EOL;
-            $lastWidth = 0;
-        }
-    } else {
-        echo $text . PHP_EOL;
-    }
-
+    renderProgressLine($text, $isTty === true, 0, $forceNewline);
     $lastPercent = $percent;
 
+    flushProgressOutput();
+}
+
+function flushProgressOutput(): void
+{
     if (function_exists('ob_get_level') && ob_get_level() > 0) {
-        @ob_flush();
+        ob_flush();
     }
-    @flush();
+
+    flush();
+}
+
+function renderProgressLine(string $text, bool $isTty, int $width, bool $forceNewline): int
+{
+    if (!$isTty) {
+        fwrite(STDOUT, $text . PHP_EOL);
+
+        return $width;
+    }
+
+    $len = strlen($text);
+    $padding = $width - $len;
+    $pad = $padding > 0 ? str_repeat(' ', $padding) : '';
+    fwrite(STDOUT, "\r" . $text . $pad);
+
+    if ($forceNewline) {
+        fwrite(STDOUT, PHP_EOL);
+
+        return 0;
+    }
+
+    return max($width, $len);
 }
 
 /**
- * @param array<int,float> $samples
+ * @param array<int, float> $samples
  */
 function percentile(array $samples, float $percentile): float
 {
@@ -63,17 +73,20 @@ function percentile(array $samples, float $percentile): float
     sort($samples);
     $index = (int) floor((count($samples) - 1) * $percentile);
 
-    return $samples[$index] ?? 0.0;
+    return (float) ($samples[$index] ?? 0.0);
 }
 
 /**
+ * @param callable(): Validator $buildValidator
+ * @param array<string, mixed> $payload
+ * @param null|callable(int): void $advance
  * @return array{
- *   scenario:string,
- *   iterations:int,
- *   throughput:float,
- *   p50:float,
- *   p95:float,
- *   peakMb:float
+ *     scenario: string,
+ *     iterations: int,
+ *     throughput: float,
+ *     p50: float,
+ *     p95: float,
+ *     peakMb: float
  * }
  */
 function runScenario(
@@ -100,6 +113,7 @@ function runScenario(
         memory_reset_peak_usage();
     }
 
+    /** @var array<int, float> $samples */
     $samples = [];
     $start = hrtime(true);
     $runReported = 0;
@@ -181,6 +195,7 @@ $dbPayload = [
     'team_code' => 'ENG',
 ];
 
+/** @var array<int, array{scenario: string, iterations: int, throughput: float, p50: float, p95: float, peakMb: float}> $results */
 $results = [];
 
 $totalUnits = (300 + 3000) + (300 + 3000) + (200 + 2000);
@@ -241,25 +256,25 @@ $results[] = runScenario(
 
 progressPercent($totalUnits, $totalUnits, true);
 
-echo PHP_EOL . 'ReqShield Validator Benchmark' . PHP_EOL;
-echo str_repeat('=', 92) . PHP_EOL;
-echo str_pad('Scenario', 24)
+fwrite(STDOUT, PHP_EOL . 'ReqShield Validator Benchmark' . PHP_EOL);
+fwrite(STDOUT, str_repeat('=', 92) . PHP_EOL);
+fwrite(STDOUT, str_pad('Scenario', 24)
     . str_pad('Iter', 10)
     . str_pad('Throughput (ops/s)', 22)
     . str_pad('P50 (ms)', 14)
     . str_pad('P95 (ms)', 14)
     . str_pad('Peak MB', 8)
-    . PHP_EOL;
-echo str_repeat('-', 92) . PHP_EOL;
+    . PHP_EOL);
+fwrite(STDOUT, str_repeat('-', 92) . PHP_EOL);
 
 foreach ($results as $row) {
-    echo str_pad($row['scenario'], 24)
+    fwrite(STDOUT, str_pad((string) $row['scenario'], 24)
         . str_pad((string) $row['iterations'], 10)
         . str_pad(number_format($row['throughput'], 2), 22)
         . str_pad(number_format($row['p50'], 4), 14)
         . str_pad(number_format($row['p95'], 4), 14)
         . str_pad(number_format($row['peakMb'], 2), 8)
-        . PHP_EOL;
+        . PHP_EOL);
 }
 
-echo str_repeat('=', 92) . PHP_EOL;
+fwrite(STDOUT, str_repeat('=', 92) . PHP_EOL);

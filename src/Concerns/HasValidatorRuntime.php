@@ -5,9 +5,36 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Concerns;
 
 use Infocyph\ReqShield\Contracts\Rule;
+use Infocyph\ReqShield\Support\JsonSchemaTypeHelper;
+use Infocyph\ReqShield\Support\ValueStringifier;
 
+/**
+ * @phpstan-type ParsedRule array{name:string, params:array<int, mixed>}
+ * @phpstan-type ParsedRuleList array<int, ParsedRule>
+ * @phpstan-type RuleMap array<int|string, mixed>
+ * @phpstan-type RulePlaceholderMap array<int, array<string, mixed>>
+ * @phpstan-type ValidationFailure array{
+ *   field:string,
+ *   rule:string,
+ *   message:string,
+ *   value:mixed
+ * }
+ * @phpstan-type ExpensiveBatchItem array{
+ *   rule:Rule,
+ *   rule_name:string,
+ *   value:mixed,
+ *   field:string,
+ *   field_label:string,
+ *   message_resolver:callable(): string
+ * }
+ * @phpstan-type ValidationContext array<string, mixed>
+ */
 trait HasValidatorRuntime
 {
+    /**
+     * @param array<string, mixed> $tokens
+     * @param array<int|string, mixed> $data
+     */
     protected function appendFallbackValueToken(
         array &$tokens,
         string $field,
@@ -18,6 +45,7 @@ trait HasValidatorRuntime
         }
     }
 
+    /** @param array<string, mixed> $property */
     protected function appendJsonSchemaMetadataExtensions(
         array &$property,
         string $field,
@@ -31,6 +59,7 @@ trait HasValidatorRuntime
         }
     }
 
+    /** @param array<string, mixed> $tokens */
     protected function appendOtherTokenFromMultiFieldRule(
         array &$tokens,
         object $rule,
@@ -44,12 +73,21 @@ trait HasValidatorRuntime
             return;
         }
 
-        $tokens['other'] = implode(', ', array_map(
-            fn(mixed $other): string => $this->fieldAliasResolver->get((string) $other),
-            $otherFields,
-        ));
+        $aliases = [];
+        foreach ($otherFields as $other) {
+            if (!is_scalar($other) && !(is_object($other) && method_exists($other, '__toString'))) {
+                continue;
+            }
+
+            $aliases[] = $this->fieldAliasResolver->get($this->valueToString($other));
+        }
+
+        if ($aliases !== []) {
+            $tokens['other'] = implode(', ', $aliases);
+        }
     }
 
+    /** @param array<string, mixed> $tokens */
     protected function appendOtherTokenFromRule(
         array &$tokens,
         object $rule,
@@ -63,6 +101,7 @@ trait HasValidatorRuntime
         }
     }
 
+    /** @param array<string, mixed> $tokens */
     protected function appendOtherTokenFromSingleFieldRule(
         array &$tokens,
         object $rule,
@@ -79,6 +118,10 @@ trait HasValidatorRuntime
         $tokens['other'] = $this->fieldAliasResolver->get($otherField);
     }
 
+    /**
+     * @param array<int|string, mixed> $property
+     * @param array<int, string> $ruleNames
+     */
     protected function applyNullableTypeToJsonSchemaProperty(
         array &$property,
         array $ruleNames,
@@ -87,18 +130,13 @@ trait HasValidatorRuntime
             return;
         }
 
-        $type = $property['type'] ?? 'string';
-        if (is_string($type)) {
-            $property['type'] = [$type, 'null'];
-
-            return;
-        }
-
-        if (is_array($type) && !in_array('null', $type, true)) {
-            $property['type'][] = 'null';
-        }
+        JsonSchemaTypeHelper::applyNullableType($property);
     }
 
+    /**
+     * @param array<int|string, mixed> $property
+     * @param ParsedRuleList $parsedRules
+     */
     protected function applyRuleConstraintsToJsonSchemaProperty(
         array &$property,
         array $parsedRules,
@@ -112,6 +150,7 @@ trait HasValidatorRuntime
         }
     }
 
+    /** @return array<string, string> */
     protected function baseMessageTokens(
         string $field,
         string $fieldLabel,
@@ -127,6 +166,12 @@ trait HasValidatorRuntime
             'input' => $this->valueToString($value),
         ];
     }
+
+    /**
+     * @param array<int|string, mixed> $data
+     * @param array<string, mixed> $rulePlaceholders
+     * @return array<int|string, mixed>
+     */
     protected function buildMessageTokens(
         string $field,
         string $fieldLabel,
@@ -151,10 +196,8 @@ trait HasValidatorRuntime
     }
 
     /**
-     * @return array{
-     *   parsedRules: array<int,array{name:string,params:array<int,mixed>}>,
-     *   ruleNames: array<int,string>
-     * }
+     * @param string|array<int, mixed> $definition
+     * @return array{parsedRules: ParsedRuleList, ruleNames: array<int, string>}
      */
     protected function buildRuleContextForJsonSchema(
         string|array $definition,
@@ -167,6 +210,10 @@ trait HasValidatorRuntime
         ];
     }
 
+    /**
+     * @param array<int|string, mixed> $data
+     * @param array<string, mixed> $placeholders
+     */
     protected function buildRuleFailureMessage(
         Rule $rule,
         string $ruleName,
@@ -192,6 +239,7 @@ trait HasValidatorRuntime
             : $this->interpolateMessage($rule->message($fieldLabel), $tokens);
     }
 
+    /** @param RuleMap $rules */
     protected function buildRulesCacheKey(array $rules): string
     {
         return hash(
@@ -248,27 +296,16 @@ trait HasValidatorRuntime
 
     protected function castToString(mixed $value): string
     {
-        if (is_string($value)) {
-            return $value;
-        }
-
-        if (is_scalar($value)) {
-            return (string) $value;
-        }
-
-        if (is_object($value) && method_exists($value, '__toString')) {
-            return (string) $value;
-        }
-
-        try {
-            $encoded = json_encode($value, JSON_THROW_ON_ERROR);
-
-            return is_string($encoded) ? $encoded : '';
-        } catch (\Throwable) {
-            return '';
-        }
+        return ValueStringifier::stringify($value);
     }
 
+    /**
+     * @param array<int, Rule> $rules
+     * @param array<int, string> $ruleNames
+     * @param RulePlaceholderMap $rulePlaceholders
+     * @param array<int|string, mixed> $data
+     * @param array<int, ExpensiveBatchItem> $batch
+     */
     protected function collectExpensiveRules(
         array $rules,
         array $ruleNames,
@@ -315,6 +352,7 @@ trait HasValidatorRuntime
         }
     }
 
+    /** @return array<string,array<string,mixed>> */
     protected function defaultLocalePacks(): array
     {
         return [
@@ -343,6 +381,10 @@ trait HasValidatorRuntime
         ];
     }
 
+    /**
+     * @param array<int|string, mixed> $data
+     * @param RuleMap $rules
+     */
     protected function evaluateCondition(
         mixed $condition,
         array $data,
@@ -362,29 +404,51 @@ trait HasValidatorRuntime
         );
     }
 
+    /** @param array<string, mixed> $context */
     protected function executeBatchedRules(array &$context): void
     {
+        $batchRaw = isset($context['expensiveBatch']) && is_array($context['expensiveBatch'])
+            ? $context['expensiveBatch']
+            : [];
+        $errorsRaw = isset($context['errors']) && is_array($context['errors'])
+            ? $context['errors']
+            : [];
+        $failuresRaw = isset($context['failures']) && is_array($context['failures'])
+            ? $context['failures']
+            : [];
+
+        $batch = $this->normalizeBatchPayload($batchRaw);
+        $errors = $this->normalizeErrorPayload($errorsRaw);
+        $failures = $this->normalizeFailurePayload($failuresRaw);
+
         if (
-            empty($context['expensiveBatch'])
-            || (!empty($context['errors']) && $this->stopOnFirstError)
+            empty($batch)
+            || (!empty($errors) && $this->stopOnFirstError)
         ) {
             return;
         }
 
         $this->batchExecutor->executeBatch(
-            $context['expensiveBatch'],
-            $context['errors'],
-            $context['failures'],
+            $batch,
+            $errors,
+            $failures,
         );
+        $context['expensiveBatch'] = $batch;
+        $context['errors'] = $errors;
+        $context['failures'] = $failures;
 
-        if (!empty($context['errors'])) {
+        if (!empty($errors)) {
+            $validated = isset($context['validated']) && is_array($context['validated'])
+                ? $context['validated']
+                : [];
             $context['validated'] = array_diff_key(
-                $context['validated'],
-                $context['errors'],
+                $validated,
+                $errors,
             );
         }
     }
 
+    /** @return array<int|string, mixed> */
     protected function exportJsonSchema(): array
     {
         return $this->jsonSchemaExporter->export(
@@ -392,7 +456,9 @@ trait HasValidatorRuntime
             $this->schema,
             $this->schemaSanitizers,
             $this->schemaCasts,
-            fn(object $rule): string => $this->compiler->getRuleNameForRule($rule),
+            fn(object $rule): string => $rule instanceof Rule
+                ? $this->compiler->getRuleNameForRule($rule)
+                : '',
             fn(string $pattern): ?string => $this->normalizeRegexForJsonSchema($pattern),
         );
     }
@@ -406,37 +472,56 @@ trait HasValidatorRuntime
         return str_starts_with($shortName, $prefix);
     }
 
+    /** @param array<int, string> $ruleNames */
     protected function inferJsonSchemaType(array $ruleNames): string
     {
-        if (in_array('array', $ruleNames, true) || in_array('is_list', $ruleNames, true)) {
-            return 'array';
-        }
+        $typesByRule = [
+            'array' => 'array',
+            'is_list' => 'array',
+            'integer' => 'integer',
+            'numeric' => 'number',
+            'decimal' => 'number',
+            'boolean' => 'boolean',
+        ];
 
-        if (in_array('integer', $ruleNames, true)) {
-            return 'integer';
-        }
-
-        if (in_array('numeric', $ruleNames, true) || in_array('decimal', $ruleNames, true)) {
-            return 'number';
-        }
-
-        if (in_array('boolean', $ruleNames, true)) {
-            return 'boolean';
+        foreach ($ruleNames as $ruleName) {
+            $mappedType = $typesByRule[$ruleName] ?? null;
+            if (is_string($mappedType)) {
+                return $mappedType;
+            }
         }
 
         return 'string';
     }
 
+    /**
+     * @return array{
+     *   '$schema':string,
+     *   type:string,
+     *   properties:array<string, mixed>,
+     *   required:array<int, string>
+     * }
+     */
     protected function initializeJsonSchemaDocument(): array
     {
-        return [
+        $document = [
             '$schema' => 'https://json-schema.org/draft/2020-12/schema',
             'type' => 'object',
-            'properties' => [],
-            'required' => [],
         ];
+        $document['properties'] = [];
+        $document['required'] = [];
+
+        return $document;
     }
 
+    /**
+     * @return array{
+     *   errors:array<string,array<int,string>>,
+     *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
+     *   validated:array<string,mixed>,
+     *   expensiveBatch:array<int,ExpensiveBatchItem>
+     * }
+     */
     protected function initializeValidationContext(): array
     {
         return [
@@ -447,6 +532,7 @@ trait HasValidatorRuntime
         ];
     }
 
+    /** @param array<int|string, mixed> $tokens */
     protected function interpolateMessage(string $template, array $tokens): string
     {
         if ($template === '' || !str_contains($template, ':')) {
@@ -455,7 +541,7 @@ trait HasValidatorRuntime
 
         $replace = [];
         foreach ($tokens as $key => $value) {
-            if (!is_string($key) || $key === '') {
+            if ($key === '') {
                 continue;
             }
 
@@ -465,6 +551,10 @@ trait HasValidatorRuntime
         return strtr($template, $replace);
     }
 
+    /**
+     * @param array<string, mixed> $tokens
+     * @param array<string, mixed> $rulePlaceholders
+     */
     protected function mergeRulePlaceholders(
         array &$tokens,
         array $rulePlaceholders,
@@ -474,6 +564,118 @@ trait HasValidatorRuntime
         }
     }
 
+    /**
+     * @param array<int|string, mixed> $batchRaw
+     * @return array<int, array{
+     *   rule:Rule,
+     *   value:mixed,
+     *   field:string,
+     *   rule_name?:string,
+     *   field_label?:string,
+     *   message?:string,
+     *   message_resolver?:callable(): string
+     * }>
+     */
+    protected function normalizeBatchPayload(array $batchRaw): array
+    {
+        $batch = [];
+
+        foreach ($batchRaw as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $rule = $item['rule'] ?? null;
+            $field = $item['field'] ?? null;
+
+            if (!$rule instanceof Rule || !is_string($field) || $field === '') {
+                continue;
+            }
+
+            $normalized = [
+                'rule' => $rule,
+                'value' => $item['value'] ?? null,
+                'field' => $field,
+            ];
+
+            if (isset($item['rule_name']) && is_string($item['rule_name'])) {
+                $normalized['rule_name'] = $item['rule_name'];
+            }
+
+            if (isset($item['field_label']) && is_string($item['field_label'])) {
+                $normalized['field_label'] = $item['field_label'];
+            }
+
+            if (isset($item['message']) && is_string($item['message'])) {
+                $normalized['message'] = $item['message'];
+            }
+
+            if (isset($item['message_resolver']) && is_callable($item['message_resolver'])) {
+                $resolver = $item['message_resolver'];
+                $normalized['message_resolver'] = fn(): string => $this->stringifyTokenValue($resolver());
+            }
+
+            $batch[] = $normalized;
+        }
+
+        return $batch;
+    }
+
+    /**
+     * @param array<int|string, mixed> $errorsRaw
+     * @return array<string, array<int, string>>
+     */
+    protected function normalizeErrorPayload(array $errorsRaw): array
+    {
+        $errors = [];
+
+        foreach ($errorsRaw as $field => $messages) {
+            if (!is_string($field) || !is_array($messages)) {
+                continue;
+            }
+
+            $errors[$field] = array_values(array_filter(
+                $messages,
+                is_string(...),
+            ));
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int|string, mixed> $failuresRaw
+     * @return array<int, array{field:string,rule:string,message:string,value:mixed}>
+     */
+    protected function normalizeFailurePayload(array $failuresRaw): array
+    {
+        $failures = [];
+
+        foreach ($failuresRaw as $failure) {
+            if (!is_array($failure)) {
+                continue;
+            }
+
+            $field = $failure['field'] ?? null;
+            $rule = $failure['rule'] ?? null;
+            $message = $failure['message'] ?? null;
+
+            if (!is_string($field) || !is_string($rule) || !is_string($message)) {
+                continue;
+            }
+
+            $failures[] = [
+                'field' => $field,
+                'rule' => $rule,
+                'message' => $message,
+                'value' => $failure['value'] ?? null,
+            ];
+        }
+
+        return $failures;
+    }
+
+    /** @param array<string, mixed> $tokens */
     protected function normalizeOtherToken(array &$tokens): void
     {
         if (isset($tokens['other']) && is_string($tokens['other'])) {

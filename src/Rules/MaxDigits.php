@@ -7,23 +7,15 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * MaxDigits Rule - Cost: 5
  */
-class MaxDigits extends BaseRule
+class MaxDigits extends AbstractDigitCountRule
 {
-    public function __construct(protected int $max) {}
-
-    public function cost(): int
-    {
-        return 5;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must not exceed {$this->max} digits.";
+        return "The {$field} must not exceed {$this->digits} digits.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function passesForDigitCount(int $count): bool
     {
-        return is_numeric($value) && strlen((string) $value) <= $this->max;
+        return $count <= $this->digits;
     }
-
 }

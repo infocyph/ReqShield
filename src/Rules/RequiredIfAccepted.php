@@ -7,32 +7,16 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * RequiredIfAccepted Rule - Cost: 2
  */
-class RequiredIfAccepted extends BaseRule
+class RequiredIfAccepted extends AbstractRequiredIfStateRule
 {
-    public function __construct(protected string $otherField) {}
-
-    public function cost(): int
+    protected function triggerLabel(): string
     {
-        return 2;
+        return 'accepted';
     }
 
-    public function message(string $field): string
+    /** @return list<string|int|bool> */
+    protected function triggerValues(): array
     {
-        return "The {$field} is required when {$this->otherField} is accepted.";
+        return ['yes', 'on', '1', 1, true, 'true'];
     }
-
-    public function passes(mixed $value, string $field, array $data): bool
-    {
-        $acceptable = ['yes', 'on', '1', 1, true, 'true'];
-        if (!array_key_exists($this->otherField, $data) || !in_array(
-            $data[$this->otherField],
-            $acceptable,
-            true,
-        )) {
-            return true;
-        }
-
-        return !$this->isEmpty($value);
-    }
-
 }

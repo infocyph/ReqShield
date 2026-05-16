@@ -24,10 +24,11 @@ class Different extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return !array_key_exists(
             $this->otherField,
             $data,
         ) || $value !== $data[$this->otherField];
     }
-
 }

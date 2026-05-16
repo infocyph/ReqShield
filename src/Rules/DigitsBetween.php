@@ -23,6 +23,7 @@ class DigitsBetween extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if (!is_numeric($value)) {
             return false;
         }
@@ -30,5 +31,4 @@ class DigitsBetween extends BaseRule
 
         return $length >= $this->min && $length <= $this->max;
     }
-
 }

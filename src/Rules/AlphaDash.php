@@ -9,24 +9,15 @@ namespace Infocyph\ReqShield\Rules;
  * Validates that a value contains only alphanumeric characters, dashes, and
  * underscores.
  */
-class AlphaDash extends BaseRule
+class AlphaDash extends AbstractStringPatternRule
 {
-    public function cost(): int
-    {
-        return 15;
-    }
-
     public function message(string $field): string
     {
         return "The {$field} may only contain letters, numbers, dashes, and underscores.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function pattern(): string
     {
-        return is_string($value) && preg_match(
-            '/^[a-zA-Z0-9_-]+$/',
-            $value,
-        ) === 1;
+        return '/^[a-zA-Z0-9_-]+$/';
     }
-
 }

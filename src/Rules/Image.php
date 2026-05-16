@@ -7,7 +7,7 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * Image Rule - Cost: 25
  */
-class Image extends BaseRule
+class Image extends AbstractImageFileRule
 {
     public function cost(): int
     {
@@ -21,14 +21,8 @@ class Image extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $path = $this->getUploadedFilePath($value);
-        if ($path === null) {
-            return false;
-        }
+        $this->consumeRuleContext($value, $field, $data);
 
-        $imageInfo = @getimagesize($path);
-
-        return $imageInfo !== false;
+        return $this->getImageInfo($value) !== false;
     }
-
 }

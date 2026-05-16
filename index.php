@@ -10,16 +10,123 @@ use Infocyph\ReqShield\Sanitizer;
 use Infocyph\ReqShield\Support\FieldAlias;
 use Infocyph\ReqShield\Validator;
 
-echo "╔════════════════════════════════════════════════════════════╗\n";
-echo "║        ReqShield - Complete Examples (103 Rules!)         ║\n";
-echo "║              100% Rule Coverage Demonstration              ║\n";
-echo "╚════════════════════════════════════════════════════════════╝\n\n";
+/**
+ * @return array<string, array<int, string>>
+ */
+function normalizeErrorBag(mixed $errors): array
+{
+    if (!is_array($errors)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($errors as $field => $messages) {
+        if (!is_string($field) || !is_iterable($messages)) {
+            continue;
+        }
+
+        $messageList = [];
+        foreach ($messages as $message) {
+            if (is_scalar($message)) {
+                $messageList[] = (string) $message;
+            }
+        }
+
+        if ($messageList !== []) {
+            $normalized[$field] = $messageList;
+        }
+    }
+
+    return $normalized;
+}
+
+/**
+ * @param array<string, array<int, string>> $errors
+ */
+function firstErrorForField(array $errors, string $field): string
+{
+    return $errors[$field][0] ?? 'Validation error.';
+}
+
+/** @param array<int, string> $lines */
+function writeOutputLines(array $lines): void
+{
+    foreach ($lines as $line) {
+        fwrite(STDOUT, $line . "\n");
+    }
+}
+
+/** @param array<string, array<int, string>> $errorBag */
+function writeFirstErrorLines(array $errorBag): void
+{
+    foreach ($errorBag as $field => $errors) {
+        fwrite(STDOUT, "  - {$field}: {$errors[0]}\n");
+    }
+}
+
+/** @param array<string, array<int, string>> $errorBag */
+function writeNestedErrorLines(array $errorBag): void
+{
+    foreach ($errorBag as $field => $errors) {
+        fwrite(STDOUT, "  {$field}:\n");
+        foreach ($errors as $error) {
+            fwrite(STDOUT, "    - {$error}\n");
+        }
+    }
+}
+
+function writeExampleException(Exception $e, string $example): void
+{
+    fwrite(STDOUT, "❌ ERROR in {$example}:\n");
+    fwrite(STDOUT, '  ' . $e->getMessage() . "\n");
+    fwrite(STDOUT, '  File: ' . $e->getFile() . ':' . $e->getLine() . "\n");
+}
+
+/** @param array<int, string> $errors */
+function writeErrorCountAndItems(array $errors, string $tail): void
+{
+    fwrite(STDOUT, '  Errors found: ' . count($errors) . "\n");
+    foreach ($errors as $error) {
+        fwrite(STDOUT, "    - {$error}\n");
+    }
+    fwrite(STDOUT, $tail . "\n");
+}
+
+/**
+ * @param array<int|string, mixed> $rules
+ * @param array<int|string, mixed> $data
+ * @param callable(): void $onPass
+ */
+function runValidationExample(
+    array $rules,
+    array $data,
+    callable $onPass,
+    string $failMessage = "✗ Failed:\n",
+): void {
+    $validator = Validator::make($rules);
+    $result = $validator->validate($data);
+
+    if ($result->passes()) {
+        $onPass();
+
+        return;
+    }
+
+    $errorBag = normalizeErrorBag($result->errors());
+    fwrite(STDOUT, $failMessage);
+    writeFirstErrorLines($errorBag);
+}
+
+fwrite(STDOUT, "╔════════════════════════════════════════════════════════════╗\n");
+fwrite(STDOUT, "║        ReqShield - Complete Examples (103 Rules!)         ║\n");
+fwrite(STDOUT, "║              100% Rule Coverage Demonstration              ║\n");
+fwrite(STDOUT, "╚════════════════════════════════════════════════════════════╝\n\n");
 
 // ============================================
 // Example 1: Basic Validation
 // ============================================
 
-echo "=== Example 1: Basic Validation ===\n\n";
+fwrite(STDOUT, "=== Example 1: Basic Validation ===\n\n");
 
 $validator = Validator::make([
     'email' => 'required|email|max:255',
@@ -40,15 +147,15 @@ $data = [
 $result = $validator->validate($data);
 
 if ($result->passes()) {
-    echo "✓ Validation passed!\n";
-    echo 'Validated data: ' . json_encode($result->validated(), JSON_PRETTY_PRINT) . "\n";
+    fwrite(STDOUT, "✓ Validation passed!\n");
+    fwrite(STDOUT, 'Validated data: ' . json_encode($result->validated(), JSON_PRETTY_PRINT) . "\n");
 }
 
 // ============================================
 // Example 2: Failed Validation with Field Aliases
 // ============================================
 
-echo "\n=== Example 2: Failed Validation (with Field Aliases) ===\n\n";
+fwrite(STDOUT, "\n=== Example 2: Failed Validation (with Field Aliases) ===\n\n");
 
 $invalidValidator = Validator::make([
     'user_email' => 'required|email',
@@ -77,9 +184,10 @@ $invalidData = [
 $result2 = $invalidValidator->validate($invalidData);
 
 if ($result2->fails()) {
-    echo "✗ Validation failed (with nice field names):\n";
-    foreach ($result2->errors() as $field => $errors) {
-        echo '  - ' . implode(', ', $errors) . "\n";
+    $errorBag = normalizeErrorBag($result2->errors());
+    fwrite(STDOUT, "✗ Validation failed (with nice field names):\n");
+    foreach ($errorBag as $errors) {
+        fwrite(STDOUT, '  - ' . implode(', ', $errors) . "\n");
     }
 }
 
@@ -87,7 +195,7 @@ if ($result2->fails()) {
 // Example 3: Required Field Detection (BUG FIX!)
 // ============================================
 
-echo "\n=== Example 3: Required Field Detection ===\n\n";
+fwrite(STDOUT, "\n=== Example 3: Required Field Detection ===\n\n");
 
 $requiredValidator = Validator::make([
     'email' => 'required|email',
@@ -99,17 +207,16 @@ $emptyData = [];
 $result3 = $requiredValidator->validate($emptyData);
 
 if ($result3->fails()) {
-    echo "Missing fields:\n";
-    foreach ($result3->errors() as $field => $errors) {
-        echo "  - {$field}: {$errors[0]}\n";
-    }
+    $errorBag = normalizeErrorBag($result3->errors());
+    fwrite(STDOUT, "Missing fields:\n");
+    writeFirstErrorLines($errorBag);
 }
 
 // ============================================
 // Example 4: Nested Validation (NOW WORKS!)
 // ============================================
 
-echo "\n=== Example 4: Nested Validation ===\n\n";
+fwrite(STDOUT, "\n=== Example 4: Nested Validation ===\n\n");
 
 // Use dot notation for nested fields
 $nestedValidator = Validator::make([
@@ -134,10 +241,10 @@ $nestedData = [
 $result4 = $nestedValidator->validate($nestedData);
 
 if ($result4->passes()) {
-    echo "✓ Nested validation works! All fields validated successfully.\n";
+    fwrite(STDOUT, "✓ Nested validation works! All fields validated successfully.\n");
     $validated = $result4->validated();
-    echo 'Total validated fields: ' . count($validated) . "\n";
-    echo 'Flattened keys: ' . implode(', ', array_keys($validated)) . "\n";
+    fwrite(STDOUT, 'Total validated fields: ' . count($validated) . "\n");
+    fwrite(STDOUT, 'Flattened keys: ' . implode(', ', array_keys($validated)) . "\n");
 }
 
 // Test with invalid nested data
@@ -153,17 +260,16 @@ $invalidNested = [
 
 $result4b = $nestedValidator->validate($invalidNested);
 if ($result4b->fails()) {
-    echo "\n✓ Nested validation catches errors correctly:\n";
-    foreach ($result4b->errors() as $field => $errors) {
-        echo "  - {$field}: {$errors[0]}\n";
-    }
+    $errorBag = normalizeErrorBag($result4b->errors());
+    fwrite(STDOUT, "\n✓ Nested validation catches errors correctly:\n");
+    writeFirstErrorLines($errorBag);
 }
 
 // ============================================
 // Example 5: throwOnFailure (NOW WORKS!)
 // ============================================
 
-echo "\n=== Example 5: Throw On Failure ===\n\n";
+fwrite(STDOUT, "\n=== Example 5: Throw On Failure ===\n\n");
 
 $throwValidator = Validator::make([
     'email' => 'required|email',
@@ -175,19 +281,19 @@ try {
         'email' => 'invalid',
         'age' => 15,
     ]);
-    echo "✗ Should have thrown exception!\n";
+    fwrite(STDOUT, "✗ Should have thrown exception!\n");
 } catch (ValidationException $e) {
-    echo "✓ Exception thrown as expected!\n";
-    echo 'Exception message: ' . $e->getMessage() . "\n";
-    echo 'Error count: ' . $e->getErrorCount() . " field(s)\n";
-    echo 'First error: ' . $e->getFirstFieldError('email') . "\n";
+    fwrite(STDOUT, "✓ Exception thrown as expected!\n");
+    fwrite(STDOUT, 'Exception message: ' . $e->getMessage() . "\n");
+    fwrite(STDOUT, 'Error count: ' . $e->getErrorCount() . " field(s)\n");
+    fwrite(STDOUT, 'First error: ' . $e->getFirstFieldError('email') . "\n");
 }
 
 // ============================================
 // Example 6: New Sanitizers
 // ============================================
 
-echo "\n=== Example 6: New Sanitizers ===\n\n";
+fwrite(STDOUT, "\n=== Example 6: New Sanitizers ===\n\n");
 
 // Check which sanitizers exist
 $sanitizerMethods = [
@@ -203,60 +309,58 @@ $sanitizerMethods = [
 foreach ($sanitizerMethods as $method => $input) {
     if (method_exists(Sanitizer::class, $method)) {
         $result = Sanitizer::$method($input);
-        echo ucfirst($method) . ': ' . $result . "\n";
+        fwrite(STDOUT, ucfirst($method) . ': ' . $result . "\n");
     }
 }
 
 // JSON decode (special case)
-if (method_exists(Sanitizer::class, 'jsonDecode')) {
-    $jsonResult = Sanitizer::jsonDecode('{"name":"John"}');
-    echo 'JSON: ' . json_encode($jsonResult) . "\n";
-}
+$jsonResult = Sanitizer::jsonDecode('{"name":"John"}');
+fwrite(STDOUT, 'JSON: ' . json_encode($jsonResult) . "\n");
 
-echo "\nCore sanitizers demonstrated:\n";
-echo "  - String transformations (case, format)\n";
-echo "  - Data cleaning (phone, filename)\n";
-echo "  - Security (htmlEncode)\n";
+fwrite(STDOUT, "\nCore sanitizers demonstrated:\n");
+fwrite(STDOUT, "  - String transformations (case, format)\n");
+fwrite(STDOUT, "  - Data cleaning (phone, filename)\n");
+fwrite(STDOUT, "  - Security (htmlEncode)\n");
 
 // ============================================
 // Example 7: Batch Operations (50x FASTER!)
 // ============================================
 
-echo "\n=== Example 7: Batch Operations ===\n\n";
+fwrite(STDOUT, "\n=== Example 7: Batch Operations ===\n\n");
 
 // Ensure we have enough iterations for measurable time
 $iterations = 1000;
 
 $start = microtime(true);
 for ($i = 0; $i < $iterations; $i++) {
-    FieldAlias::set("field_{$i}", "Field {$i}");
+    new FieldAlias()->set("field_{$i}", "Field {$i}");
 }
 $oldTime = (microtime(true) - $start) * 1000;
 
-FieldAlias::clear();
+new FieldAlias()->clear();
 
 $start = microtime(true);
 $aliases = array_combine(
     array_map(fn($i) => "field_{$i}", range(0, $iterations - 1)),
     array_map(fn($i) => "Field {$i}", range(0, $iterations - 1)),
 );
-FieldAlias::setBatch($aliases);
+new FieldAlias()->setBatch($aliases);
 $newTime = (microtime(true) - $start) * 1000;
 
-echo "Setting {$iterations} field aliases:\n";
-echo 'Old way (individual): ' . number_format($oldTime, 2) . "ms\n";
-echo 'New way (batch): ' . number_format($newTime, 2) . "ms\n";
+fwrite(STDOUT, "Setting {$iterations} field aliases:\n");
+fwrite(STDOUT, 'Old way (individual): ' . number_format($oldTime, 2) . "ms\n");
+fwrite(STDOUT, 'New way (batch): ' . number_format($newTime, 2) . "ms\n");
 if ($newTime > 0 && $oldTime > $newTime) {
-    echo '✓ ' . number_format($oldTime / $newTime, 1) . "x faster!\n";
+    fwrite(STDOUT, '✓ ' . number_format($oldTime / $newTime, 1) . "x faster!\n");
 } else {
-    echo "✓ Batch operation completed!\n";
+    fwrite(STDOUT, "✓ Batch operation completed!\n");
 }
 
 // ============================================
 // Example 8: String Validation Rules
 // ============================================
 
-echo "\n=== Example 8: String Validation Rules ===\n\n";
+fwrite(STDOUT, "\n=== Example 8: String Validation Rules ===\n\n");
 
 $stringValidator = Validator::make([
     'alpha' => 'alpha',
@@ -282,14 +386,13 @@ $stringData = [
 
 $result8 = $stringValidator->validate($stringData);
 if ($result8->passes()) {
-    echo "✓ All string validations passed!\n";
-    echo "  Rules tested: alpha, alpha_num, alpha_dash, ascii\n";
-    echo "  lowercase, uppercase, starts_with, ends_with\n";
+    fwrite(STDOUT, "✓ All string validations passed!\n");
+    fwrite(STDOUT, "  Rules tested: alpha, alpha_num, alpha_dash, ascii\n");
+    fwrite(STDOUT, "  lowercase, uppercase, starts_with, ends_with\n");
 } else {
-    echo "✗ Failed:\n";
-    foreach ($result8->errors() as $field => $errors) {
-        echo "  - {$field}: {$errors[0]}\n";
-    }
+    $errorBag = normalizeErrorBag($result8->errors());
+    fwrite(STDOUT, "✗ Failed:\n");
+    writeFirstErrorLines($errorBag);
 }
 
 // Test string negation rules separately (if available)
@@ -307,15 +410,15 @@ $negationData = [
 
 $result8b = $negationValidator->validate($negationData);
 if ($result8b->passes()) {
-    echo "\n✓ String negation rules also passed!\n";
-    echo "  Rules tested: doesnt_contain, doesnt_start_with, doesnt_end_with\n";
+    fwrite(STDOUT, "\n✓ String negation rules also passed!\n");
+    fwrite(STDOUT, "  Rules tested: doesnt_contain, doesnt_start_with, doesnt_end_with\n");
 }
 
 // ============================================
 // Example 9: Numeric Validation Rules
 // ============================================
 
-echo "\n=== Example 9: Numeric Validation Rules ===\n\n";
+fwrite(STDOUT, "\n=== Example 9: Numeric Validation Rules ===\n\n");
 
 $numericValidator = Validator::make([
     'integer' => 'integer|min:10|max:100',
@@ -341,31 +444,23 @@ $numericData = [
 
 $result9 = $numericValidator->validate($numericData);
 if ($result9->passes()) {
-    echo "✓ All numeric validations passed!\n";
-    echo "  Rules tested: integer, numeric, min, max, between\n";
-    echo "  digits, digits_between, min_digits, max_digits\n";
-    echo "  decimal, multiple_of\n";
+    writeOutputLines([
+        '✓ All numeric validations passed!',
+        '  Rules tested: integer, numeric, min, max, between',
+        '  digits, digits_between, min_digits, max_digits',
+        '  decimal, multiple_of',
+    ]);
 } else {
-    echo "✗ Failed:\n";
-    foreach ($result9->errors() as $field => $errors) {
-        echo "  - {$field}: {$errors[0]}\n";
-    }
+    $errorBag = normalizeErrorBag($result9->errors());
+    fwrite(STDOUT, "✗ Failed:\n");
+    writeFirstErrorLines($errorBag);
 }
 
 // ============================================
 // Example 10: Date/Time Validation Rules
 // ============================================
 
-echo "\n=== Example 10: Date/Time Validation Rules ===\n\n";
-
-$dateValidator = Validator::make([
-    'date' => 'date',
-    'date_format' => 'date_format:Y-m-d',
-    'before' => 'before:2030-01-01',
-    'after' => 'after:2020-01-01',
-    'before_or_equal' => 'before_or_equal:2025-12-31',
-    'after_or_equal' => 'after_or_equal:2024-01-01',
-]);
+fwrite(STDOUT, "\n=== Example 10: Date/Time Validation Rules ===\n\n");
 
 $dateData = [
     'date' => '2024-05-15',
@@ -376,23 +471,27 @@ $dateData = [
     'after_or_equal' => '2024-01-01',
 ];
 
-$result10 = $dateValidator->validate($dateData);
-
-if ($result10->passes()) {
-    echo "✓ All date validations passed!\n";
-    echo "  Rules tested: date, date_format, before, after\n";
-    echo "  before_or_equal, after_or_equal\n";
-} else {
-    echo "✗ Failed:\n";
-    foreach ($result10->errors() as $field => $errors) {
-        echo "  - {$field}: {$errors[0]}\n";
-    }
-}
+runValidationExample(
+    [
+        'date' => 'date',
+        'date_format' => 'date_format:Y-m-d',
+        'before' => 'before:2030-01-01',
+        'after' => 'after:2020-01-01',
+        'before_or_equal' => 'before_or_equal:2025-12-31',
+        'after_or_equal' => 'after_or_equal:2024-01-01',
+    ],
+    $dateData,
+    static function (): void {
+        fwrite(STDOUT, "✓ All date validations passed!\n");
+        fwrite(STDOUT, "  Rules tested: date, date_format, before, after\n");
+        fwrite(STDOUT, "  before_or_equal, after_or_equal\n");
+    },
+);
 // ============================================
 // Example 11: Format Validation Rules
 // ============================================
 
-echo "\n=== Example 11: Format Validation Rules ===\n\n";
+fwrite(STDOUT, "\n=== Example 11: Format Validation Rules ===\n\n");
 
 $formatValidator = Validator::make([
     'email' => 'email',
@@ -427,13 +526,13 @@ $formatData = [
 ];
 
 $result11 = $formatValidator->validate($formatData);
-echo $result11->passes() ? "✓ All format validations passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result11->passes() ? "✓ All format validations passed!\n" : "✗ Failed\n");
 
 // ============================================
 // Example 12: Array Validation Rules
 // ============================================
 
-echo "\n=== Example 12: Array Validation Rules ===\n\n";
+fwrite(STDOUT, "\n=== Example 12: Array Validation Rules ===\n\n");
 
 $arrayValidator = Validator::make([
     'array' => 'array|min:1|max:5',
@@ -450,13 +549,13 @@ $arrayData = [
 ];
 
 $result12 = $arrayValidator->validate($arrayData);
-echo $result12->passes() ? "✓ All array validations passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result12->passes() ? "✓ All array validations passed!\n" : "✗ Failed\n");
 
 // ============================================
 // Example 13: Conditional Validation Rules
 // ============================================
 
-echo "\n=== Example 13: Conditional Validation Rules ===\n\n";
+fwrite(STDOUT, "\n=== Example 13: Conditional Validation Rules ===\n\n");
 
 $conditionalValidator = Validator::make([
     'account_type' => 'required|in:personal,business',
@@ -473,13 +572,13 @@ $conditionalData = [
 ];
 
 $result13 = $conditionalValidator->validate($conditionalData);
-echo $result13->passes() ? "✓ All conditional validations passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result13->passes() ? "✓ All conditional validations passed!\n" : "✗ Failed\n");
 
 // ============================================
 // Example 14: Comparison Validation Rules
 // ============================================
 
-echo "\n=== Example 14: Comparison Validation Rules ===\n\n";
+fwrite(STDOUT, "\n=== Example 14: Comparison Validation Rules ===\n\n");
 
 $comparisonValidator = Validator::make([
     'password' => 'required|min:8',
@@ -498,13 +597,13 @@ $comparisonData = [
 ];
 
 $result14 = $comparisonValidator->validate($comparisonData);
-echo $result14->passes() ? "✓ All comparison validations passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result14->passes() ? "✓ All comparison validations passed!\n" : "✗ Failed\n");
 
 // ============================================
 // Example 15: Boolean Validation Rules
 // ============================================
 
-echo "\n=== Example 15: Boolean Validation Rules ===\n\n";
+fwrite(STDOUT, "\n=== Example 15: Boolean Validation Rules ===\n\n");
 
 $booleanValidator = Validator::make([
     'is_active' => 'boolean',
@@ -519,19 +618,20 @@ $booleanData = [
 ];
 
 $result15 = $booleanValidator->validate($booleanData);
-echo $result15->passes() ? "✓ All boolean validations passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result15->passes() ? "✓ All boolean validations passed!\n" : "✗ Failed\n");
 
 // ============================================
 // Example 16: Custom Rules with Callback
 // ============================================
 
-echo "\n=== Example 16: Custom Rules with Callback ===\n\n";
+fwrite(STDOUT, "\n=== Example 16: Custom Rules with Callback ===\n\n");
 
 $customValidator = Validator::make([
     'code' => [
         'required',
         new Callback(
-            callback: fn($value) => preg_match('/^[A-Z]{3}-\d{4}$/', $value),
+            callback: fn($value) => is_scalar($value)
+                && preg_match('/^[A-Z]{3}-\d{4}$/', (string) $value) === 1,
             cost: 20,
             message: 'Code must be in format ABC-1234',
         ),
@@ -540,7 +640,7 @@ $customValidator = Validator::make([
         'required',
         'integer',
         new Callback(
-            callback: fn($value) => $value % 2 === 0,
+            callback: fn($value) => is_numeric($value) && ((int) $value % 2 === 0),
             cost: 5,
             message: 'Number must be even',
         ),
@@ -553,13 +653,13 @@ $customData = [
 ];
 
 $result16 = $customValidator->validate($customData);
-echo $result16->passes() ? "✓ Custom validations passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result16->passes() ? "✓ Custom validations passed!\n" : "✗ Failed\n");
 
 // ============================================
 // Example 17: Fluent ValidationResult API
 // ============================================
 
-echo "\n=== Example 17: Fluent ValidationResult API ===\n\n";
+fwrite(STDOUT, "\n=== Example 17: Fluent ValidationResult API ===\n\n");
 
 $fluentValidator = Validator::make([
     'email' => 'required|email',
@@ -575,22 +675,22 @@ $fluentResult = $fluentValidator->validate([
 ]);
 
 $fluentResult
-    ->whenPasses(function ($data) {
-        echo "✓ Validation passed!\n";
+    ->whenPasses(function () {
+        fwrite(STDOUT, "✓ Validation passed!\n");
     })
-    ->whenFails(function ($errors) {
-        echo "✗ Validation failed!\n";
+    ->whenFails(function () {
+        fwrite(STDOUT, "✗ Validation failed!\n");
     });
 
-echo 'Only email & name: ' . json_encode($fluentResult->only(['email', 'name'])) . "\n";
-echo 'Except age: ' . json_encode($fluentResult->except(['age'])) . "\n";
-echo 'Has email: ' . ($fluentResult->has('email') ? 'Yes' : 'No') . "\n";
+fwrite(STDOUT, 'Only email & name: ' . json_encode($fluentResult->only(['email', 'name'])) . "\n");
+fwrite(STDOUT, 'Except age: ' . json_encode($fluentResult->except(['age'])) . "\n");
+fwrite(STDOUT, 'Has email: ' . ($fluentResult->has('email') ? 'Yes' : 'No') . "\n");
 
 // ============================================
 // Example 18: Performance Benchmark
 // ============================================
 
-echo "\n=== Example 18: Performance Benchmark ===\n\n";
+fwrite(STDOUT, "\n=== Example 18: Performance Benchmark ===\n\n");
 
 $perfValidator = Validator::make([
     'email' => 'required|email|max:255',
@@ -615,16 +715,16 @@ for ($i = 0; $i < $iterations; $i++) {
 
 $duration = (microtime(true) - $start) * 1000;
 
-echo "Performed {$iterations} validations\n";
-echo 'Total time: ' . number_format($duration, 2) . "ms\n";
-echo 'Average: ' . number_format($duration / $iterations, 4) . "ms\n";
-echo 'Per second: ' . number_format($iterations / ($duration / 1000), 0) . "\n";
+fwrite(STDOUT, "Performed {$iterations} validations\n");
+fwrite(STDOUT, 'Total time: ' . number_format($duration, 2) . "ms\n");
+fwrite(STDOUT, 'Average: ' . number_format($duration / $iterations, 4) . "ms\n");
+fwrite(STDOUT, 'Per second: ' . number_format($iterations / ($duration / 1000), 0) . "\n");
 
 // ============================================
 // Example 19: Fail-Fast Optimization
 // ============================================
 
-echo "\n=== Example 19: Fail-Fast Optimization ===\n\n";
+fwrite(STDOUT, "\n=== Example 19: Fail-Fast Optimization ===\n\n");
 
 $multiValidator = Validator::make([
     'field1' => 'required|email',
@@ -635,42 +735,42 @@ $multiData = ['field1' => '', 'field2' => ''];
 
 $multiValidator->setStopOnFirstError(true);
 $result19a = $multiValidator->validate($multiData);
-echo 'Fail-fast: ' . $result19a->errorCount() . " field(s) with errors\n";
+fwrite(STDOUT, 'Fail-fast: ' . $result19a->errorCount() . " field(s) with errors\n");
 
 $multiValidator->setStopOnFirstError(false);
 $result19b = $multiValidator->validate($multiData);
-echo 'Collect all: ' . $result19b->errorCount() . " field(s) with errors\n";
+fwrite(STDOUT, 'Collect all: ' . $result19b->errorCount() . " field(s) with errors\n");
 
 // ============================================
 // Example 20: Complete Sanitizer Showcase
 // ============================================
 
-echo "\n=== Example 20: Complete Sanitizer Showcase (51 methods!) ===\n\n";
+fwrite(STDOUT, "\n=== Example 20: Complete Sanitizer Showcase (51 methods!) ===\n\n");
 
-echo "Basic Types:\n";
-echo "  string: '" . Sanitizer::string('  <b>text</b>  ') . "'\n";
-echo '  integer: ' . Sanitizer::integer('123.45') . "\n";
-echo '  float: ' . Sanitizer::float('123.45') . "\n";
-echo '  boolean: ' . (Sanitizer::boolean('yes') ? 'true' : 'false') . "\n";
+fwrite(STDOUT, "Basic Types:\n");
+fwrite(STDOUT, "  string: '" . Sanitizer::string('  <b>text</b>  ') . "'\n");
+fwrite(STDOUT, '  integer: ' . Sanitizer::integer('123.45') . "\n");
+fwrite(STDOUT, '  float: ' . Sanitizer::float('123.45') . "\n");
+fwrite(STDOUT, '  boolean: ' . (Sanitizer::boolean('yes') ? 'true' : 'false') . "\n");
 
-echo "\nCase Conversions:\n";
-echo '  lowercase: ' . Sanitizer::lowercase('HELLO') . "\n";
-echo '  uppercase: ' . Sanitizer::uppercase('hello') . "\n";
-echo '  camelCase: ' . Sanitizer::camelCase('hello world') . "\n";
-echo '  PascalCase: ' . Sanitizer::pascalCase('hello world') . "\n";
-echo '  snake_case: ' . Sanitizer::snakeCase('Hello World') . "\n";
-echo '  kebab-case: ' . Sanitizer::kebabCase('Hello World') . "\n";
+fwrite(STDOUT, "\nCase Conversions:\n");
+fwrite(STDOUT, '  lowercase: ' . Sanitizer::lowercase('HELLO') . "\n");
+fwrite(STDOUT, '  uppercase: ' . Sanitizer::uppercase('hello') . "\n");
+fwrite(STDOUT, '  camelCase: ' . Sanitizer::camelCase('hello world') . "\n");
+fwrite(STDOUT, '  PascalCase: ' . Sanitizer::pascalCase('hello world') . "\n");
+fwrite(STDOUT, '  snake_case: ' . Sanitizer::snakeCase('Hello World') . "\n");
+fwrite(STDOUT, '  kebab-case: ' . Sanitizer::kebabCase('Hello World') . "\n");
 
-echo "\nText Processing:\n";
-echo "  trim: '" . Sanitizer::trim('  hello  ') . "'\n";
-echo '  slug: ' . Sanitizer::slug('Hello World!') . "\n";
-echo '  truncate: ' . Sanitizer::truncate('Long text here', 10) . "\n";
+fwrite(STDOUT, "\nText Processing:\n");
+fwrite(STDOUT, "  trim: '" . Sanitizer::trim('  hello  ') . "'\n");
+fwrite(STDOUT, '  slug: ' . Sanitizer::slug('Hello World!') . "\n");
+fwrite(STDOUT, '  truncate: ' . Sanitizer::truncate('Long text here', 10) . "\n");
 
 // ============================================
 // Example 21: Real-World Registration Flow
 // ============================================
 
-echo "\n=== Example 21: Real-World Registration Flow ===\n\n";
+fwrite(STDOUT, "\n=== Example 21: Real-World Registration Flow ===\n\n");
 
 $registrationValidator = Validator::make([
     'email' => 'required|email|max:255',
@@ -710,16 +810,21 @@ $cleanInput = [
 $registrationResult = $registrationValidator->validate($cleanInput);
 
 $registrationResult
-    ->whenPasses(function ($data) {
-        echo "✓ Registration successful!\n";
-        echo "  Email: {$data['email']}\n";
-        echo "  Username: {$data['username']}\n";
+    ->whenPasses(function (array $data): void {
+        fwrite(STDOUT, "✓ Registration successful!\n");
+        $email = isset($data['email']) && is_scalar($data['email']) ? (string) $data['email'] : '';
+        $username = isset($data['username']) && is_scalar($data['username']) ? (string) $data['username'] : '';
+        fwrite(STDOUT, "  Email: {$email}\n");
+        fwrite(STDOUT, "  Username: {$username}\n");
     })
-    ->whenFails(function ($errors) {
-        echo "✗ Registration failed:\n";
+    ->whenFails(function (array $errors): void {
+        fwrite(STDOUT, "✗ Registration failed:\n");
         foreach ($errors as $msgs) {
+            if (!is_iterable($msgs)) {
+                continue;
+            }
             foreach ($msgs as $msg) {
-                echo "  - {$msg}\n";
+                fwrite(STDOUT, '  - ' . (is_scalar($msg) ? (string) $msg : '') . "\n");
             }
         }
     });
@@ -728,7 +833,7 @@ $registrationResult
 // Example 22: Schema Statistics
 // ============================================
 
-echo "\n=== Example 22: Schema Statistics ===\n\n";
+fwrite(STDOUT, "\n=== Example 22: Schema Statistics ===\n\n");
 
 // Create a validator with mixed-cost rules to demonstrate statistics
 $statsValidator = Validator::make([
@@ -738,29 +843,43 @@ $statsValidator = Validator::make([
 ]);
 
 $stats = $statsValidator->getSchemaStats();
-echo "Total fields: {$stats['total_fields']}\n";
-echo "\nRule cost breakdown:\n";
-foreach ($stats['fields'] as $field => $fieldStats) {
-    $total = $fieldStats['cheap_rules'] + $fieldStats['medium_rules'] + $fieldStats['expensive_rules'];
-    echo "  {$field} ({$total} rules total):\n";
-    echo "    Cheap (< 50):     {$fieldStats['cheap_rules']}\n";
-    echo "    Medium (50-99):   {$fieldStats['medium_rules']}\n";
-    echo "    Expensive (≥100): {$fieldStats['expensive_rules']}\n";
+$totalFields = isset($stats['total_fields']) && is_numeric($stats['total_fields'])
+    ? (int) $stats['total_fields']
+    : 0;
+$fieldStatsList = isset($stats['fields']) && is_array($stats['fields'])
+    ? $stats['fields']
+    : [];
+fwrite(STDOUT, "Total fields: {$totalFields}\n");
+fwrite(STDOUT, "\nRule cost breakdown:\n");
+foreach ($fieldStatsList as $field => $fieldStats) {
+    if (!is_array($fieldStats)) {
+        continue;
+    }
+
+    $cheapRules = isset($fieldStats['cheap_rules']) && is_numeric($fieldStats['cheap_rules']) ? (int) $fieldStats['cheap_rules'] : 0;
+    $mediumRules = isset($fieldStats['medium_rules']) && is_numeric($fieldStats['medium_rules']) ? (int) $fieldStats['medium_rules'] : 0;
+    $expensiveRules = isset($fieldStats['expensive_rules']) && is_numeric($fieldStats['expensive_rules']) ? (int) $fieldStats['expensive_rules'] : 0;
+    $total = $cheapRules + $mediumRules + $expensiveRules;
+    $fieldName = is_string($field) ? $field : (string) $field;
+    fwrite(STDOUT, "  {$fieldName} ({$total} rules total):\n");
+    fwrite(STDOUT, "    Cheap (< 50):     {$cheapRules}\n");
+    fwrite(STDOUT, "    Medium (50-99):   {$mediumRules}\n");
+    fwrite(STDOUT, "    Expensive (≥100): {$expensiveRules}\n");
 }
 
-echo "\nCost categories explained:\n";
-echo "  Cheap: Simple checks (required, string, min, max, email)\n";
-echo "  Medium: Moderate checks (regex, date parsing)\n";
-echo "  Expensive: Database queries (unique, exists)\n";
+fwrite(STDOUT, "\nCost categories explained:\n");
+fwrite(STDOUT, "  Cheap: Simple checks (required, string, min, max, email)\n");
+fwrite(STDOUT, "  Medium: Moderate checks (regex, date parsing)\n");
+fwrite(STDOUT, "  Expensive: Database queries (unique, exists)\n");
 
 // ============================================
 // Example 23: File Validation Rules ✨ NEW
 // ============================================
 
-echo "\n=== Example 23: File Validation Rules ✨ ===\n\n";
+fwrite(STDOUT, "\n=== Example 23: File Validation Rules ✨ ===\n\n");
 
-echo "⚠️  Note: The 'file' rule requires is_uploaded_file() which only works with HTTP uploads.\n";
-echo "    We'll test other file rules using this script file itself as test data.\n\n";
+fwrite(STDOUT, "⚠️  Note: The 'file' rule requires is_uploaded_file() which only works with HTTP uploads.\n");
+fwrite(STDOUT, "    We'll test other file rules using this script file itself as test data.\n\n");
 
 // Get info about this script file to use as test data
 $testFile = __FILE__;
@@ -772,10 +891,10 @@ $fileInfo = [
     'error' => UPLOAD_ERR_OK,
 ];
 
-echo 'Using test file: ' . basename($testFile) . ' (' . round($fileInfo['size'] / 1024, 2) . " KB)\n\n";
+fwrite(STDOUT, 'Using test file: ' . basename($testFile) . ' (' . round($fileInfo['size'] / 1024, 2) . " KB)\n\n");
 
 // Test 1: Size validation (without 'file' rule)
-echo "Test 1: File size validation\n";
+fwrite(STDOUT, "Test 1: File size validation\n");
 $sizeValidator = Validator::make([
     'document' => 'required|max:10240',  // max 10MB - this script should be under that
 ]);
@@ -783,14 +902,15 @@ $sizeValidator = Validator::make([
 $result23a = $sizeValidator->validate(['document' => $fileInfo]);
 
 if ($result23a->passes()) {
-    echo "  ✓ File size validation passed!\n";
-    echo '    File size: ' . round($fileInfo['size'] / 1024, 2) . " KB (under 10MB limit)\n";
+    fwrite(STDOUT, "  ✓ File size validation passed!\n");
+    fwrite(STDOUT, '    File size: ' . round($fileInfo['size'] / 1024, 2) . " KB (under 10MB limit)\n");
 } else {
-    echo '  ✗ Test failed: ' . $result23a->errors()['document'][0] . "\n";
+    $errorBag = normalizeErrorBag($result23a->errors());
+    fwrite(STDOUT, '  ✗ Test failed: ' . firstErrorForField($errorBag, 'document') . "\n");
 }
 
 // Test 2: MIME type validation
-echo "\nTest 2: MIME type validation\n";
+fwrite(STDOUT, "\nTest 2: MIME type validation\n");
 $mimeValidator = Validator::make([
     'script' => 'required|mimes:php,txt',  // Allow PHP and text files
 ]);
@@ -798,14 +918,15 @@ $mimeValidator = Validator::make([
 $result23b = $mimeValidator->validate(['script' => $fileInfo]);
 
 if ($result23b->passes()) {
-    echo "  ✓ MIME type validation passed!\n";
-    echo "    Accepted: PHP file (text/x-php)\n";
+    fwrite(STDOUT, "  ✓ MIME type validation passed!\n");
+    fwrite(STDOUT, "    Accepted: PHP file (text/x-php)\n");
 } else {
-    echo '  ✗ Test failed: ' . $result23b->errors()['script'][0] . "\n";
+    $errorBag = normalizeErrorBag($result23b->errors());
+    fwrite(STDOUT, '  ✗ Test failed: ' . firstErrorForField($errorBag, 'script') . "\n");
 }
 
 // Test 3: Extension validation
-echo "\nTest 3: File extension validation\n";
+fwrite(STDOUT, "\nTest 3: File extension validation\n");
 $extValidator = Validator::make([
     'source' => 'required|extensions:php,txt,md',
 ]);
@@ -813,14 +934,15 @@ $extValidator = Validator::make([
 $result23c = $extValidator->validate(['source' => $fileInfo]);
 
 if ($result23c->passes()) {
-    echo "  ✓ Extension validation passed!\n";
-    echo "    File extension: .php (allowed)\n";
+    fwrite(STDOUT, "  ✓ Extension validation passed!\n");
+    fwrite(STDOUT, "    File extension: .php (allowed)\n");
 } else {
-    echo '  ✗ Test failed: ' . $result23c->errors()['source'][0] . "\n";
+    $errorBag = normalizeErrorBag($result23c->errors());
+    fwrite(STDOUT, '  ✗ Test failed: ' . firstErrorForField($errorBag, 'source') . "\n");
 }
 
 // Test 4: Invalid extension (should fail)
-echo "\nTest 4: Reject wrong extension\n";
+fwrite(STDOUT, "\nTest 4: Reject wrong extension\n");
 $strictValidator = Validator::make([
     'image' => 'required|extensions:jpg,png,gif',  // Only images
 ]);
@@ -828,14 +950,15 @@ $strictValidator = Validator::make([
 $result23d = $strictValidator->validate(['image' => $fileInfo]);
 
 if ($result23d->fails()) {
-    echo "  ✓ Correctly rejected non-image file!\n";
-    echo '    Error: ' . $result23d->errors()['image'][0] . "\n";
+    $errorBag = normalizeErrorBag($result23d->errors());
+    fwrite(STDOUT, "  ✓ Correctly rejected non-image file!\n");
+    fwrite(STDOUT, '    Error: ' . firstErrorForField($errorBag, 'image') . "\n");
 } else {
-    echo "  ✗ Should have rejected PHP file as image!\n";
+    fwrite(STDOUT, "  ✗ Should have rejected PHP file as image!\n");
 }
 
 // Test 5: File too large (should fail)
-echo "\nTest 5: Reject oversized file\n";
+fwrite(STDOUT, "\nTest 5: Reject oversized file\n");
 $tinyValidator = Validator::make([
     'tiny' => 'required|max:1',  // max 1KB - script is larger
 ]);
@@ -843,30 +966,31 @@ $tinyValidator = Validator::make([
 $result23e = $tinyValidator->validate(['tiny' => $fileInfo]);
 
 if ($result23e->fails()) {
-    echo "  ✓ Correctly rejected oversized file!\n";
-    echo '    File: ' . round($fileInfo['size'] / 1024, 2) . " KB > 1 KB limit\n";
-    echo '    Error: ' . $result23e->errors()['tiny'][0] . "\n";
+    $errorBag = normalizeErrorBag($result23e->errors());
+    fwrite(STDOUT, "  ✓ Correctly rejected oversized file!\n");
+    fwrite(STDOUT, '    File: ' . round($fileInfo['size'] / 1024, 2) . " KB > 1 KB limit\n");
+    fwrite(STDOUT, '    Error: ' . firstErrorForField($errorBag, 'tiny') . "\n");
 } else {
-    echo "  ✗ Should have rejected file as too large!\n";
+    fwrite(STDOUT, "  ✗ Should have rejected file as too large!\n");
 }
 
-echo "\n" . str_repeat('─', 70) . "\n";
-echo "File validation rules explained:\n";
-echo "  file:          Requires is_uploaded_file() - HTTP uploads only\n";
-echo "  image:         Validates image file types (jpg, png, gif, etc)\n";
-echo "  mimes:         Validates MIME types (pdf, doc, etc)\n";
-echo "  mimetypes:     Full MIME type validation (application/pdf)\n";
-echo "  extensions:    Validates file extensions (xls, xlsx, csv)\n";
-echo "  max:           Maximum file size in KB\n";
-echo "  dimensions:    Validates image dimensions (for images)\n";
+fwrite(STDOUT, "\n" . str_repeat('─', 70) . "\n");
+fwrite(STDOUT, "File validation rules explained:\n");
+fwrite(STDOUT, "  file:          Requires is_uploaded_file() - HTTP uploads only\n");
+fwrite(STDOUT, "  image:         Validates image file types (jpg, png, gif, etc)\n");
+fwrite(STDOUT, "  mimes:         Validates MIME types (pdf, doc, etc)\n");
+fwrite(STDOUT, "  mimetypes:     Full MIME type validation (application/pdf)\n");
+fwrite(STDOUT, "  extensions:    Validates file extensions (xls, xlsx, csv)\n");
+fwrite(STDOUT, "  max:           Maximum file size in KB\n");
+fwrite(STDOUT, "  dimensions:    Validates image dimensions (for images)\n");
 
-echo "\nNote: 'file' rule skipped - requires actual HTTP upload via \$_FILES\n";
+fwrite(STDOUT, "\nNote: 'file' rule skipped - requires actual HTTP upload via \$_FILES\n");
 
 // ============================================
 // Example 24: Advanced Conditional Rules ✨ NEW
 // ============================================
 
-echo "\n=== Example 24: Advanced Conditional Rules ✨ ===\n\n";
+fwrite(STDOUT, "\n=== Example 24: Advanced Conditional Rules ✨ ===\n\n");
 
 // Present Rules
 $presentValidator = Validator::make([
@@ -885,7 +1009,7 @@ $presentData = [
 ];
 
 $result24a = $presentValidator->validate($presentData);
-echo $result24a->passes() ? "✓ Present rules validation passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result24a->passes() ? "✓ Present rules validation passed!\n" : "✗ Failed\n");
 
 // Missing Rules
 $missingValidator = Validator::make([
@@ -900,7 +1024,7 @@ $missingData = [
 ];
 
 $result24b = $missingValidator->validate($missingData);
-echo $result24b->passes() ? "✓ Missing rules validation passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result24b->passes() ? "✓ Missing rules validation passed!\n" : "✗ Failed\n");
 
 // Prohibited Rules
 $prohibitedValidator = Validator::make([
@@ -916,26 +1040,29 @@ $prohibitedData = [
 ];
 
 $result24c = $prohibitedValidator->validate($prohibitedData);
-echo $result24c->passes() ? "✓ Prohibited rules validation passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result24c->passes() ? "✓ Prohibited rules validation passed!\n" : "✗ Failed\n");
 
-echo "\nConditional rules explained:\n";
-echo "  present_if: Field must be present if condition matches\n";
-echo "  present_unless: Field must be present unless condition matches\n";
-echo "  present_with: Field must be present with another field\n";
-echo "  present_with_all: Field must be present with all specified fields\n";
-echo "  missing: Field must not be present\n";
-echo "  missing_if: Field must be missing if condition matches\n";
-echo "  missing_unless: Field must be missing unless condition matches\n";
-echo "  prohibited: Field is not allowed\n";
-echo "  prohibited_if: Field prohibited if condition matches\n";
-echo "  prohibited_unless: Field prohibited unless condition matches\n";
-echo "  prohibits: Field prohibits other fields from being present\n";
+writeOutputLines([
+    '',
+    'Conditional rules explained:',
+    '  present_if: Field must be present if condition matches',
+    '  present_unless: Field must be present unless condition matches',
+    '  present_with: Field must be present with another field',
+    '  present_with_all: Field must be present with all specified fields',
+    '  missing: Field must not be present',
+    '  missing_if: Field must be missing if condition matches',
+    '  missing_unless: Field must be missing unless condition matches',
+    '  prohibited: Field is not allowed',
+    '  prohibited_if: Field prohibited if condition matches',
+    '  prohibited_unless: Field prohibited unless condition matches',
+    '  prohibits: Field prohibits other fields from being present',
+]);
 
 // ============================================
 // Example 25: Exclude Rules ✨ NEW
 // ============================================
 
-echo "\n=== Example 25: Exclude Rules (Field Filtering) ✨ ===\n\n";
+fwrite(STDOUT, "\n=== Example 25: Exclude Rules (Field Filtering) ✨ ===\n\n");
 
 $excludeValidator = Validator::make([
     'user_role' => 'required|in:admin,user,guest',
@@ -955,30 +1082,33 @@ $excludeData = [
 
 $result25 = $excludeValidator->validate($excludeData);
 
-echo "✓ Exclude rules test completed:\n";
-echo '  Input fields: ' . count($excludeData) . "\n";
-echo '  Validated fields: ' . count($result25->validated()) . "\n\n";
+fwrite(STDOUT, "✓ Exclude rules test completed:\n");
+fwrite(STDOUT, '  Input fields: ' . count($excludeData) . "\n");
+fwrite(STDOUT, '  Validated fields: ' . count($result25->validated()) . "\n\n");
 
-echo "Field-by-field breakdown:\n";
+fwrite(STDOUT, "Field-by-field breakdown:\n");
 $validated = $result25->validated();
-echo '  user_role:    ' . (isset($validated['user_role']) ? '✓ INCLUDED (required field)' : '✗ EXCLUDED') . "\n";
-echo '  internal_id:  ' . (isset($validated['internal_id']) ? '✓ INCLUDED' : '✗ EXCLUDED (exclude - always removed)') . "\n";
-echo '  debug_info:   ' . (isset($validated['debug_info']) ? '✓ INCLUDED (user is not guest)' : '✗ EXCLUDED') . "\n";
-echo '  temp_token:   ' . (isset($validated['temp_token']) ? '✓ INCLUDED (no permanent_token)' : '✗ EXCLUDED') . "\n";
+fwrite(STDOUT, '  user_role:    ' . (isset($validated['user_role']) ? '✓ INCLUDED (required field)' : '✗ EXCLUDED') . "\n");
+fwrite(STDOUT, '  internal_id:  ' . (isset($validated['internal_id']) ? '✓ INCLUDED' : '✗ EXCLUDED (exclude - always removed)') . "\n");
+fwrite(STDOUT, '  debug_info:   ' . (isset($validated['debug_info']) ? '✓ INCLUDED (user is not guest)' : '✗ EXCLUDED') . "\n");
+fwrite(STDOUT, '  temp_token:   ' . (isset($validated['temp_token']) ? '✓ INCLUDED (no permanent_token)' : '✗ EXCLUDED') . "\n");
 
-echo "\nExclude rules explained:\n";
-echo "  exclude:          Always remove field from validated data\n";
-echo "  exclude_if:       Remove if condition matches\n";
-echo "  exclude_unless:   Remove unless condition matches\n";
-echo "  exclude_with:     Remove if another field is present\n";
-echo "  exclude_without:  Remove if another field is absent\n";
+writeOutputLines([
+    '',
+    'Exclude rules explained:',
+    '  exclude:          Always remove field from validated data',
+    '  exclude_if:       Remove if condition matches',
+    '  exclude_unless:   Remove unless condition matches',
+    '  exclude_with:     Remove if another field is present',
+    '  exclude_without:  Remove if another field is absent',
+]);
 
 // ============================================
 // Example 26: Regex Validation
 // ============================================
 
-echo "Example 26: Regex Validation\n";
-echo str_repeat('-', 70) . "\n\n";
+fwrite(STDOUT, "Example 26: Regex Validation\n");
+fwrite(STDOUT, str_repeat('-', 70) . "\n\n");
 
 try {
     $regexValidator = Validator::make([
@@ -1000,34 +1130,28 @@ try {
     $result26 = $regexValidator->validate($regexData);
 
     if ($result26->passes()) {
-        echo "✓ All regex validations PASSED!\n\n";
-        echo "Validated data:\n";
+        fwrite(STDOUT, "✓ All regex validations PASSED!\n\n");
+        fwrite(STDOUT, "Validated data:\n");
         foreach ($regexData as $field => $value) {
-            echo "  {$field}: {$value}\n";
+            fwrite(STDOUT, "  {$field}: {$value}\n");
         }
     } else {
-        echo "✗ Regex validation FAILED:\n\n";
-        foreach ($result26->errors() as $field => $errors) {
-            echo "  {$field}:\n";
-            foreach ($errors as $error) {
-                echo "    - {$error}\n";
-            }
-        }
+        $errorBag = normalizeErrorBag($result26->errors());
+        fwrite(STDOUT, "✗ Regex validation FAILED:\n\n");
+        writeNestedErrorLines($errorBag);
     }
 } catch (Exception $e) {
-    echo "❌ ERROR in Example 26:\n";
-    echo '  ' . $e->getMessage() . "\n";
-    echo '  File: ' . $e->getFile() . ':' . $e->getLine() . "\n";
+    writeExampleException($e, 'Example 26');
 }
 
-echo "\n" . str_repeat('=', 70) . "\n\n";
+fwrite(STDOUT, "\n" . str_repeat('=', 70) . "\n\n");
 
 // ============================================
 // Example 27: Field Comparisons
 // ============================================
 
-echo "Example 27: Numeric Comparisons\n";
-echo str_repeat('-', 70) . "\n\n";
+fwrite(STDOUT, "Example 27: Numeric Comparisons\n");
+fwrite(STDOUT, str_repeat('-', 70) . "\n\n");
 
 try {
     $comparisonValidator = Validator::make([
@@ -1051,36 +1175,34 @@ try {
     $result27 = $comparisonValidator->validate($comparisonData);
 
     if ($result27->passes()) {
-        echo "✓ All comparison validations PASSED!\n\n";
-        echo "Field comparisons verified:\n";
-        echo "  sale_price (79.99) < original_price (99.99) ✓\n";
-        echo "  max_order (10) >= min_order (1) ✓\n";
-        echo "  reorder_level (20) <= current_stock (50) ✓\n\n";
-        echo "Literal comparisons verified:\n";
-        echo "  original_price (99.99) >= 0.01 ✓\n";
-        echo "  min_order (1) >= 1 ✓\n";
-        echo "  max_order (10) <= 100 ✓\n";
-        echo "  current_stock (50) >= 0 ✓\n";
+        writeOutputLines([
+            '✓ All comparison validations PASSED!',
+            '',
+            'Field comparisons verified:',
+            '  sale_price (79.99) < original_price (99.99) ✓',
+            '  max_order (10) >= min_order (1) ✓',
+            '  reorder_level (20) <= current_stock (50) ✓',
+            '',
+            'Literal comparisons verified:',
+            '  original_price (99.99) >= 0.01 ✓',
+            '  min_order (1) >= 1 ✓',
+            '  max_order (10) <= 100 ✓',
+            '  current_stock (50) >= 0 ✓',
+        ]);
     } else {
-        echo "✗ Comparison validation FAILED:\n\n";
-        foreach ($result27->errors() as $field => $errors) {
-            echo "  {$field}:\n";
-            foreach ($errors as $error) {
-                echo "    - {$error}\n";
-            }
-        }
+        $errorBag = normalizeErrorBag($result27->errors());
+        fwrite(STDOUT, "✗ Comparison validation FAILED:\n\n");
+        writeNestedErrorLines($errorBag);
     }
 } catch (Exception $e) {
-    echo "❌ ERROR in Example 27:\n";
-    echo '  ' . $e->getMessage() . "\n";
-    echo '  File: ' . $e->getFile() . ':' . $e->getLine() . "\n";
+    writeExampleException($e, 'Example 27');
 }
 
 // ============================================
 // Example 28: Advanced Array Rules ✨ NEW
 // ============================================
 
-echo "\n=== Example 28: Advanced Array Rules ✨ ===\n\n";
+fwrite(STDOUT, "\n=== Example 28: Advanced Array Rules ✨ ===\n\n");
 
 $arrayAdvancedValidator = Validator::make([
     'roles' => 'required|array',
@@ -1097,28 +1219,22 @@ $arrayAdvancedData = [
 $result28 = $arrayAdvancedValidator->validate($arrayAdvancedData);
 
 if ($result28->passes()) {
-    echo "✓ Advanced array validations passed!\n";
-    echo "  in_array: Checks if value exists in another array field\n";
-    echo "  is_list: Ensures array has sequential integer keys (0, 1, 2...)\n";
-    echo "\n  Examples:\n";
-    echo "    primary_role '{$arrayAdvancedData['primary_role']}' exists in roles ✓\n";
-    echo "    items is a sequential list ✓\n";
+    writeOutputLines([
+        '✓ Advanced array validations passed!',
+        '  in_array: Checks if value exists in another array field',
+        '  is_list: Ensures array has sequential integer keys (0, 1, 2...)',
+        '',
+        '  Examples:',
+        "    primary_role '{$arrayAdvancedData['primary_role']}' exists in roles ✓",
+        '    items is a sequential list ✓',
+    ]);
 }
 
 // ============================================
 // Example 29: Advanced Acceptance Rules ✨ NEW
 // ============================================
 
-echo "\n=== Example 29: Advanced Acceptance Rules ✨ ===\n\n";
-
-$acceptanceValidator = Validator::make([
-    'terms' => 'required|accepted',
-    'age_verification' => 'required|accepted',
-    'newsletter' => 'accepted_if:age_verification,yes',
-    'notifications' => 'declined_if:newsletter,yes',
-    'email_required' => 'required_if_accepted:newsletter',
-    'phone_required' => 'required_if_declined:notifications',
-]);
+fwrite(STDOUT, "\n=== Example 29: Advanced Acceptance Rules ✨ ===\n\n");
 
 $acceptanceData = [
     'terms' => 'yes',
@@ -1129,27 +1245,39 @@ $acceptanceData = [
     'phone_required' => '+1234567890',
 ];
 
-$result29 = $acceptanceValidator->validate($acceptanceData);
-
-if ($result29->passes()) {
-    echo "✓ All acceptance rule validations passed!\n";
-    echo "\nAcceptance rules explained:\n";
-    echo "  accepted: Must be yes/on/1/true\n";
-    echo "  accepted_if: Must be accepted if condition matches\n";
-    echo "  declined: Must be no/off/0/false\n";
-    echo "  declined_if: Must be declined if condition matches\n";
-    echo "  required_if_accepted: Required when another field is accepted\n";
-    echo "  required_if_declined: Required when another field is declined\n";
-}
+runValidationExample(
+    [
+        'terms' => 'required|accepted',
+        'age_verification' => 'required|accepted',
+        'newsletter' => 'accepted_if:age_verification,yes',
+        'notifications' => 'declined_if:newsletter,yes',
+        'email_required' => 'required_if_accepted:newsletter',
+        'phone_required' => 'required_if_declined:notifications',
+    ],
+    $acceptanceData,
+    static function (): void {
+        fwrite(STDOUT, "✓ All acceptance rule validations passed!\n");
+        writeOutputLines([
+            '',
+            'Acceptance rules explained:',
+            '  accepted: Must be yes/on/1/true',
+            '  accepted_if: Must be accepted if condition matches',
+            '  declined: Must be no/off/0/false',
+            '  declined_if: Must be declined if condition matches',
+            '  required_if_accepted: Required when another field is accepted',
+            '  required_if_declined: Required when another field is declined',
+        ]);
+    },
+);
 
 // ============================================
 // Example 30: Bail & Stop-on-First-Failure ✨ NEW
 // ============================================
 
-echo "\n=== Example 30: Bail Rule (Stop on First Failure) ✨ ===\n\n";
+fwrite(STDOUT, "\n=== Example 30: Bail Rule (Stop on First Failure) ✨ ===\n\n");
 
 // Test 1: WITHOUT bail - shows all errors
-echo "Test 1: WITHOUT bail rule\n";
+fwrite(STDOUT, "Test 1: WITHOUT bail rule\n");
 $validator1 = Validator::make([
     'email' => ['required', 'email', 'max:255'],
 ]);
@@ -1157,15 +1285,12 @@ $validator1 = Validator::make([
 $result1 = $validator1->validate(['email' => 'not-an-email-way-too-long-string-that-exceeds-255-characters' . str_repeat('x', 300)]);
 
 if ($result1->fails()) {
-    echo '  Errors found: ' . count($result1->errors()['email']) . "\n";
-    foreach ($result1->errors()['email'] as $error) {
-        echo "    - {$error}\n";
-    }
-    echo "  All rules were checked ✓\n";
+    $emailErrors = normalizeErrorBag($result1->errors())['email'] ?? [];
+    writeErrorCountAndItems($emailErrors, '  All rules were checked ✓');
 }
 
 // Test 2: WITH bail - stops at first error
-echo "\nTest 2: WITH bail rule\n";
+fwrite(STDOUT, "\nTest 2: WITH bail rule\n");
 $validator2 = Validator::make([
     'email' => ['bail', 'required', 'email', 'max:255'],
 ]);
@@ -1173,23 +1298,23 @@ $validator2 = Validator::make([
 $result2 = $validator2->validate(['email' => '']);
 
 if ($result2->fails()) {
-    echo '  Errors found: ' . count($result2->errors()['email']) . "\n";
-    foreach ($result2->errors()['email'] as $error) {
-        echo "    - {$error}\n";
-    }
-    echo "  Stopped after first failure ✓\n";
+    $emailErrors = normalizeErrorBag($result2->errors())['email'] ?? [];
+    writeErrorCountAndItems($emailErrors, '  Stopped after first failure ✓');
 }
 
-echo "\nBail rule explained:\n";
-echo "  - Without bail: All rules checked, multiple errors\n";
-echo "  - With bail: Stops at first failure, single error\n";
-echo "  - Benefit: Faster validation, cleaner error messages\n";
+writeOutputLines([
+    '',
+    'Bail rule explained:',
+    '  - Without bail: All rules checked, multiple errors',
+    '  - With bail: Stops at first failure, single error',
+    '  - Benefit: Faster validation, cleaner error messages',
+]);
 
 // ============================================
 // Example 31: String Negation Rules ✨ NEW
 // ============================================
 
-echo "\n=== Example 31: String Negation Rules (doesnt_*) ✨ ===\n\n";
+fwrite(STDOUT, "\n=== Example 31: String Negation Rules (doesnt_*) ✨ ===\n\n");
 
 $negationValidator = Validator::make([
     'username' => 'required|doesnt_start_with:admin,root,system',
@@ -1206,22 +1331,26 @@ $negationData = [
 $result31 = $negationValidator->validate($negationData);
 
 if ($result31->passes()) {
-    echo "✓ All negation validations passed!\n";
-    echo "\nNegation rules explained:\n";
-    echo "  doesnt_start_with: Must NOT start with any of the prefixes\n";
-    echo "  doesnt_end_with: Must NOT end with any of the suffixes\n";
-    echo "  doesnt_contain: Must NOT contain any of the substrings\n";
-    echo "\n  Examples:\n";
-    echo "    username doesn't start with 'admin', 'root', or 'system' ✓\n";
-    echo "    filename doesn't end with '.exe', '.bat', or '.sh' ✓\n";
-    echo "    description doesn't contain spam keywords ✓\n";
+    fwrite(STDOUT, "✓ All negation validations passed!\n");
+    writeOutputLines([
+        '',
+        'Negation rules explained:',
+        '  doesnt_start_with: Must NOT start with any of the prefixes',
+        '  doesnt_end_with: Must NOT end with any of the suffixes',
+        '  doesnt_contain: Must NOT contain any of the substrings',
+        '',
+        '  Examples:',
+        "    username doesn't start with 'admin', 'root', or 'system' ✓",
+        "    filename doesn't end with '.exe', '.bat', or '.sh' ✓",
+        "    description doesn't contain spam keywords ✓",
+    ]);
 }
 
 // ============================================
 // Example 32: Date Equals ✨ NEW
 // ============================================
 
-echo "\n=== Example 32: Date Equals Validation ✨ ===\n\n";
+fwrite(STDOUT, "\n=== Example 32: Date Equals Validation ✨ ===\n\n");
 
 $dateEqualsValidator = Validator::make([
     'event_date' => 'required|date',
@@ -1238,17 +1367,19 @@ $dateEqualsData = [
 $result32 = $dateEqualsValidator->validate($dateEqualsData);
 
 if ($result32->passes()) {
-    echo "✓ Date equals validations passed!\n";
-    echo "  date_equals: Ensures dates are exactly equal\n";
-    echo "  - deadline equals event_date ✓\n";
-    echo "  - launch_date equals 2024-12-25 ✓\n";
+    writeOutputLines([
+        '✓ Date equals validations passed!',
+        '  date_equals: Ensures dates are exactly equal',
+        '  - deadline equals event_date ✓',
+        '  - launch_date equals 2024-12-25 ✓',
+    ]);
 }
 
 // ============================================
 // Example 33: Additional Missing Rules
 // ============================================
 
-echo "\n=== Example 33: Additional Rules (nullable, present, filled, active_url) ===\n\n";
+fwrite(STDOUT, "\n=== Example 33: Additional Rules (nullable, present, filled, active_url) ===\n\n");
 
 $additionalValidator = Validator::make([
     'optional' => 'nullable|email', // Can be null, but if present must be email
@@ -1265,85 +1396,93 @@ $additionalData = [
 ];
 
 $result34 = $additionalValidator->validate($additionalData);
-echo $result34->passes() ? "✓ Additional rules passed!\n" : "✗ Failed\n";
+fwrite(STDOUT, $result34->passes() ? "✓ Additional rules passed!\n" : "✗ Failed\n");
 
-echo "\nAdditional rules explained:\n";
-echo "  nullable: Field can be null\n";
-echo "  present: Field must exist in input (can be empty)\n";
-echo "  filled: Field must not be empty if present\n";
-echo "  active_url: URL must be active (DNS record exists)\n";
+writeOutputLines([
+    '',
+    'Additional rules explained:',
+    '  nullable: Field can be null',
+    '  present: Field must exist in input (can be empty)',
+    '  filled: Field must not be empty if present',
+    '  active_url: URL must be active (DNS record exists)',
+]);
 
 // ============================================
 // FINAL SUMMARY
 // ============================================
 
-echo "\n\n╔════════════════════════════════════════════════════════════╗\n";
-echo "║     All Examples Completed Successfully!                   ║\n";
-echo "║          100% Rule Coverage                                ║\n";
-echo "╚════════════════════════════════════════════════════════════╝\n\n";
-
-echo "🎉 Features Demonstrated:\n";
-echo "  ✓ Required field detection (Bug Fixed!)\n";
-echo "  ✓ Nested validation support (Now Works!)\n";
-echo "  ✓ throwOnFailure with ValidationException (Now Works!)\n";
-echo "  ✓ Batch operations (50x faster!)\n";
-echo "  ✓ 16 new sanitizers (51 total!)\n";
-echo "  ✓ Fluent ValidationResult API\n";
-echo "  ✓ Enhanced error messages with aliases\n";
-echo "  ✓ Fail-fast optimization\n\n";
-
-echo "⚡ Performance Features:\n";
-echo "  ✓ Cost-based rule execution (cheap → medium → expensive)\n";
-echo "  ✓ Single-pass validation\n";
-echo "  ✓ Batched database queries (9x faster)\n";
-echo "  ✓ Smart rule compilation (40% less code)\n";
-echo '  ✓ High performance (~' . number_format($iterations / ($duration / 1000), 0) . " validations/sec)\n\n";
-
-echo "📚 Complete Rule Coverage (103 rules - ALL TESTED!):\n\n";
-
-echo "✅ Basic Type (9): required, filled, string, integer, numeric, boolean, array, nullable, present\n\n";
-
-echo "✅ Format (10): email, url, active_url, ip (v4/v6/public/private), json, uuid, ulid, mac, hex_color, timezone\n\n";
-
-echo "✅ String (12): alpha, alpha_num, alpha_dash, ascii, lowercase, uppercase,\n";
-echo "   starts_with, ends_with, contains, doesnt_contain, doesnt_start_with, doesnt_end_with\n\n";
-
-echo "✅ Numeric (14): min, max, between, size, digits, digits_between, min_digits, max_digits,\n";
-echo "   decimal, multiple_of, gt, gte, lt, lte\n\n";
-
-echo "✅ Date/Time (7): date, date_format, date_equals, before, before_or_equal, after, after_or_equal\n\n";
-
-echo "✅ Conditional (27): required_if, required_unless, required_with, required_with_all,\n";
-echo "   required_without, required_without_all, required_array_keys, required_if_accepted, required_if_declined,\n";
-echo "   present_if, present_unless, present_with, present_with_all, missing, missing_if, missing_unless,\n";
-echo "   prohibited, prohibited_if, prohibited_unless, prohibits,\n";
-echo "   exclude, exclude_if, exclude_unless, exclude_with, exclude_without\n\n";
-
-echo "✅ Database (2): unique, exists (batched for performance)\n\n";
-
-echo "✅ File (6): file, image, mimes, mimetypes, extensions, dimensions\n\n";
-
-echo "✅ Array (5): in, not_in, in_array, distinct, is_list\n\n";
-
-echo "✅ Comparison (3): same, different, confirmed\n\n";
-
-echo "✅ Pattern (2): regex, not_regex\n\n";
-
-echo "✅ Additional (6): accepted, accepted_if, declined, declined_if, bail, callback\n\n";
-
-echo "🔒 Production Ready:\n";
-echo "  ✓ 100% backward compatible\n";
-echo "  ✓ 6 critical bugs fixed\n";
-echo "  ✓ 10-50x performance improvements\n";
-echo "  ✓ Comprehensive error handling\n";
-echo "  ✓ Well documented API\n";
-echo "  ✓ All 103 rules tested and working\n\n";
-
-echo "📊 Test Coverage:\n";
-echo "  ✓ Basic examples: 22 examples\n";
-echo "  ✓ Advanced examples: 12 examples (✨ NEW)\n";
-echo "  ✓ Total examples: 34\n";
-echo "  ✓ Rules covered: 103/103 (100%)\n";
-echo "  ✓ Missing rules: 0\n\n";
-
-echo "🎯 Perfect Coverage Achieved! 🎉\n\n";
+writeOutputLines([
+    '',
+    '',
+    '╔════════════════════════════════════════════════════════════╗',
+    '║     All Examples Completed Successfully!                   ║',
+    '║          100% Rule Coverage                                ║',
+    '╚════════════════════════════════════════════════════════════╝',
+    '',
+    '🎉 Features Demonstrated:',
+    '  ✓ Required field detection (Bug Fixed!)',
+    '  ✓ Nested validation support (Now Works!)',
+    '  ✓ throwOnFailure with ValidationException (Now Works!)',
+    '  ✓ Batch operations (50x faster!)',
+    '  ✓ 16 new sanitizers (51 total!)',
+    '  ✓ Fluent ValidationResult API',
+    '  ✓ Enhanced error messages with aliases',
+    '  ✓ Fail-fast optimization',
+    '',
+    '⚡ Performance Features:',
+    '  ✓ Cost-based rule execution (cheap → medium → expensive)',
+    '  ✓ Single-pass validation',
+    '  ✓ Batched database queries (9x faster)',
+    '  ✓ Smart rule compilation (40% less code)',
+    '  ✓ High performance (~' . number_format($iterations / ($duration / 1000), 0) . ' validations/sec)',
+    '',
+    '📚 Complete Rule Coverage (103 rules - ALL TESTED!):',
+    '',
+    '✅ Basic Type (9): required, filled, string, integer, numeric, boolean, array, nullable, present',
+    '',
+    '✅ Format (10): email, url, active_url, ip (v4/v6/public/private), json, uuid, ulid, mac, hex_color, timezone',
+    '',
+    '✅ String (12): alpha, alpha_num, alpha_dash, ascii, lowercase, uppercase,',
+    '   starts_with, ends_with, contains, doesnt_contain, doesnt_start_with, doesnt_end_with',
+    '',
+    '✅ Numeric (14): min, max, between, size, digits, digits_between, min_digits, max_digits,',
+    '   decimal, multiple_of, gt, gte, lt, lte',
+    '',
+    '✅ Date/Time (7): date, date_format, date_equals, before, before_or_equal, after, after_or_equal',
+    '',
+    '✅ Conditional (27): required_if, required_unless, required_with, required_with_all,',
+    '   required_without, required_without_all, required_array_keys, required_if_accepted, required_if_declined,',
+    '   present_if, present_unless, present_with, present_with_all, missing, missing_if, missing_unless,',
+    '   prohibited, prohibited_if, prohibited_unless, prohibits,',
+    '   exclude, exclude_if, exclude_unless, exclude_with, exclude_without',
+    '',
+    '✅ Database (2): unique, exists (batched for performance)',
+    '',
+    '✅ File (6): file, image, mimes, mimetypes, extensions, dimensions',
+    '',
+    '✅ Array (5): in, not_in, in_array, distinct, is_list',
+    '',
+    '✅ Comparison (3): same, different, confirmed',
+    '',
+    '✅ Pattern (2): regex, not_regex',
+    '',
+    '✅ Additional (6): accepted, accepted_if, declined, declined_if, bail, callback',
+    '',
+    '🔒 Production Ready:',
+    '  ✓ 100% backward compatible',
+    '  ✓ 6 critical bugs fixed',
+    '  ✓ 10-50x performance improvements',
+    '  ✓ Comprehensive error handling',
+    '  ✓ Well documented API',
+    '  ✓ All 103 rules tested and working',
+    '',
+    '📊 Test Coverage:',
+    '  ✓ Basic examples: 22 examples',
+    '  ✓ Advanced examples: 12 examples (✨ NEW)',
+    '  ✓ Total examples: 34',
+    '  ✓ Rules covered: 103/103 (100%)',
+    '  ✓ Missing rules: 0',
+    '',
+    '🎯 Perfect Coverage Achieved! 🎉',
+    '',
+]);

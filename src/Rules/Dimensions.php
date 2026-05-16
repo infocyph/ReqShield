@@ -7,7 +7,7 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * Dimensions Rule - Cost: 35
  */
-class Dimensions extends BaseRule
+class Dimensions extends AbstractImageFileRule
 {
     public function __construct(
         protected string|int|null $minWidth = 0,
@@ -28,15 +28,12 @@ class Dimensions extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        $path = $this->getUploadedFilePath($value);
-        if ($path === null) {
-            return false;
-        }
-
-        $imageInfo = @getimagesize($path);
+        $this->consumeRuleContext($value, $field, $data);
+        $imageInfo = $this->getImageInfo($value);
         if ($imageInfo === false) {
             return false;
         }
+
         [$width, $height] = $imageInfo;
         if ($this->minWidth && $width < $this->minWidth) {
             return false;
@@ -53,5 +50,4 @@ class Dimensions extends BaseRule
 
         return true;
     }
-
 }
