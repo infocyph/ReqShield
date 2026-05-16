@@ -236,11 +236,43 @@ final class JsonSchemaExporter
         string $ruleName,
         array $params,
     ): bool {
-        if ($ruleName !== 'in' || $params === []) {
+        if ($ruleName === 'in' && $params !== []) {
+            $property['enum'] = array_values($params);
+
+            return true;
+        }
+
+        if (
+            $ruleName !== 'enum'
+            || !isset($params[0])
+            || !is_string($params[0])
+            || !enum_exists($params[0])
+        ) {
             return false;
         }
 
-        $property['enum'] = array_values($params);
+        $enumClass = $params[0];
+        $cases = $enumClass::cases();
+        if ($cases === []) {
+            return false;
+        }
+
+        if (is_subclass_of($enumClass, \BackedEnum::class)) {
+            $values = [];
+            foreach ($cases as $case) {
+                if ($case instanceof \BackedEnum) {
+                    $values[] = $case->value;
+                }
+            }
+            $property['enum'] = $values;
+
+            return true;
+        }
+
+        $property['enum'] = array_map(
+            static fn(\UnitEnum $case): string => $case->name,
+            $cases,
+        );
 
         return true;
     }
@@ -449,9 +481,12 @@ final class JsonSchemaExporter
             }
 
             $name = $resolveRuleNameForObject($rule);
+            $params = method_exists($rule, 'getEnumClass')
+                ? [$rule->getEnumClass()]
+                : [];
             $parsed[] = [
                 'name' => $name,
-                'params' => [],
+                'params' => $params,
             ];
         }
 

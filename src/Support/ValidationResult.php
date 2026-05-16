@@ -131,6 +131,11 @@ class ValidationResult
         return $this->messageBag->has($field);
     }
 
+    public function input(bool $typed = true): ValidatedInput
+    {
+        return new ValidatedInput($typed ? $this->typed() : $this->validated());
+    }
+
     /** @return array<int|string,mixed> */
     public function map(callable $callback): array
     {
@@ -199,6 +204,17 @@ class ValidationResult
     }
 
     /** @return array<string,mixed> */
+    public function toApiErrors(): array
+    {
+        return [
+            'ok' => false,
+            'message' => 'Validation failed.',
+            'errors' => $this->errors(),
+            'failures' => $this->toFlatErrors(),
+        ];
+    }
+
+    /** @return array<string,mixed> */
     public function toArray(): array
     {
         return [
@@ -227,9 +243,74 @@ class ValidationResult
         ];
     }
 
+    /** @return array<int,array{field:string,rule:string,message:string,value:mixed}> */
+    public function toFlatErrors(): array
+    {
+        return array_values(array_filter(
+            array_map(function (mixed $failure): ?array {
+                if (!is_array($failure)) {
+                    return null;
+                }
+
+                $field = $failure['field'] ?? null;
+                $rule = $failure['rule'] ?? null;
+                $message = $failure['message'] ?? null;
+
+                if (!is_string($field) || !is_string($rule) || !is_string($message)) {
+                    return null;
+                }
+
+                return [
+                    'field' => $field,
+                    'rule' => $rule,
+                    'message' => $message,
+                    'value' => $failure['value'] ?? null,
+                ];
+            }, $this->failures),
+            is_array(...),
+        ));
+    }
+
     public function toJson(): string
     {
         return $this->messageBag->toJson();
+    }
+
+    /** @return array{errors:array<int,array<string,mixed>>} */
+    public function toJsonApiErrors(): array
+    {
+        $errors = array_map(
+            fn(array $failure): array => [
+                'status' => '422',
+                'source' => ['pointer' => '/data/attributes/' . $failure['field']],
+                'title' => 'Validation Error',
+                'detail' => $failure['message'],
+                'meta' => [
+                    'field' => $failure['field'],
+                    'rule' => $failure['rule'],
+                    'value' => $failure['value'],
+                ],
+            ],
+            $this->toFlatErrors(),
+        );
+
+        return ['errors' => $errors];
+    }
+
+    /** @return array<string,mixed> */
+    public function toProblemJson(
+        string $title = 'Validation failed',
+        int $status = 422,
+        string $type = 'https://example.com/problems/validation-error',
+    ): array {
+        return [
+            'type' => $type,
+            'title' => $title,
+            'status' => $status,
+            'detail' => $this->firstError() ?? 'One or more fields failed validation.',
+            'errors' => $this->errors(),
+            'failures' => $this->toFlatErrors(),
+        ];
     }
 
     /** @return array<int|string,mixed> */

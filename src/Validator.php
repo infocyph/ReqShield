@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield;
 
 use Infocyph\ReqShield\Concerns\HasValidatorInternals;
+use Infocyph\ReqShield\Concerns\HasValidatorRequestFeatures;
 use Infocyph\ReqShield\Concerns\HasValidatorRuntime;
 use Infocyph\ReqShield\Concerns\HasValidatorSchemaCasting;
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
@@ -27,6 +28,7 @@ use Infocyph\ReqShield\Support\WildcardPath;
 class Validator
 {
     use HasValidatorInternals;
+    use HasValidatorRequestFeatures;
     use HasValidatorRuntime;
     use HasValidatorSchemaCasting;
 
@@ -36,6 +38,11 @@ class Validator
 
     /** @var array<int|string,array<int|string,mixed>> */
     protected static array $fragments = [];
+
+    /** @var array<int,callable> */
+    protected array $afterCallbacks = [];
+
+    protected bool $allowUnknownFields = true;
 
     protected BatchExecutor $batchExecutor;
 
@@ -107,6 +114,8 @@ class Validator
 
     protected bool $stopOnFirstError = false;
 
+    protected bool $stripUnknownFields = false;
+
     protected bool $throwOnFailure = false;
 
     protected ValidationPlan $validationPlan;
@@ -164,6 +173,16 @@ class Validator
     }
 
     /**
+     * @param array<int|string,mixed> $rules
+     */
+    public static function compile(
+        array $rules,
+        ?DatabaseProvider $db = null,
+    ): CompiledValidator {
+        return new CompiledValidator(static::make($rules, $db));
+    }
+
+    /**
      * @param array<int|string,mixed> ...$schemas
      *
      * @return array<int|string,mixed>
@@ -208,6 +227,63 @@ class Validator
         return $prefixed;
     }
 
+    /**
+     * @param array<int|string,mixed> $rules
+     * @param array<int|string,mixed> $data
+     */
+    public static function fromArray(
+        array $rules,
+        array $data,
+        ?DatabaseProvider $db = null,
+    ): ValidationResult {
+        return static::make($rules, $db)->validate($data);
+    }
+
+    /**
+     * @param array<int|string,mixed> $rules
+     * @param array<int|string,mixed> $body
+     */
+    public static function fromBody(
+        array $rules,
+        array $body,
+        ?DatabaseProvider $db = null,
+    ): ValidationResult {
+        return static::fromArray($rules, $body, $db);
+    }
+
+    /**
+     * @param array<int|string,mixed> $rules
+     * @param array<int|string,mixed> $files
+     */
+    public static function fromFiles(
+        array $rules,
+        array $files,
+        ?DatabaseProvider $db = null,
+    ): ValidationResult {
+        return static::fromArray($rules, $files, $db);
+    }
+
+    /**
+     * @param array<int|string,mixed> $rules
+     * @param array<int|string,mixed> $query
+     */
+    public static function fromQuery(
+        array $rules,
+        array $query,
+        ?DatabaseProvider $db = null,
+    ): ValidationResult {
+        return static::fromArray($rules, $query, $db);
+    }
+
+    /** @param array<int|string,mixed> $rules */
+    public static function fromServerRequest(
+        array $rules,
+        object $request,
+        ?DatabaseProvider $db = null,
+    ): ValidationResult {
+        return static::fromArray($rules, static::serverRequestData($request), $db);
+    }
+
     public static function hasFragment(string $name): bool
     {
         return array_key_exists($name, static::$fragments);
@@ -228,6 +304,23 @@ class Validator
     {
         $this->localePacks[$locale] = $messages;
         $this->localeMessagesEnabled = true;
+
+        return $this;
+    }
+
+    public function after(callable $callback): self
+    {
+        $this->afterCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    public function allowUnknown(bool $allow = true): self
+    {
+        $this->allowUnknownFields = $allow;
+        if ($allow) {
+            $this->stripUnknownFields = false;
+        }
 
         return $this;
     }
@@ -439,6 +532,21 @@ class Validator
         return $this;
     }
 
+    public function strict(): self
+    {
+        return $this->allowUnknown(false);
+    }
+
+    public function stripUnknown(bool $strip = true): self
+    {
+        $this->stripUnknownFields = $strip;
+        if ($strip) {
+            $this->allowUnknownFields = false;
+        }
+
+        return $this;
+    }
+
     public function throwOnFailure(bool $throw = true): self
     {
         $this->throwOnFailure = $throw;
@@ -476,14 +584,28 @@ class Validator
     /** @param array<int|string,mixed> $data */
     public function validate(array $data): ValidationResult
     {
+        $originalData = $data;
         [$data, $plan] = $this->prepareValidationDataAndSchema($data);
         $context = $this->initializeValidationContext();
+        $this->processUnknownFields($originalData, $data, $plan, $context);
+
+        if (!empty($context['errors']) && $this->stopOnFirstError) {
+            $result = $this->buildValidationResult($context);
+            $errors = $this->normalizeErrorMap(
+                $this->normalizeContextErrors($context['errors']),
+            );
+            $this->throwIfValidationShouldFail($result, $errors);
+
+            return $result;
+        }
+
         $this->validateResolvedFields($data, $plan, $context);
         $this->executeBatchedRules($context);
+        $this->executeAfterValidationCallbacks($data, $context);
         $result = $this->buildValidationResult($context);
-        $errors = isset($context['errors']) && is_array($context['errors'])
-            ? $this->normalizeErrorMap($context['errors'])
-            : [];
+        $errors = $this->normalizeErrorMap(
+            $this->normalizeContextErrors($context['errors'] ?? []),
+        );
         $this->throwIfValidationShouldFail($result, $errors);
 
         return $result;

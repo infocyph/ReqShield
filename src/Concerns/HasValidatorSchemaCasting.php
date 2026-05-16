@@ -390,6 +390,10 @@ trait HasValidatorSchemaCasting
             return $value;
         }
 
+        if (enum_exists($cast)) {
+            return $this->castToEnum($value, $cast);
+        }
+
         $normalized = strtolower($cast);
 
         if (in_array($normalized, ['int', 'integer'], true)) {
@@ -501,6 +505,36 @@ trait HasValidatorSchemaCasting
         $decoded = json_decode($value, true);
 
         return is_array($decoded) ? $decoded : [$value];
+    }
+
+    /**
+     * @template T of \UnitEnum
+     * @param class-string<T> $enumClass
+     */
+    protected function castToEnum(mixed $value, string $enumClass): mixed
+    {
+        if ($value === null || !enum_exists($enumClass)) {
+            return $value;
+        }
+
+        if ($value instanceof $enumClass) {
+            return $value;
+        }
+
+        if (is_subclass_of($enumClass, \BackedEnum::class) && (is_int($value) || is_string($value))) {
+            $case = $enumClass::tryFrom($value);
+            if ($case instanceof \BackedEnum) {
+                return $case;
+            }
+        }
+
+        if (is_string($value) && defined($enumClass . '::' . $value)) {
+            $case = constant($enumClass . '::' . $value);
+
+            return $case instanceof \UnitEnum ? $case : $value;
+        }
+
+        return $value;
     }
 
     protected function castToFloat(mixed $value): float

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Concerns;
 
 use Infocyph\ReqShield\Contracts\Rule;
+use Infocyph\ReqShield\Support\InputCaster;
 use Infocyph\ReqShield\Support\JsonSchemaTypeHelper;
 use Infocyph\ReqShield\Support\ValueStringifier;
 
@@ -250,48 +251,12 @@ trait HasValidatorRuntime
 
     protected function castToBoolean(mixed $value): bool
     {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (is_int($value) || is_float($value)) {
-            return (float) $value !== 0.0;
-        }
-
-        if (is_string($value)) {
-            $normalized = strtolower(trim($value));
-
-            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
-                return true;
-            }
-
-            if (in_array($normalized, ['0', 'false', 'no', 'off', ''], true)) {
-                return false;
-            }
-        }
-
-        return (bool) $value;
+        return InputCaster::toBoolean($value);
     }
 
     protected function castToDateTimeImmutable(mixed $value): mixed
     {
-        if ($value instanceof \DateTimeImmutable) {
-            return $value;
-        }
-
-        if ($value instanceof \DateTimeInterface) {
-            return \DateTimeImmutable::createFromInterface($value);
-        }
-
-        if (!is_scalar($value) || $value === '') {
-            return $value;
-        }
-
-        try {
-            return new \DateTimeImmutable((string) $value);
-        } catch (\Throwable) {
-            return $value;
-        }
+        return InputCaster::tryDateTimeImmutable($value) ?? $value;
     }
 
     protected function castToString(mixed $value): string
