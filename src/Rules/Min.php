@@ -8,23 +8,15 @@ namespace Infocyph\ReqShield\Rules;
  * Min Rule - Cost: 2
  * Validates minimum value/length.
  */
-class Min extends BaseRule
+class Min extends AbstractSizeRule
 {
-    public function __construct(protected $min) {}
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must be at least {$this->min}.";
+        return "The {$field} must be at least {$this->target}.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function passesForSize(int|float|string $size): bool
     {
-        return $this->getSize($value) >= $this->min;
+        return $size >= $this->target;
     }
-
 }

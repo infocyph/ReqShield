@@ -1,20 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Infocyph\ReqShield\Exceptions;
 
 class ValidationFailedException extends ValidationException
 {
+    /** @param array<string, array<int, string>> $errors */
     public function __construct(
-        protected array $errors,
+        array $errors,
         string $message = 'Validation failed',
     ) {
-        parent::__construct($message);
+        parent::__construct($message, $errors);
     }
-
-    #[\Override]
-    public function getErrors(): array
-    {
-        return $this->errors;
-    }
-
 }

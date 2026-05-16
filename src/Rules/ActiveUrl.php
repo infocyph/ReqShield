@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Rules;
 
+use Infocyph\ReqShield\Support\LruCache;
+
 /**
  * ActiveUrl Rule - Cost: 150
  * Validates that the value is an active URL (DNS check)
@@ -34,6 +36,7 @@ class ActiveUrl extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if (!is_string($value)) {
             return false;
         }
@@ -46,11 +49,8 @@ class ActiveUrl extends BaseRule
 
         $host = strtolower($url['host']);
 
-        if (isset(self::$dnsCache[$host])) {
-            $cached = self::$dnsCache[$host];
-            unset(self::$dnsCache[$host]);
-            self::$dnsCache[$host] = $cached;
-
+        $cached = LruCache::touch(self::$dnsCache, $host);
+        if (is_bool($cached)) {
             return $cached;
         }
 
@@ -62,12 +62,11 @@ class ActiveUrl extends BaseRule
 
     protected function rememberDnsResult(string $host, bool $isActive): void
     {
-        self::$dnsCache[$host] = $isActive;
-
-        if (count(self::$dnsCache) <= self::MAX_DNS_CACHE_ENTRIES) {
-            return;
-        }
-
-        array_shift(self::$dnsCache);
+        LruCache::remember(
+            self::$dnsCache,
+            self::MAX_DNS_CACHE_ENTRIES,
+            $host,
+            $isActive,
+        );
     }
 }

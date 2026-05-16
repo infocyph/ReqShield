@@ -7,27 +7,23 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * MissingUnless Rule - Cost: 2
  */
-class MissingUnless extends BaseRule
+class MissingUnless extends AbstractComparisonConditionRule
 {
-    public function __construct(protected string $otherField, protected mixed $value) {}
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must not be present unless {$this->otherField} is {$this->value}.";
+        return "The {$field} must not be present unless {$this->otherField} is "
+            . $this->stringifyValue($this->value) . '.';
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    /** @param array<array-key, mixed> $data */
+    protected function passesWhenConditionApplies(mixed $value, string $field, array $data): bool
     {
-        if (array_key_exists($this->otherField, $data) && $data[$this->otherField] === $this->value) {
-            return true;
-        }
-
         return !array_key_exists($field, $data) || $this->isEmpty($value);
     }
 
+    #[\Override]
+    protected function shouldEvaluateOnMatch(): bool
+    {
+        return false;
+    }
 }

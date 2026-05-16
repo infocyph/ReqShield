@@ -7,38 +7,23 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * Prohibits Rule - Cost: 2
  */
-class Prohibits extends BaseRule
+class Prohibits extends FieldListRule
 {
-    protected array $fields;
-
-    public function __construct(string ...$fields)
-    {
-        $this->fields = $fields;
-    }
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} prohibits " . implode(
-            ', ',
-            $this->fields,
-        ) . ' from being present.';
+        return "The {$field} prohibits {$this->joinedFields()} from being present.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if ($this->isEmpty($value)) {
             return true;
         }
 
         return array_all(
             $this->fields,
-            fn($f) => !(array_key_exists($f, $data) && !$this->isEmpty($data[$f])),
+            fn(string $f): bool => !(array_key_exists($f, $data) && !$this->isEmpty($data[$f])),
         );
     }
-
 }

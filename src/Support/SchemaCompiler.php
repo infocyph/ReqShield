@@ -5,70 +5,56 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Support;
 
 use Infocyph\ReqShield\Contracts\Rule;
+use Infocyph\ReqShield\Enums\BuiltinRule;
 use Infocyph\ReqShield\Exceptions\InvalidRuleException;
 
-/**
- * SchemaCompiler
- *
- * Compiles validation rules into optimized ValidationNode structures.
- * FIXED: Properly handles nested validation with flat schema structure.
- *
- * NESTED VALIDATION FIX:
- * - Schema is always kept FLAT with dot notation as keys
- * - Example: 'user.email' is ONE field in schema, not nested structure
- * - NestedValidator::flattenData() flattens input data to match schema keys
- * - This allows validation to work on flattened data with dot notation
- */
 class SchemaCompiler
 {
-    /**
-     * Rules that expect array parameters (all params as single array).
-     * Example: 'in:1,2,3' → new In([1, 2, 3])
-     */
+    /** @var array<string, class-string<Rule>> */
+    protected static array $resolvedBuiltinRuleClassCache = [];
+
+    /** @var array<int,string> */
     protected array $arrayRules = ['in', 'not_in'];
 
-    /**
-     * Reverse lookup of rule class => canonical rule name.
-     */
-    protected ?array $reverseRuleMap = null;
+    /** @var array<string,class-string<Rule>> */
+    protected array $customRuleMap = [];
 
-    /**
-     * Rule map configuration - loaded from rule-map.php.
-     */
-    protected array $ruleMap = [];
+    /** @var array<string,class-string<Rule>>|null */
+    protected ?array $mergedRuleMap = null;
 
-    public function __construct()
+    /** @var array<string,string>|null */
+    protected ?array $reverseCustomRuleMap = null;
+
+    public static function clearResolvedBuiltinRuleClassCache(): void
     {
-        $this->loadRuleMap();
+        self::$resolvedBuiltinRuleClassCache = [];
     }
 
     /**
-     * Compile validation rules into optimized schema.
+     * @param array<int|string,mixed> $rules
      *
-     * FIXED: Always keeps schema flat - nested fields are just field names
-     * with dots. The NestedValidator will flatten the data to match these
-     * keys.
-     *
-     * Example:
-     * Input: ['user.email' => 'required|email', 'user.name' => 'required']
-     * Output: [
-     *   'user.email' => ValidationNode (with required, email rules),
-     *   'user.name' => ValidationNode (with required rule)
-     * ]
+     * @return array<string,ValidationNode>
      */
     public function compile(array $rules): array
     {
         $schema = [];
 
         foreach ($rules as $field => $ruleSet) {
+            if (!is_string($field)) {
+                continue;
+            }
+
             // Convert string rules to array
             if (is_string($ruleSet)) {
                 $ruleSet = RuleExpressionParser::splitRules($ruleSet);
             }
+            if (!is_array($ruleSet)) {
+                continue;
+            }
 
             // Always use flat structure - nested fields with dots are just field names
             // The NestedValidator will handle flattening the data to match
-            $schema[$field] = $this->compileField($ruleSet);
+            $schema[$field] = $this->compileField(array_values($ruleSet));
         }
 
         // Sort rules by cost in all nodes
@@ -79,30 +65,44 @@ class SchemaCompiler
         return $schema;
     }
 
-    /**
-     * Get the active rule map (rule name => class).
-     */
+    /** @return array<string,class-string<Rule>> */
     public function getRuleMap(): array
     {
-        return $this->ruleMap;
+        if ($this->customRuleMap === []) {
+            return BuiltinRule::tokenToClassMap();
+        }
+
+        if ($this->mergedRuleMap !== null) {
+            return $this->mergedRuleMap;
+        }
+
+        $this->mergedRuleMap = array_merge(
+            BuiltinRule::tokenToClassMap(),
+            $this->customRuleMap,
+        );
+
+        return $this->mergedRuleMap;
     }
 
-    /**
-     * Get the canonical rule name for a rule object.
-     */
     public function getRuleNameForRule(Rule $rule): string
     {
         $class = ltrim($rule::class, '\\');
 
-        if ($this->reverseRuleMap === null) {
-            $this->reverseRuleMap = [];
-            foreach ($this->ruleMap as $name => $mappedClass) {
-                $this->reverseRuleMap[ltrim($mappedClass, '\\')] = $name;
+        if ($this->reverseCustomRuleMap === null) {
+            $this->reverseCustomRuleMap = [];
+
+            foreach ($this->customRuleMap as $name => $mappedClass) {
+                $this->reverseCustomRuleMap[ltrim($mappedClass, '\\')] = $name;
             }
         }
 
-        if (isset($this->reverseRuleMap[$class])) {
-            return $this->reverseRuleMap[$class];
+        if (isset($this->reverseCustomRuleMap[$class])) {
+            return $this->reverseCustomRuleMap[$class];
+        }
+
+        $builtin = BuiltinRule::resolveNameForClass($class);
+        if (is_string($builtin)) {
+            return $builtin;
         }
 
         $pos = strrpos($class, '\\');
@@ -111,19 +111,13 @@ class SchemaCompiler
         return RuleNameResolver::canonicalRuleNameFromClass($shortName);
     }
 
-    /**
-     * Register a custom rule.
-     */
     public function registerRule(string $name, string $class): void
     {
-        if (!class_exists($class)) {
-            throw new InvalidRuleException(
-                "Rule class does not exist: {$class}",
-            );
-        }
+        $this->assertRuleClass($name, $class);
 
-        $this->ruleMap[$name] = $class;
-        $this->reverseRuleMap = null;
+        $this->customRuleMap[$name] = $class;
+        $this->mergedRuleMap = null;
+        $this->reverseCustomRuleMap = null;
     }
 
     /**
@@ -135,11 +129,11 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array($ruleName, ['required_if_accepted', 'required_if_declined'], true)) {
+        if (!BuiltinRule::supportsAcceptedDeclinedPlaceholder($ruleName)) {
             return;
         }
 
-        $placeholders['other'] = implode(', ', array_map(strval(...), $params));
+        $placeholders['other'] = $this->implodeScalarParams($params);
     }
 
     /**
@@ -151,15 +145,11 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array(
-            $ruleName,
-            ['required_with', 'required_with_all', 'required_without', 'required_without_all', 'present_with', 'present_with_all', 'exclude_with', 'exclude_without', 'prohibits'],
-            true,
-        )) {
+        if (!BuiltinRule::supportsAggregateOtherPlaceholder($ruleName)) {
             return;
         }
 
-        $placeholders['other'] = implode(', ', array_map(strval(...), $params));
+        $placeholders['other'] = $this->implodeScalarParams($params);
     }
 
     /**
@@ -171,7 +161,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array($ruleName, ['same', 'different', 'gt', 'gte', 'lt', 'lte'], true)) {
+        if (!BuiltinRule::supportsComparisonPlaceholder($ruleName)) {
             return;
         }
 
@@ -187,16 +177,12 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array(
-            $ruleName,
-            ['required_if', 'required_unless', 'present_if', 'present_unless', 'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless', 'accepted_if', 'declined_if'],
-            true,
-        )) {
+        if (!BuiltinRule::supportsConditionalPlaceholder($ruleName)) {
             return;
         }
 
         $placeholders['other'] = $params[0] ?? null;
-        $placeholders['value'] = implode(', ', array_map(strval(...), array_slice($params, 1)));
+        $placeholders['value'] = $this->implodeScalarParams(array_slice($params, 1));
     }
 
     /**
@@ -208,17 +194,18 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if ($ruleName === 'unique') {
+        if (BuiltinRule::isUniqueRule($ruleName)) {
             $placeholders['table'] = $params[0] ?? null;
             $placeholders['column'] = $params[1] ?? null;
             $placeholders['ignore'] = $params[2] ?? null;
             $placeholders['id_column'] = $params[3] ?? null;
             $placeholders['with_trashed'] = $params[4] ?? null;
             $placeholders['soft_delete_column'] = $params[5] ?? null;
+
             return;
         }
 
-        if ($ruleName !== 'exists') {
+        if (!BuiltinRule::isExistsRule($ruleName)) {
             return;
         }
 
@@ -235,11 +222,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array(
-            $ruleName,
-            ['before', 'before_or_equal', 'after', 'after_or_equal', 'date_equals', 'date_format'],
-            true,
-        )) {
+        if (!BuiltinRule::supportsDatePlaceholder($ruleName)) {
             return;
         }
 
@@ -256,7 +239,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array($ruleName, ['regex', 'not_regex'], true)) {
+        if (!BuiltinRule::supportsPatternPlaceholder($ruleName)) {
             return;
         }
 
@@ -272,13 +255,14 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (in_array($ruleName, ['between', 'digits_between'], true)) {
+        if (BuiltinRule::supportsBetweenRangePlaceholder($ruleName)) {
             $placeholders['min'] = $params[0] ?? null;
             $placeholders['max'] = $params[1] ?? null;
+
             return;
         }
 
-        if ($ruleName !== 'decimal') {
+        if (!BuiltinRule::supportsDecimalRangePlaceholder($ruleName)) {
             return;
         }
 
@@ -295,16 +279,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        $key = match ($ruleName) {
-            'min' => 'min',
-            'max' => 'max',
-            'size' => 'size',
-            'digits' => 'digits',
-            'min_digits' => 'min',
-            'max_digits' => 'max',
-            'multiple_of' => 'multiple',
-            default => null,
-        };
+        $key = BuiltinRule::singleValuePlaceholderKey($ruleName);
 
         if ($key === null) {
             return;
@@ -322,15 +297,32 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array(
-            $ruleName,
-            ['in', 'not_in', 'contains', 'doesnt_contain', 'starts_with', 'ends_with', 'doesnt_start_with', 'doesnt_end_with', 'required_array_keys'],
-            true,
-        )) {
+        if (!BuiltinRule::supportsValuesPlaceholder($ruleName)) {
             return;
         }
 
-        $placeholders['values'] = implode(', ', array_map(strval(...), $params));
+        $placeholders['values'] = $this->implodeScalarParams($params);
+    }
+
+    /**
+     * @param class-string<Rule>|string $class
+     * @phpstan-assert class-string<Rule> $class
+     */
+    protected function assertRuleClass(string $ruleName, string $class): void
+    {
+        if (!class_exists($class)) {
+            throw InvalidRuleException::invalidFormat(
+                $ruleName,
+                "Resolved rule class does not exist: {$class}",
+            );
+        }
+
+        if (!is_subclass_of($class, Rule::class)) {
+            throw InvalidRuleException::invalidFormat(
+                $ruleName,
+                'Resolved rule class must implement ' . Rule::class . ": {$class}",
+            );
+        }
     }
 
     /**
@@ -350,8 +342,6 @@ class SchemaCompiler
     }
 
     /**
-     * Build placeholder token map for a parsed rule.
-     *
      * @param array<int,mixed> $params
      *
      * @return array<string,mixed>
@@ -384,8 +374,9 @@ class SchemaCompiler
     }
 
     /**
-     * Cast string parameters to appropriate types based on content.
-     * Uses pattern-based heuristics for fast, simple type casting.
+     * @param array<int,mixed> $params
+     *
+     * @return array<int,mixed>
      */
     protected function castParameters(array $params): array
     {
@@ -393,16 +384,14 @@ class SchemaCompiler
             $param === '' || $param === 'null' => null,
             $param === 'true' => true,
             $param === 'false' => false,
-            is_numeric($param) => str_contains($param, '.')
+            is_numeric($param) => str_contains((string) $param, '.')
               ? (float) $param
               : (int) $param,
             default => $param,
         }, $params);
     }
 
-    /**
-     * Compile a single field's rules into a ValidationNode.
-     */
+    /** @param array<int,mixed> $ruleSet */
     protected function compileField(array $ruleSet): ValidationNode
     {
         $node = new ValidationNode();
@@ -410,6 +399,7 @@ class SchemaCompiler
         foreach ($ruleSet as $rule) {
             if (is_string($rule)) {
                 [$ruleName, $params] = $this->parseRuleString($rule);
+                $params = array_values($params);
                 $ruleObject = $this->createRuleInstance($ruleName, $params);
                 $placeholders = $this->buildRulePlaceholders($ruleName, $params);
             } else {
@@ -424,17 +414,11 @@ class SchemaCompiler
         return $node;
     }
 
-    /**
-     * Create rule instance - delegates parameter handling to the rule class.
-     * SIMPLIFIED: Just pass parameters and let the class validate them.
-     */
+    /** @param array<int,mixed> $params */
     protected function createRuleInstance(string $name, array $params): Rule
     {
-        if (!isset($this->ruleMap[$name])) {
-            throw new InvalidRuleException("Unknown rule: {$name}");
-        }
-
-        $class = $this->ruleMap[$name];
+        /** @var class-string<Rule> $class */
+        $class = $this->resolveRuleClass($name);
 
         // Cast parameters to appropriate types
         $params = $this->castParameters($params);
@@ -462,20 +446,15 @@ class SchemaCompiler
         }
     }
 
-    /**
-     * Load rule map from configuration file.
-     */
-    protected function loadRuleMap(): void
+    /** @param array<int,mixed> $params */
+    protected function implodeScalarParams(array $params): string
     {
-        $mapPath = __DIR__ . '/../Rules/rule-map.php';
-
-        if (!file_exists($mapPath)) {
-            throw new InvalidRuleException(
-                "Rule map file not found: {$mapPath}",
-            );
-        }
-
-        $this->ruleMap = require $mapPath;
+        return implode(', ', array_map(
+            static fn(mixed $value): string => is_scalar($value) || $value === null
+                ? (string) $value
+                : '',
+            $params,
+        ));
     }
 
     /**
@@ -491,28 +470,6 @@ class SchemaCompiler
         ));
     }
 
-    /**
-     * Parses a validation rule from various formats into a Rule object.
-     *
-     * This method handles different rule formats:
-     * - Rule objects (passed through directly)
-     * - String rules (e.g., 'required', 'min:3')
-     *
-     * @param mixed $rule The rule to parse (string or Rule object)
-     *
-     * @return Rule The parsed rule instance
-     * @throws InvalidRuleException If the rule format is invalid
-     *
-     * @see parseStringRule() For handling string-based rules
-     * @see createRuleInstance() For creating rule instances from names
-     * @example
-     * // Using string rule
-     * $rule = $this->parseRule('required');
-     *
-     * // Using Rule object
-     * $rule = $this->parseRule(new RequiredRule());
-     *
-     */
     protected function parseRule(mixed $rule): Rule
     {
         // Already a Rule object
@@ -530,62 +487,16 @@ class SchemaCompiler
         );
     }
 
-    /**
-     * Splits a rule string into its name and parameters.
-     *
-     * Handles special cases for rules like 'regex' where parameters
-     * should not be split on commas.
-     *
-     * @param string $rule The rule string to parse (e.g., 'min:3', 'in:1,2,3')
-     *
-     * @return array{string, string[]} Tuple containing [ruleName,
-     *   parameters[]]
-     *
-     * @see parseStringRule() For creating a Rule instance from the parsed
-     *   string
-     * @example
-     * // Returns ['min', ['3']]
-     * $this->parseRuleString('min:3');
-     *
-     * // Returns ['in', ['1', '2', '3']]
-     * $this->parseRuleString('in:1,2,3');
-     *
-     * // Returns ['regex', ['/^[a-z]+$/i']] (special case, no comma splitting)
-     * $this->parseRuleString('regex:/^[a-z]+$/i');
-     *
-     */
+    /** @return array{0:string,1:array<int,mixed>} */
     protected function parseRuleString(string $rule): array
     {
-        return RuleExpressionParser::parse($rule);
+        $parsed = RuleExpressionParser::parse($rule);
+        $name = $parsed[0];
+        $params = $parsed[1];
+
+        return [$name, array_values($params)];
     }
 
-    /**
-     * Parses a string-based validation rule into a Rule instance.
-     *
-     * This is the main entry point for processing string rules like:
-     * - 'required'
-     * - 'min:18'
-     * - 'unique:users,email,5'
-     * - 'regex:/^[a-z]+$/i'
-     *
-     * @param string $rule The rule string to parse
-     *
-     * @return Rule The instantiated rule object
-     * @throws InvalidRuleException If the rule is unknown or invalid
-     *
-     * @see parseRuleString() For splitting the rule into components
-     * @see createRuleInstance() For instantiating the rule class
-     * @example
-     * // Returns a RequiredRule instance
-     * $rule = $this->parseStringRule('required');
-     *
-     * // Returns a MinRule instance with parameter 18
-     * $rule = $this->parseStringRule('min:18');
-     *
-     * // Returns a UniqueRule instance with table and column parameters
-     * $rule = $this->parseStringRule('unique:users,email');
-     *
-     */
     protected function parseStringRule(string $rule): Rule
     {
         [$name, $params] = $this->parseRuleString($rule);
@@ -593,4 +504,27 @@ class SchemaCompiler
         return $this->createRuleInstance($name, $params);
     }
 
+    /**
+     * @return class-string<Rule>
+     */
+    protected function resolveRuleClass(string $ruleName): string
+    {
+        if (isset($this->customRuleMap[$ruleName])) {
+            return $this->customRuleMap[$ruleName];
+        }
+
+        if (isset(self::$resolvedBuiltinRuleClassCache[$ruleName])) {
+            return self::$resolvedBuiltinRuleClassCache[$ruleName];
+        }
+
+        $class = BuiltinRule::resolve($ruleName);
+        if ($class === null) {
+            throw InvalidRuleException::unknownRule($ruleName);
+        }
+
+        $this->assertRuleClass($ruleName, $class);
+        self::$resolvedBuiltinRuleClassCache[$ruleName] = $class;
+
+        return $class;
+    }
 }

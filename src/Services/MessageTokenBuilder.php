@@ -7,8 +7,12 @@ namespace Infocyph\ReqShield\Services;
 final class MessageTokenBuilder
 {
     /**
-     * @param array<string,mixed> $data
-     * @param array<string,mixed> $rulePlaceholders
+     * @param array<int|string, mixed> $data
+     * @param array<string, mixed> $rulePlaceholders
+     * @param callable(mixed): string $stringify
+     * @param callable(string): string $resolveAlias
+     * @param callable(string): string $normalizeOtherPlaceholder
+     * @return array<string, mixed>
      */
     public function build(
         string $field,
@@ -32,7 +36,7 @@ final class MessageTokenBuilder
         ];
 
         foreach ($rulePlaceholders as $token => $tokenValue) {
-            if (!is_string($token) || $token === '') {
+            if ($token === '') {
                 continue;
             }
 
@@ -53,34 +57,70 @@ final class MessageTokenBuilder
     }
 
     /**
-     * @param array<string,mixed> $tokens
+     * @param array<string, mixed> $tokens
+     * @param callable(string): string $resolveAlias
      */
     protected function appendOtherToken(
         array &$tokens,
         object $rule,
         callable $resolveAlias,
     ): void {
-        if (method_exists($rule, 'getOtherField')) {
-            $otherField = $rule->getOtherField();
-            if (is_string($otherField) && $otherField !== '') {
-                $tokens['other'] = $resolveAlias($otherField);
+        $single = $this->resolveSingleOtherFieldToken($rule, $resolveAlias);
+        if ($single !== null) {
+            $tokens['other'] = $single;
 
-                return;
-            }
+            return;
         }
 
+        $multi = $this->resolveMultiOtherFieldToken($rule, $resolveAlias);
+        if ($multi !== null) {
+            $tokens['other'] = $multi;
+        }
+    }
+
+    /** @param callable(string): string $resolveAlias */
+    protected function resolveMultiOtherFieldToken(object $rule, callable $resolveAlias): ?string
+    {
         if (!method_exists($rule, 'getOtherFields')) {
-            return;
+            return null;
         }
 
         $otherFields = $rule->getOtherFields();
         if (!is_array($otherFields) || $otherFields === []) {
-            return;
+            return null;
         }
 
-        $tokens['other'] = implode(', ', array_map(
-            static fn(mixed $other): string => $resolveAlias((string) $other),
-            $otherFields,
-        ));
+        $aliases = [];
+        foreach ($otherFields as $other) {
+            if (!is_scalar($other) && !(is_object($other) && method_exists($other, '__toString'))) {
+                continue;
+            }
+
+            $alias = $resolveAlias((string) $other);
+            if ($alias !== '') {
+                $aliases[] = $alias;
+            }
+        }
+
+        if ($aliases === []) {
+            return null;
+        }
+
+        return implode(', ', $aliases);
+    }
+
+    /** @param callable(string): string $resolveAlias */
+    protected function resolveSingleOtherFieldToken(object $rule, callable $resolveAlias): ?string
+    {
+        if (!method_exists($rule, 'getOtherField')) {
+            return null;
+        }
+
+        $otherField = $rule->getOtherField();
+        if (!is_string($otherField) || $otherField === '') {
+            return null;
+        }
+
+        return $resolveAlias($otherField);
     }
 }

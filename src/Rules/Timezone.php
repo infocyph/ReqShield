@@ -9,6 +9,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Timezone extends BaseRule
 {
+    /** @var array<string,bool>|null */
     protected static ?array $timezoneLookup = null;
 
     public function cost(): int
@@ -23,6 +24,7 @@ class Timezone extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if (!is_string($value)) {
             return false;
         }
@@ -36,5 +38,4 @@ class Timezone extends BaseRule
 
         return isset(self::$timezoneLookup[$value]);
     }
-
 }

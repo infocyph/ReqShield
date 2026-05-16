@@ -7,27 +7,15 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * NotRegex Rule - Cost: 20
  */
-class NotRegex extends BaseRule
+class NotRegex extends AbstractRegexPatternRule
 {
-    public function __construct(protected string $pattern) {}
-
-    public function cost(): int
-    {
-        return 20;
-    }
-
     public function message(string $field): string
     {
         return "The {$field} format is invalid (must not match pattern).";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function isPatternResultValid(int|false $result): bool
     {
-        if (!is_string($value) && !is_numeric($value)) {
-            return false;
-        }
-
-        return preg_match($this->pattern, (string) $value) === 0;
+        return $result === 0;
     }
-
 }

@@ -8,42 +8,18 @@ namespace Infocyph\ReqShield\Rules;
  * RequiredWith Rule - Cost: 2
  * Field is required if any of the other fields are present
  */
-class RequiredWith extends BaseRule
+class RequiredWith extends AbstractRequiredRelatedFieldsRule
 {
-    protected array $fields;
-
-    public function __construct(string ...$fields)
-    {
-        $this->fields = $fields;
-    }
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} field is required when " . implode(
-            ', ',
-            $this->fields,
-        ) . ' is present.';
+        return "The {$field} field is required when {$this->joinedFields()} is present.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function isRequiredFromRelatedFields(array $data): bool
     {
-        $hasAnyField = array_any(
+        return array_any(
             $this->fields,
-            fn($otherField)
-              => array_key_exists($otherField, $data) && !$this->isEmpty(
-                  $data[$otherField],
-              ),
+            fn(string $otherField): bool => $this->hasNonEmptyField($otherField, $data),
         );
-        if (!$hasAnyField) {
-            return true;
-        }
-
-        return !$this->isEmpty($value);
     }
-
 }

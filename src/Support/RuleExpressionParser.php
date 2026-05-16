@@ -6,21 +6,38 @@ namespace Infocyph\ReqShield\Support;
 
 final class RuleExpressionParser
 {
-    /**
-     * @return array{0:string,1:array<int,string>}
-     */
+    protected const int MAX_PARSED_RULE_CACHE = 1024;
+
+    /** @var array<string,array{0:string,1:array<int,string>}> */
+    protected static array $parseCache = [];
+
+    /** @var array<string,array<int,string>> */
+    protected static array $splitCache = [];
+
+    /** @return array{0:string,1:array<int,string>} */
     public static function parse(string $rule): array
     {
+        $cached = LruCache::touch(self::$parseCache, $rule);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         $parts = explode(':', $rule, 2);
         $name = $parts[0];
         $rawParams = $parts[1] ?? '';
 
         if ($rawParams === '') {
-            return [$name, []];
+            $parsed = [$name, []];
+            self::rememberParseCache($rule, $parsed);
+
+            return $parsed;
         }
 
         if (in_array($name, ['regex', 'not_regex'], true)) {
-            return [$name, [$rawParams]];
+            $parsed = [$name, [$rawParams]];
+            self::rememberParseCache($rule, $parsed);
+
+            return $parsed;
         }
 
         $params = explode(',', $rawParams);
@@ -32,15 +49,20 @@ final class RuleExpressionParser
             ));
         }
 
-        return [$name, $params];
+        $parsed = [$name, $params];
+        self::rememberParseCache($rule, $parsed);
+
+        return $parsed;
     }
-    /**
-     * Split a pipe-delimited rule string while preserving regex pipes.
-     *
-     * @return array<int,string>
-     */
+
+    /** @return array<int,string> */
     public static function splitRules(string $rules): array
     {
+        $cached = LruCache::touch(self::$splitCache, $rules);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         if ($rules === '') {
             return [];
         }
@@ -57,6 +79,7 @@ final class RuleExpressionParser
                 self::appendToken($tokens, $current);
                 $current = '';
                 $state = self::newRegexState();
+
                 continue;
             }
 
@@ -66,12 +89,12 @@ final class RuleExpressionParser
 
         self::appendToken($tokens, $current);
 
+        self::rememberSplitCache($rules, $tokens);
+
         return $tokens;
     }
 
-    /**
-     * @param array<int,string> $tokens
-     */
+    /** @param array<int,string> $tokens */
     protected static function appendToken(array &$tokens, string $current): void
     {
         $trimmed = trim($current);
@@ -119,11 +142,11 @@ final class RuleExpressionParser
 
     /**
      * @return array{
-     *     inRegex: bool,
-     *     regexLocked: bool,
-     *     regexDelimiter: string,
-     *     escaped: bool,
-     *     inCharacterClass: bool
+     *   inRegex:bool,
+     *   regexLocked:bool,
+     *   regexDelimiter:string,
+     *   escaped:bool,
+     *   inCharacterClass:bool
      * }
      */
     protected static function newRegexState(): array
@@ -137,13 +160,35 @@ final class RuleExpressionParser
         ];
     }
 
+    /** @param array{0:string,1:array<int,string>} $parsed */
+    protected static function rememberParseCache(string $rule, array $parsed): void
+    {
+        LruCache::remember(
+            self::$parseCache,
+            self::MAX_PARSED_RULE_CACHE,
+            $rule,
+            $parsed,
+        );
+    }
+
+    /** @param array<int,string> $tokens */
+    protected static function rememberSplitCache(string $rules, array $tokens): void
+    {
+        LruCache::remember(
+            self::$splitCache,
+            self::MAX_PARSED_RULE_CACHE,
+            $rules,
+            $tokens,
+        );
+    }
+
     /**
      * @param array{
-     *     inRegex: bool,
-     *     regexLocked: bool,
-     *     regexDelimiter: string,
-     *     escaped: bool,
-     *     inCharacterClass: bool
+     *   inRegex:bool,
+     *   regexLocked:bool,
+     *   regexDelimiter:string,
+     *   escaped:bool,
+     *   inCharacterClass:bool
      * } $state
      */
     protected static function tryEnterRegexMode(array &$state, string $current): void
@@ -166,37 +211,42 @@ final class RuleExpressionParser
 
     /**
      * @param array{
-     *     inRegex: bool,
-     *     regexLocked: bool,
-     *     regexDelimiter: string,
-     *     escaped: bool,
-     *     inCharacterClass: bool
+     *   inRegex:bool,
+     *   regexLocked:bool,
+     *   regexDelimiter:string,
+     *   escaped:bool,
+     *   inCharacterClass:bool
      * } $state
      */
     protected static function updateRegexState(array &$state, string $current, string $char): void
     {
         if (!$state['inRegex']) {
             self::tryEnterRegexMode($state, $current);
+
             return;
         }
 
         if ($state['escaped']) {
             $state['escaped'] = false;
+
             return;
         }
 
         if ($char === '\\') {
             $state['escaped'] = true;
+
             return;
         }
 
         if ($char === '[') {
             $state['inCharacterClass'] = true;
+
             return;
         }
 
         if ($char === ']' && $state['inCharacterClass']) {
             $state['inCharacterClass'] = false;
+
             return;
         }
 

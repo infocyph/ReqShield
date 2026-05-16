@@ -7,35 +7,18 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * RequiredWithoutAll Rule - Cost: 2
  */
-class RequiredWithoutAll extends BaseRule
+class RequiredWithoutAll extends AbstractRequiredRelatedFieldsRule
 {
-    protected array $fields;
-
-    public function __construct(string ...$fields)
-    {
-        $this->fields = $fields;
-    }
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} is required when none of " . implode(
-            ', ',
-            $this->fields,
-        ) . " are present.";
+        return "The {$field} is required when none of {$this->joinedFields()} are present.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function isRequiredFromRelatedFields(array $data): bool
     {
-        $hasAny = array_any(
+        return !array_any(
             $this->fields,
-            fn($f) => array_key_exists($f, $data) && !$this->isEmpty($data[$f]),
+            fn(string $otherField): bool => $this->hasNonEmptyField($otherField, $data),
         );
-        return $hasAny || !$this->isEmpty($value);
     }
-
 }

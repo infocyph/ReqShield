@@ -8,23 +8,15 @@ namespace Infocyph\ReqShield\Rules;
  * Max Rule - Cost: 2
  * Validates maximum value/length.
  */
-class Max extends BaseRule
+class Max extends AbstractSizeRule
 {
-    public function __construct(protected $max) {}
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must not exceed {$this->max}.";
+        return "The {$field} must not exceed {$this->target}.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function passesForSize(int|float|string $size): bool
     {
-        return $this->getSize($value) <= $this->max;
+        return $size <= $this->target;
     }
-
 }

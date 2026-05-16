@@ -17,7 +17,7 @@ class ValidationException extends Exception
      * Create a new ValidationException instance.
      *
      * @param string $message Exception message
-     * @param array<string, array<string>> $errors Validation errors
+     * @param array<string, array<int, string>> $errors Validation errors
      * @param int $code Exception code
      * @param \Throwable|null $previous Previous exception
      */
@@ -25,6 +25,8 @@ class ValidationException extends Exception
         string $message = 'Validation failed',
         /**
          * Validation errors.
+         *
+         * @var array<string, array<int, string>>
          */
         protected array $errors = [],
         int $code = 0,
@@ -52,7 +54,7 @@ class ValidationException extends Exception
     /**
      * Get all error messages as flat array.
      *
-     * @return array<string>
+     * @return array<int, string>
      */
     public function getAllMessages(): array
     {
@@ -62,6 +64,7 @@ class ValidationException extends Exception
                 $messages[] = $error;
             }
         }
+
         return $messages;
     }
 
@@ -76,7 +79,7 @@ class ValidationException extends Exception
     /**
      * Get validation errors.
      *
-     * @return array<string, array<string>>
+     * @return array<string, array<int, string>>
      */
     public function getErrors(): array
     {
@@ -87,8 +90,7 @@ class ValidationException extends Exception
      * Get errors for a specific field.
      *
      * @param string $field Field name
-     *
-     * @return array<string>
+     * @return array<int, string>
      */
     public function getFieldErrors(string $field): array
     {
@@ -102,7 +104,9 @@ class ValidationException extends Exception
      */
     public function getFirstFieldError(string $field): ?string
     {
-        return $this->errors[$field][0] ?? null;
+        $fieldErrors = $this->errors[$field] ?? [];
+
+        return $fieldErrors[0] ?? null;
     }
 
     /**
@@ -114,5 +118,4 @@ class ValidationException extends Exception
     {
         return isset($this->errors[$field]);
     }
-
 }

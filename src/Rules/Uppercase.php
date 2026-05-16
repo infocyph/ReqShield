@@ -8,7 +8,7 @@ namespace Infocyph\ReqShield\Rules;
  * Uppercase Rule - Cost: 5
  * String must be uppercase
  */
-class Uppercase extends BaseRule
+class Uppercase extends AbstractCaseTransformRule
 {
     public function cost(): int
     {
@@ -20,13 +20,8 @@ class Uppercase extends BaseRule
         return "The {$field} must be uppercase.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function transform(string $value): string
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        return $value === mb_strtoupper($value);
+        return mb_strtoupper($value);
     }
-
 }

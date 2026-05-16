@@ -7,15 +7,8 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * MimeTypes Rule - Cost: 30
  */
-class MimeTypes extends BaseRule
+class MimeTypes extends AbstractMimeTypeListRule
 {
-    protected array $types;
-
-    public function __construct(string ...$types)
-    {
-        $this->types = $types;
-    }
-
     public function cost(): int
     {
         return 70;
@@ -29,6 +22,7 @@ class MimeTypes extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         $mime = $this->resolveMimeType($value);
         if ($mime === null) {
             return false;
@@ -36,22 +30,4 @@ class MimeTypes extends BaseRule
 
         return in_array($mime, $this->types, true);
     }
-
-    protected function resolveMimeType(mixed $value): ?string
-    {
-        $path = $this->getUploadedFilePath($value);
-        if (is_string($path)) {
-            $detected = $this->detectMimeTypeFromPath($path);
-            if ($detected !== null) {
-                return $detected;
-            }
-        }
-
-        $clientMimeType = $this->getUploadedFileClientMediaType($value);
-
-        return is_string($clientMimeType) && $clientMimeType !== ''
-            ? $clientMimeType
-            : null;
-    }
-
 }

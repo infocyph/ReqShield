@@ -4,31 +4,6 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Rules;
 
-/**
- * IP Rule - Cost: 10
- * Validates that a value is a valid IP address
- *
- * Supports:
- * - Any IP (IPv4 or IPv6): ip
- * - IPv4 only: ip:v4 or ip:4
- * - IPv6 only: ip:v6 or ip:6
- * - Public IP only: ip:public
- * - Private IP only: ip:private
- * - No reserved ranges: ip:no_res
- * - No private ranges: ip:no_priv
- * - Global range only: ip:global
- * - Combinations: ip:v4,public or ip:v6,no_priv
- *
- * @example
- * 'ip' => 'ip'                    // Any valid IP
- * 'ip' => 'ip:v4'                 // IPv4 only
- * 'ip' => 'ip:v6'                 // IPv6 only
- * 'ip' => 'ip:public'             // Public IP only (no private/reserved)
- * 'ip' => 'ip:private'            // Private IP only
- * 'ip' => 'ip:v4,public'          // Public IPv4 only
- * 'ip' => 'ip:v6,no_priv'         // IPv6 without private ranges
- * 'ip' => 'ip:global'             // Global addresses only
- */
 class Ip extends BaseRule
 {
     protected int $flags = 0;
@@ -41,9 +16,6 @@ class Ip extends BaseRule
 
     protected bool $publicOnly = false;
 
-    /**
-     * @param string|null $options Comma-separated options (e.g., "v4,public")
-     */
     public function __construct(?string $options = null)
     {
         if ($options !== null && $options !== '') {
@@ -58,10 +30,6 @@ class Ip extends BaseRule
         return 10;
     }
 
-    /**
-     * Generate contextual error message
-     * Complexity: O(1)
-     */
     public function message(string $field): string
     {
         // Private IP messages (grouped)
@@ -99,18 +67,15 @@ class Ip extends BaseRule
         };
     }
 
-    /**
-     * Validate IP address with specified flags
-     * Complexity: O(1)
-     */
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         // Fast type check
         if (!is_string($value)) {
             return false;
         }
 
-        // Fast length check (minimum valid IP is 7 chars: "0.0.0.0" or "::1")
+        // Fast length check for obviously invalid short input.
         $length = strlen($value);
         if ($length < 3) {
             return false;
@@ -125,10 +90,6 @@ class Ip extends BaseRule
         return filter_var($value, FILTER_VALIDATE_IP, $this->flags) !== false;
     }
 
-    /**
-     * Build filter flags based on parsed options
-     * Complexity: O(1)
-     */
     protected function buildFlags(): void
     {
         // IPv4 only
@@ -146,14 +107,9 @@ class Ip extends BaseRule
             $this->flags |= FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE;
         }
 
-        // Note: privateOnly is handled separately in passes() method
-        // because PHP doesn't have a flag for "private only"
+        // privateOnly is handled separately in passes() because PHP has no private-only flag.
     }
 
-    /**
-     * Check if IP is private (no PHP flag for this)
-     * Complexity: O(1)
-     */
     protected function isPrivateIp(string $value): bool
     {
         // First, must be a valid IP
@@ -178,10 +134,6 @@ class Ip extends BaseRule
         return filter_var($value, FILTER_VALIDATE_IP, $publicFlags) === false;
     }
 
-    /**
-     * Parse options string and set flags
-     * Complexity: O(n) where n is number of options
-     */
     protected function parseOptions(string $options): void
     {
         // Split by comma and process each option
@@ -199,5 +151,4 @@ class Ip extends BaseRule
             };
         }
     }
-
 }

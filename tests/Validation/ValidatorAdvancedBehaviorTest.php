@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter
+
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Rules\Unique;
 use Infocyph\ReqShield\Validator;
@@ -23,6 +25,17 @@ if (!class_exists('ReqShieldCtorDto')) {
             public bool $active,
         ) {
         }
+    }
+}
+
+if (!function_exists('reqShieldDeleteTempFile')) {
+    function reqShieldDeleteTempFile(string|false $path): void
+    {
+        if (!is_string($path) || $path === '' || !file_exists($path)) {
+            return;
+        }
+
+        unlink($path);
     }
 }
 
@@ -438,7 +451,7 @@ test('file rules support uploaded file objects', function () {
     ]);
 
     $result = $validator->validate(['file' => $uploaded]);
-    @unlink($path);
+    reqShieldDeleteTempFile($path);
 
     expect($result->passes())->toBeTrue();
 });
@@ -498,7 +511,7 @@ test('upload_meta rule supports uploaded file objects', function () {
     ]);
 
     $result = $validator->validate(['file' => $uploaded]);
-    @unlink($path);
+    reqShieldDeleteTempFile($path);
 
     expect($result->passes())->toBeTrue();
 });
@@ -558,7 +571,7 @@ test('secure_file rule supports uploaded file objects', function () {
     ]);
 
     $result = $validator->validate(['file' => $uploaded]);
-    @unlink($path);
+    reqShieldDeleteTempFile($path);
 
     expect($result->passes())->toBeTrue();
 });
@@ -621,7 +634,7 @@ test('mimes rule prefers detected mime over client media type', function () {
         'file' => 'required|file|mimes:php',
     ])->validate(['file' => $uploaded]);
 
-    @unlink($path);
+    reqShieldDeleteTempFile($path);
 
     expect($allowedText->passes())->toBeTrue();
     expect($allowedPhp->fails())->toBeTrue();
@@ -681,7 +694,7 @@ test('extensions rule supports uploaded file objects via client filename', funct
         'file' => 'required|file|extensions:jpg,png',
     ])->validate(['file' => $uploaded]);
 
-    @unlink($path);
+    reqShieldDeleteTempFile($path);
 
     expect($result->passes())->toBeTrue();
 });

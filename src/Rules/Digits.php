@@ -7,23 +7,15 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * Digits Rule - Cost: 5
  */
-class Digits extends BaseRule
+class Digits extends AbstractDigitCountRule
 {
-    public function __construct(protected int $length) {}
-
-    public function cost(): int
-    {
-        return 5;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must be {$this->length} digits.";
+        return "The {$field} must be {$this->digits} digits.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function passesForDigitCount(int $count): bool
     {
-        return is_numeric($value) && strlen((string) $value) === $this->length;
+        return $count === $this->digits;
     }
-
 }

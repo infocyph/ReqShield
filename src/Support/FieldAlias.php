@@ -6,19 +6,13 @@ namespace Infocyph\ReqShield\Support;
 
 class FieldAlias
 {
-    /**
-     * @var array<string,string>
-     */
+    /** @var array<string, string> */
     protected array $aliases = [];
 
-    /**
-     * @var array<int,array{pattern:string,alias:string}>
-     */
+    /** @var array<int, array{pattern:string,alias:string}> */
     protected array $wildcardPatterns = [];
 
-    /**
-     * @param array<string,string> $aliases
-     */
+    /** @param array<string, string> $aliases */
     public function __construct(array $aliases = [])
     {
         if ($aliases !== []) {
@@ -26,9 +20,7 @@ class FieldAlias
         }
     }
 
-    /**
-     * @return array<string,string>
-     */
+    /** @return array<string, string> */
     public function all(): array
     {
         return $this->aliases;
@@ -61,9 +53,8 @@ class FieldAlias
     }
 
     /**
-     * @param array<int,string> $fields
-     *
-     * @return array<string,string>
+     * @param array<int, string> $fields
+     * @return array<string, string>
      */
     public function getMany(array $fields): array
     {
@@ -86,9 +77,7 @@ class FieldAlias
         $this->rebuildWildcardPatterns();
     }
 
-    /**
-     * @param array<int,string> $fields
-     */
+    /** @param array<int, string> $fields */
     public function removeMany(array $fields): void
     {
         foreach ($fields as $field) {
@@ -97,9 +86,7 @@ class FieldAlias
         $this->rebuildWildcardPatterns();
     }
 
-    /**
-     * @param string|array<string,string> $field
-     */
+    /** @param string|array<string, string> $field */
     public function set(string|array $field, ?string $alias = null): void
     {
         if (is_array($field)) {
@@ -111,9 +98,7 @@ class FieldAlias
         $this->rebuildWildcardPatterns();
     }
 
-    /**
-     * @param array<string,string> $aliases
-     */
+    /** @param array<string, string> $aliases */
     public function setBatch(array $aliases, bool $replace = false): void
     {
         if ($replace) {
@@ -135,7 +120,7 @@ class FieldAlias
         $this->wildcardPatterns = [];
 
         foreach ($this->aliases as $field => $alias) {
-            if (!str_contains($field, '*')) {
+            if (!str_contains((string) $field, '*')) {
                 continue;
             }
 

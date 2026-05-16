@@ -7,38 +7,20 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * DoesntStartWith Rule - Cost: 5
  */
-class DoesntStartWith extends BaseRule
+class DoesntStartWith extends AbstractAffixValuesRule
 {
-    protected array $values;
-
-    public function __construct(string ...$values)
-    {
-        $this->values = $values;
-    }
-
-    public function cost(): int
-    {
-        return 5;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must not start with: " . implode(
-            ', ',
-            $this->values,
-        ) . '.';
+        return "The {$field} must not start with: {$this->joinedValues()}.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function matchesAffix(string $value, string $affix): bool
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        return array_all(
-            $this->values,
-            fn($prefix) => !str_starts_with($value, (string) $prefix),
-        );
+        return !str_starts_with($value, $affix);
     }
 
+    protected function useAnyMatch(): bool
+    {
+        return false;
+    }
 }

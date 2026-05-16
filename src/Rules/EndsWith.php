@@ -8,38 +8,20 @@ namespace Infocyph\ReqShield\Rules;
  * EndsWith Rule - Cost: 5
  * String must end with one of the given values
  */
-class EndsWith extends BaseRule
+class EndsWith extends AbstractAffixValuesRule
 {
-    protected array $values;
-
-    public function __construct(string ...$values)
-    {
-        $this->values = $values;
-    }
-
-    public function cost(): int
-    {
-        return 5;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must end with one of: " . implode(
-            ', ',
-            $this->values,
-        ) . '.';
+        return "The {$field} must end with one of: {$this->joinedValues()}.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function matchesAffix(string $value, string $affix): bool
     {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        return array_any(
-            $this->values,
-            fn($suffix) => str_ends_with($value, (string) $suffix),
-        );
+        return str_ends_with($value, $affix);
     }
 
+    protected function useAnyMatch(): bool
+    {
+        return true;
+    }
 }

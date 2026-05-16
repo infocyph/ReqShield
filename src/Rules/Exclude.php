@@ -21,7 +21,8 @@ class Exclude extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return false; // This rule always fails and excludes the field
     }
-
 }

@@ -177,7 +177,7 @@ test('fluent validationresult api works', function () {
             $passesCalled = true;
             expect($data)->toHaveKeys(['email', 'name', 'age']);
         })
-        ->whenFails(function ($errors) use (&$failsCalled) {
+        ->whenFails(function () use (&$failsCalled) {
             $failsCalled = true;
         });
 

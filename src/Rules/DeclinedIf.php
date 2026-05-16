@@ -8,31 +8,19 @@ namespace Infocyph\ReqShield\Rules;
  * DeclinedIf Rule - Cost: 2
  * Field must be declined if another field equals a value
  */
-class DeclinedIf extends BaseRule
+class DeclinedIf extends AbstractComparisonStateConditionRule
 {
-    public function __construct(
-        protected string $otherField,
-        protected mixed $value,
-    ) {}
-
-    public function cost(): int
-    {
-        return 2;
-    }
+    /** @var list<string|int|bool> */
+    private const array DECLINED_VALUES = ['no', 'off', '0', 0, false, 'false'];
 
     public function message(string $field): string
     {
-        return "The {$field} must be declined when {$this->otherField} is {$this->value}.";
+        return "The {$field} must be declined when {$this->otherField} is "
+            . $this->stringifyValue($this->value) . '.';
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function validStates(): array
     {
-        // If condition not met, field can be anything
-        if (!array_key_exists($this->otherField, $data) || $data[$this->otherField] !== $this->value) {
-            return true;
-        }
-
-        return in_array($value, ['no', 'off', '0', 0, false, 'false'], true);
+        return self::DECLINED_VALUES;
     }
-
 }

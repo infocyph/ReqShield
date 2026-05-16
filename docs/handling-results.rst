@@ -33,6 +33,28 @@ Validated and Typed Data
     $result->has('email');
     $result->get('email');
 
+Immutable Input Bag
+-------------------
+
+Use ``input()`` for typed read helpers over validated payload.
+
+.. code-block:: php
+
+    $input = $result->input();
+
+    $input->string('email');
+    $input->int('age');
+    $input->float('amount');
+    $input->bool('active');
+    $input->array('items');
+    $input->date('created_at');
+    $input->enum('status', App\Enums\OrderStatus::class);
+
+    $input->only(['email', 'age']);
+    $input->except(['password']);
+    $input->has('email');
+    $input->get('email');
+
 Errors and Messages
 -------------------
 
@@ -67,6 +89,18 @@ Use failure metadata for API/UI mapping.
     // ]
 
     $result->failuresFor('email');
+
+API Error Formatters
+--------------------
+
+``ValidationResult`` includes common API-ready error formats.
+
+.. code-block:: php
+
+    $result->toFlatErrors();     // normalized list
+    $result->toApiErrors();      // compact API shape
+    $result->toJsonApiErrors();  // JSON:API errors
+    $result->toProblemJson();    // RFC 7807-style payload
 
 DTO and Serialization
 ---------------------

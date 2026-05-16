@@ -9,11 +9,12 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Extensions extends BaseRule
 {
+    /** @var list<string> */
     protected array $extensions;
 
     public function __construct(string ...$extensions)
     {
-        $this->extensions = array_map(strtolower(...), $extensions);
+        $this->extensions = array_values(array_map(strtolower(...), $extensions));
     }
 
     public function cost(): int
@@ -31,6 +32,7 @@ class Extensions extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         $filename = $this->getUploadedFileClientFilename($value);
 
         if (!is_string($filename) || $filename === '') {
@@ -49,5 +51,4 @@ class Extensions extends BaseRule
 
         return in_array($ext, $this->extensions, true);
     }
-
 }

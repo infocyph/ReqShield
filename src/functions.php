@@ -10,7 +10,7 @@ if (!function_exists('validator')) {
     /**
      * Create a new validator instance.
      *
-     * @param array $rules Validation rules
+     * @param array<string,string|array<int,mixed>> $rules Validation rules
      * @param DatabaseProvider|null $db Optional database provider
      *
      * @example validator(['email' => 'required|email'])->validate($data);
@@ -28,8 +28,8 @@ if (!function_exists('validate')) {
      * This is a convenience function that creates a validator and validates in one call.
      * For more control, use validator() instead.
      *
-     * @param array $rules Validation rules
-     * @param array $data Data to validate
+     * @param array<string,string|array<int,mixed>> $rules Validation rules
+     * @param array<string,mixed> $data Data to validate
      * @param DatabaseProvider|null $db Optional database provider
      *
      * @throws \Infocyph\ReqShield\Exceptions\ValidationException
@@ -52,7 +52,7 @@ if (!function_exists('sanitize')) {
      * Sanitize a value using specified sanitizers.
      *
      * @param mixed $value Value to sanitize
-     * @param string|array $sanitizers Sanitizer name(s)
+     * @param string|array<int,string|callable> $sanitizers Sanitizer name(s)
      *
      * @return mixed Sanitized value
      *
@@ -72,8 +72,8 @@ if (!function_exists('passes')) {
     /**
      * Quick validation check - returns true if validation passes.
      *
-     * @param array $rules Validation rules
-     * @param array $data Data to validate
+     * @param array<string,string|array<int,mixed>> $rules Validation rules
+     * @param array<string,mixed> $data Data to validate
      * @param DatabaseProvider|null $db Optional database provider
      *
      * @throws \Infocyph\ReqShield\Exceptions\ValidationException
@@ -93,8 +93,8 @@ if (!function_exists('fails')) {
     /**
      * Quick validation check - returns true if validation fails.
      *
-     * @param array $rules Validation rules
-     * @param array $data Data to validate
+     * @param array<string,string|array<int,mixed>> $rules Validation rules
+     * @param array<string,mixed> $data Data to validate
      * @param DatabaseProvider|null $db Optional database provider
      *
      * @throws \Infocyph\ReqShield\Exceptions\ValidationException

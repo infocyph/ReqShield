@@ -23,11 +23,11 @@ class MultipleOf extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
         if (!is_numeric($value)) {
             return false;
         }
 
         return fmod((float) $value, (float) $this->divisor) === 0.0;
     }
-
 }

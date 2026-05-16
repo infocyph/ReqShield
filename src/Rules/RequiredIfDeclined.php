@@ -7,31 +7,16 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * RequiredIfDeclined Rule - Cost: 2
  */
-class RequiredIfDeclined extends BaseRule
+class RequiredIfDeclined extends AbstractRequiredIfStateRule
 {
-    public function __construct(protected string $otherField) {}
-
-    public function cost(): int
+    protected function triggerLabel(): string
     {
-        return 2;
+        return 'declined';
     }
 
-    public function message(string $field): string
+    /** @return list<string|int|bool> */
+    protected function triggerValues(): array
     {
-        return "The {$field} is required when {$this->otherField} is declined.";
+        return ['no', 'off', '0', 0, false, 'false'];
     }
-
-    public function passes(mixed $value, string $field, array $data): bool
-    {
-        $declined = ['no', 'off', '0', 0, false, 'false'];
-        if (!array_key_exists($this->otherField, $data) || !in_array(
-            $data[$this->otherField],
-            $declined,
-            true,
-        )) {
-            return true;
-        }
-        return !$this->isEmpty($value);
-    }
-
 }

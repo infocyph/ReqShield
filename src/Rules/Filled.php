@@ -21,13 +21,8 @@ class Filled extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        if (is_null($value)) {
-            return false;
-        }
-        if (is_string($value) && trim($value) === '') {
-            return false;
-        }
-        return true;
-    }
+        $this->consumeRuleContext($value, $field, $data);
 
+        return !$this->isNullOrBlankString($value);
+    }
 }

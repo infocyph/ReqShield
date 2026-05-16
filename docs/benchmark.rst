@@ -10,11 +10,13 @@ Use Composer:
 
 .. code-block:: bash
 
-    composer benchmark
+    composer ic:benchmark
+    composer ic:bench:quick
 
 This runs the PhpBench suite in:
 
 * ``benchmarks/ValidatorBench.php``
+* ``benchmarks/ResolverBench.php``
 
 What It Measures
 ----------------
@@ -24,6 +26,9 @@ Current benchmark scenarios:
 * ``flat-fast-rules`` (flat payload, mostly cheap rules)
 * ``nested-wildcard`` (nested payload with wildcard path expansion)
 * ``db-heavy-batched`` (database-backed rules using batched execution)
+* ``resolver-enum-resolve`` (``BuiltinRule::resolve()`` token lookup)
+* ``resolver-compiler-cached`` (cached compiler rule-class resolution)
+* ``resolver-token-map-lookup`` (direct token-to-class map lookup)
 
 Output Metrics
 --------------

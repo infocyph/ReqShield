@@ -7,15 +7,8 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * InArray Rule - Cost: 5
  */
-class InArray extends BaseRule
+class InArray extends AbstractOtherFieldRule
 {
-    public function __construct(protected string $otherField) {}
-
-    public function cost(): int
-    {
-        return 5;
-    }
-
     public function message(string $field): string
     {
         return "The {$field} must be in {$this->otherField}.";
@@ -23,9 +16,16 @@ class InArray extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return array_key_exists($this->otherField, $data)
           && is_array($data[$this->otherField])
           && in_array($value, $data[$this->otherField], true);
     }
 
+    #[\Override]
+    protected function ruleCost(): int
+    {
+        return 5;
+    }
 }

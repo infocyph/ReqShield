@@ -92,6 +92,52 @@ Use ``when()`` to inject dynamic rule arrays.
 
 The callback must return ``array`` or ``null``.
 
+After Validation Hooks
+----------------------
+
+Use ``after()`` for cross-field checks that do not fit a single rule.
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Support\ValidationContext;
+
+    $validator->after(function (ValidationContext $ctx): void {
+        if ((string) $ctx->get('start_date') > (string) $ctx->get('end_date')) {
+            $ctx->addError('end_date', 'End date must be after start date.');
+        }
+    });
+
+Enum Rules and Enum Casting
+---------------------------
+
+Use enum rules with either string syntax or rule objects.
+
+.. code-block:: php
+
+    use App\Enums\OrderStatus;
+    use Infocyph\ReqShield\Rule;
+
+    $validator = Validator::make([
+        'status' => 'required|enum:' . OrderStatus::class,
+        'state' => ['required', Rule::enum(OrderStatus::class)],
+    ])->setCasts([
+        'status' => OrderStatus::class,
+    ]);
+
+Compiled Validator Wrapper
+--------------------------
+
+``Validator::compile()`` returns a reusable validator wrapper.
+
+.. code-block:: php
+
+    $compiled = Validator::compile([
+        'email' => 'required|email',
+        'age' => 'required|integer|min:18',
+    ]);
+
+    $result = $compiled->validate($input);
+
 Schema Fragments and Composition
 --------------------------------
 
@@ -156,4 +202,3 @@ Supported exports:
 * ``exportSchema('introspection')``
 
 Introspection is also available through ``schemaIntrospection()`` and rule stats through ``getSchemaStats()``.
-

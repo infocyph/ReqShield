@@ -7,11 +7,17 @@ namespace Infocyph\ReqShield\Concerns;
 use Infocyph\ReqShield\Sanitizer;
 use Infocyph\ReqShield\Support\NestedValidator;
 
+/**
+ * @phpstan-type JsonNode array<int|string, mixed>
+ * @phpstan-type Pipeline array<int, mixed>
+ * @phpstan-type SanitizerMap array<int|string, mixed>
+ * @phpstan-type DataMap array<int|string, mixed>
+ */
 trait HasValidatorSchemaCasting
 {
     /**
-     * @param array<string,mixed> $schema
-     * @param array<string,mixed> $property
+     * @param JsonNode $schema
+     * @param JsonNode $property
      */
     protected function addJsonSchemaProperty(
         array &$schema,
@@ -22,14 +28,15 @@ trait HasValidatorSchemaCasting
         $this->jsonSchemaExporter->addProperty($schema, $path, $property, $required);
     }
 
-    /**
-     * @param array<string,mixed> $node
-     */
+    /** @param JsonNode $node */
     protected function appendJsonSchemaRequiredProperty(
         array &$node,
         string $segment,
     ): void {
-        $node['required'] ??= [];
+        if (!isset($node['required']) || !is_array($node['required'])) {
+            $node['required'] = [];
+        }
+
         $node['required'][] = $segment;
     }
 
@@ -48,6 +55,10 @@ trait HasValidatorSchemaCasting
         return $this->applySingleCast($value, $castDefinition);
     }
 
+    /**
+     * @param DataMap $validated
+     * @return DataMap
+     */
     protected function applyCasts(array $validated): array
     {
         $castMap = $this->mergeCastMaps();
@@ -74,8 +85,8 @@ trait HasValidatorSchemaCasting
 
         $wildcardCasts = array_filter(
             $castMap,
-            fn(mixed $_, string $field): bool => str_contains($field, '*'),
-            ARRAY_FILTER_USE_BOTH,
+            fn(string $field): bool => str_contains($field, '*'),
+            ARRAY_FILTER_USE_KEY,
         );
 
         foreach ($wildcardCasts as $fieldPattern => $castDefinition) {
@@ -93,26 +104,30 @@ trait HasValidatorSchemaCasting
         return $typed;
     }
 
+    /**
+     * @param DataMap $data
+     * @param SanitizerMap $sanitizerMap
+     * @return DataMap
+     */
     protected function applyDirectFieldSanitizers(
         array $data,
         array $sanitizerMap,
     ): array {
-        foreach ($sanitizerMap as $field => $pipeline) {
-            if (str_contains((string) $field, '*')) {
-                continue;
-            }
-
-            $normalizedPipeline = $this->normalizeSanitizerPipeline($pipeline);
-            if (empty($normalizedPipeline)) {
-                continue;
-            }
-
-            $this->applyFieldSanitizer($data, $field, $normalizedPipeline);
-        }
+        $this->iterateSanitizerMap(
+            $sanitizerMap,
+            static fn(string $field): bool => !str_contains($field, '*'),
+            function (string $field, array $pipeline) use (&$data): void {
+                $this->applyFieldSanitizer($data, $field, $pipeline);
+            },
+        );
 
         return $data;
     }
 
+    /**
+     * @param DataMap $data
+     * @param Pipeline $pipeline
+     */
     protected function applyFieldSanitizer(
         array &$data,
         string $field,
@@ -131,43 +146,37 @@ trait HasValidatorSchemaCasting
         $data[$field] = $this->applySanitizerPipeline($data[$field], $pipeline);
     }
 
-    /**
-     * @param array<string,mixed> $property
-     */
+    /** @param JsonNode $property */
     protected function applyJsonSchemaBound(
         array &$property,
         string $type,
         string $bound,
         mixed $rawValue,
     ): void {
-        if (!is_numeric($rawValue)) {
+        $value = $this->jsonSchemaNumericValue($rawValue);
+        if ($value === null) {
             return;
         }
 
-        $value = str_contains((string) $rawValue, '.')
-            ? (float) $rawValue
-            : (int) $rawValue;
+        $targetKey = match ($type) {
+            'string' => $bound === 'min' ? 'minLength' : 'maxLength',
+            'array' => $bound === 'min' ? 'minItems' : 'maxItems',
+            'integer', 'number' => $bound === 'min' ? 'minimum' : 'maximum',
+            default => null,
+        };
 
-        if ($type === 'string') {
-            $key = $bound === 'min' ? 'minLength' : 'maxLength';
-            $property[$key] = (int) $value;
+        if (!is_string($targetKey)) {
             return;
         }
 
-        if ($type === 'array') {
-            $key = $bound === 'min' ? 'minItems' : 'maxItems';
-            $property[$key] = (int) $value;
-            return;
-        }
-
-        if (in_array($type, ['integer', 'number'], true)) {
-            $key = $bound === 'min' ? 'minimum' : 'maximum';
-            $property[$key] = $value;
-        }
+        $property[$targetKey] = in_array($targetKey, ['minLength', 'maxLength', 'minItems', 'maxItems'], true)
+            ? (int) $value
+            : $value;
     }
 
     /**
-     * @param array<string,mixed> $property
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyJsonSchemaBoundedConstraint(
         array &$property,
@@ -175,61 +184,69 @@ trait HasValidatorSchemaCasting
         string $ruleName,
         array $params,
     ): bool {
-        if ($ruleName === 'min') {
-            $this->applyJsonSchemaBound($property, $type, 'min', $params[0] ?? null);
-            return true;
-        }
+        switch ($ruleName) {
+            case 'min':
+                $this->applyJsonSchemaBound($property, $type, 'min', $params[0] ?? null);
 
-        if ($ruleName === 'max') {
-            $this->applyJsonSchemaBound($property, $type, 'max', $params[0] ?? null);
-            return true;
-        }
+                return true;
+            case 'max':
+                $this->applyJsonSchemaBound($property, $type, 'max', $params[0] ?? null);
 
-        if ($ruleName === 'between') {
-            $this->applyJsonSchemaBound($property, $type, 'min', $params[0] ?? null);
-            $this->applyJsonSchemaBound($property, $type, 'max', $params[1] ?? null);
-            return true;
-        }
+                return true;
+            case 'between':
+                $this->applyJsonSchemaBound($property, $type, 'min', $params[0] ?? null);
+                $this->applyJsonSchemaBound($property, $type, 'max', $params[1] ?? null);
 
-        if ($ruleName === 'size') {
-            $this->applyJsonSchemaBound($property, $type, 'min', $params[0] ?? null);
-            $this->applyJsonSchemaBound($property, $type, 'max', $params[0] ?? null);
-            return true;
+                return true;
+            case 'size':
+                $this->applyJsonSchemaBound($property, $type, 'min', $params[0] ?? null);
+                $this->applyJsonSchemaBound($property, $type, 'max', $params[0] ?? null);
+
+                return true;
         }
 
         return false;
     }
 
     /**
-     * @param array<string,mixed> $property
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyJsonSchemaDigitsPatternConstraint(
         array &$property,
         string $ruleName,
         array $params,
     ): bool {
-        if ($ruleName === 'digits' && isset($params[0])) {
-            $digits = (int) $params[0];
-            if ($digits > 0) {
-                $property['pattern'] = '^\\d{' . $digits . '}$';
-            }
+        switch ($ruleName) {
+            case 'digits':
+                if (!isset($params[0]) || !is_numeric($params[0])) {
+                    return false;
+                }
 
-            return true;
+                $digits = (int) $params[0];
+                if ($digits > 0) {
+                    $property['pattern'] = '^\\d{' . $digits . '}$';
+                }
+
+                return true;
+            case 'digits_between':
+                if (!isset($params[0], $params[1]) || !is_numeric($params[0]) || !is_numeric($params[1])) {
+                    return false;
+                }
+
+                $min = max(0, (int) $params[0]);
+                $max = max($min, (int) $params[1]);
+                $property['pattern'] = '^\\d{' . $min . ',' . $max . '}$';
+
+                return true;
+            default:
+                return false;
         }
-
-        if ($ruleName === 'digits_between' && isset($params[0], $params[1])) {
-            $min = max(0, (int) $params[0]);
-            $max = max($min, (int) $params[1]);
-            $property['pattern'] = '^\\d{' . $min . ',' . $max . '}$';
-
-            return true;
-        }
-
-        return false;
     }
 
     /**
-     * @param array<string,mixed> $property
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyJsonSchemaEnumConstraint(
         array &$property,
@@ -245,65 +262,53 @@ trait HasValidatorSchemaCasting
         return true;
     }
 
-    /**
-     * @param array<string,mixed> $property
-     */
+    /** @param JsonNode $property */
     protected function applyJsonSchemaFormatConstraint(
         array &$property,
         string $ruleName,
     ): bool {
-        if ($ruleName === 'email') {
-            $property['format'] = 'email';
+        $format = match (true) {
+            $ruleName === 'email' => 'email',
+            $ruleName === 'uuid' => 'uuid',
+            in_array($ruleName, ['url', 'active_url'], true) => 'uri',
+            $ruleName === 'date' => 'date',
+            in_array($ruleName, ['date_format', 'date_equals', 'before', 'before_or_equal', 'after', 'after_or_equal'], true) => 'date-time',
+            default => null,
+        };
 
-            return true;
+        if (!is_string($format)) {
+            return false;
         }
 
-        if ($ruleName === 'uuid') {
-            $property['format'] = 'uuid';
+        $property['format'] = $format;
 
-            return true;
-        }
-
-        if (in_array($ruleName, ['url', 'active_url'], true)) {
-            $property['format'] = 'uri';
-
-            return true;
-        }
-
-        if ($ruleName === 'date') {
-            $property['format'] = 'date';
-
-            return true;
-        }
-
-        if (in_array($ruleName, ['date_format', 'date_equals', 'before', 'before_or_equal', 'after', 'after_or_equal'], true)) {
-            $property['format'] = 'date-time';
-
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     /**
-     * @param array<string,mixed> $property
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyJsonSchemaRegexPatternConstraint(
         array &$property,
         string $ruleName,
         array $params,
     ): void {
-        if ($ruleName === 'regex' && isset($params[0]) && is_string($params[0])) {
-            $pattern = $this->normalizeRegexForJsonSchema($params[0]);
-            if ($pattern !== null) {
-                $property['pattern'] = $pattern;
-            }
+        if ($ruleName !== 'regex' || !isset($params[0]) || !is_string($params[0])) {
+            return;
         }
+
+        $pattern = $this->normalizeRegexForJsonSchema($params[0]);
+        if ($pattern === null || $pattern === '') {
+            return;
+        }
+
+        $property['pattern'] = $pattern;
     }
 
     /**
-     * @param array<string,mixed> $property
-     * @param array<int,mixed> $params
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
      */
     protected function applyJsonSchemaRuleConstraint(
         array &$property,
@@ -318,6 +323,17 @@ trait HasValidatorSchemaCasting
         );
     }
 
+    protected function applyNamedSanitizerCast(string $cast, mixed $value): mixed
+    {
+        return method_exists(Sanitizer::class, $cast)
+            ? Sanitizer::{$cast}($value)
+            : $value;
+    }
+
+    /**
+     * @param DataMap $data
+     * @param Pipeline $pipeline
+     */
     protected function applyNestedFieldSanitizer(
         array &$data,
         string $field,
@@ -341,11 +357,16 @@ trait HasValidatorSchemaCasting
         );
     }
 
+    /** @param Pipeline $pipeline */
     protected function applySanitizerPipeline(mixed $value, array $pipeline): mixed
     {
         return Sanitizer::apply($value, $pipeline);
     }
 
+    /**
+     * @param DataMap $data
+     * @return DataMap
+     */
     protected function applySanitizers(array $data): array
     {
         $sanitizerMap = $this->mergeSanitizerMaps();
@@ -353,8 +374,8 @@ trait HasValidatorSchemaCasting
         return $this->sanitizerMapApplier->apply(
             $data,
             $sanitizerMap,
-            fn(mixed $pipeline): array => $this->normalizeSanitizerPipeline($pipeline),
-            fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, $pipeline),
+            fn(mixed $pipeline): array => array_values($this->normalizeSanitizerPipeline($pipeline)),
+            fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, array_values($pipeline)),
             fn(string $pattern): string => $this->wildcardPatternToRegex($pattern),
         );
     }
@@ -369,31 +390,39 @@ trait HasValidatorSchemaCasting
             return $value;
         }
 
+        if (enum_exists($cast)) {
+            return $this->castToEnum($value, $cast);
+        }
+
         $normalized = strtolower($cast);
 
+        if (in_array($normalized, ['int', 'integer'], true)) {
+            return $this->castToInt($value);
+        }
+
+        if (in_array($normalized, ['float', 'double', 'real'], true)) {
+            return $this->castToFloat($value);
+        }
+
+        if (in_array($normalized, ['bool', 'boolean'], true)) {
+            return $this->castToBoolean($value);
+        }
+
         return match ($normalized) {
-            'int', 'integer' => (int) $value,
-            'float', 'double', 'real' => (float) $value,
-            'bool', 'boolean' => $this->castToBoolean($value),
             'string' => $this->castToString($value),
-            'array' => is_array($value)
-                ? $value
-                : (is_string($value)
-                    ? (json_decode($value, true) ?: [$value])
-                    : [$value]),
-            'object' => is_object($value) ? $value : (object) (
-                is_array($value) ? $value : ['value' => $value]
-            ),
-            'json' => is_string($value)
-                ? $this->decodeJsonOrFallback($value, $value)
-                : $value,
+            'array' => $this->castToArrayValue($value),
+            'object' => $this->castToObjectValue($value),
+            'json' => is_string($value) ? $this->decodeJsonOrFallback($value, $value) : $value,
             'date', 'datetime', 'datetimeimmutable' => $this->castToDateTimeImmutable($value),
-            default => method_exists(Sanitizer::class, $cast)
-                ? Sanitizer::{$cast}($value)
-                : $value,
+            default => $this->applyNamedSanitizerCast($cast, $value),
         };
     }
 
+    /**
+     * @param DataMap $data
+     * @param SanitizerMap $sanitizerMap
+     * @return DataMap
+     */
     protected function applyWildcardFieldSanitizers(
         array $data,
         array $sanitizerMap,
@@ -404,26 +433,25 @@ trait HasValidatorSchemaCasting
 
         $flattened = NestedValidator::flattenData($data);
 
-        foreach ($sanitizerMap as $field => $pipeline) {
-            if (!str_contains((string) $field, '*')) {
-                continue;
-            }
-
-            $normalizedPipeline = $this->normalizeSanitizerPipeline($pipeline);
-            if (empty($normalizedPipeline)) {
-                continue;
-            }
-
-            $this->applyWildcardSanitizerToFlattened(
-                $flattened,
-                $field,
-                $normalizedPipeline,
-            );
-        }
+        $this->iterateSanitizerMap(
+            $sanitizerMap,
+            static fn(string $field): bool => str_contains($field, '*'),
+            function (string $field, array $pipeline) use (&$flattened): void {
+                $this->applyWildcardSanitizerToFlattened(
+                    $flattened,
+                    $field,
+                    $pipeline,
+                );
+            },
+        );
 
         return NestedValidator::unflattenData($flattened);
     }
 
+    /**
+     * @param DataMap $flattened
+     * @param Pipeline $pipeline
+     */
     protected function applyWildcardSanitizerToFlattened(
         array &$flattened,
         string $fieldPattern,
@@ -444,8 +472,8 @@ trait HasValidatorSchemaCasting
     }
 
     /**
-     * @param array<string,mixed> $node
-     * @param array<string,mixed> $property
+     * @param JsonNode $node
+     * @param JsonNode $property
      */
     protected function assignJsonSchemaLeafProperty(
         array &$node,
@@ -453,15 +481,106 @@ trait HasValidatorSchemaCasting
         array $property,
         bool $required,
     ): void {
+        if (!isset($node['properties']) || !is_array($node['properties'])) {
+            $node['properties'] = [];
+        }
+
         $node['properties'][$segment] = $property;
         if ($required) {
             $this->appendJsonSchemaRequiredProperty($node, $segment);
         }
     }
 
+    /** @return array<int|string, mixed> */
+    protected function castToArrayValue(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return [$value];
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [$value];
+    }
+
     /**
-     * @param array<string,mixed> $node
+     * @template T of \UnitEnum
+     * @param class-string<T> $enumClass
      */
+    protected function castToEnum(mixed $value, string $enumClass): mixed
+    {
+        if ($value === null || !enum_exists($enumClass)) {
+            return $value;
+        }
+
+        if ($value instanceof $enumClass) {
+            return $value;
+        }
+
+        if (is_subclass_of($enumClass, \BackedEnum::class) && (is_int($value) || is_string($value))) {
+            $case = $enumClass::tryFrom($value);
+            if ($case instanceof \BackedEnum) {
+                return $case;
+            }
+        }
+
+        if (is_string($value) && defined($enumClass . '::' . $value)) {
+            $case = constant($enumClass . '::' . $value);
+
+            return $case instanceof \UnitEnum ? $case : $value;
+        }
+
+        return $value;
+    }
+
+    protected function castToFloat(mixed $value): float
+    {
+        if (is_float($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_bool($value) || $value === null || is_string($value)) {
+            return (float) $value;
+        }
+
+        if (is_object($value) && method_exists($value, '__toString')) {
+            return (float) (string) $value;
+        }
+
+        return 0.0;
+    }
+
+    protected function castToInt(mixed $value): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value) || is_bool($value) || $value === null || is_string($value)) {
+            return (int) $value;
+        }
+
+        if (is_object($value) && method_exists($value, '__toString')) {
+            return (int) (string) $value;
+        }
+
+        return 0;
+    }
+
+    protected function castToObjectValue(mixed $value): object
+    {
+        if (is_object($value)) {
+            return $value;
+        }
+
+        return (object) (is_array($value) ? $value : ['value' => $value]);
+    }
+
+    /** @param JsonNode $node */
     protected function ensureJsonSchemaArrayItemsNode(array &$node): void
     {
         $node['type'] = 'array';
@@ -470,21 +589,21 @@ trait HasValidatorSchemaCasting
         }
     }
 
-    /**
-     * @param array<string,mixed> $node
-     */
+    /** @param JsonNode $node */
     protected function ensureJsonSchemaChildNode(
         array &$node,
         string $segment,
     ): void {
+        if (!isset($node['properties']) || !is_array($node['properties'])) {
+            $node['properties'] = [];
+        }
+
         if (!isset($node['properties'][$segment]) || !is_array($node['properties'][$segment])) {
             $node['properties'][$segment] = ['type' => 'object', 'properties' => []];
         }
     }
 
-    /**
-     * @param array<string,mixed> $node
-     */
+    /** @param JsonNode $node */
     protected function ensureJsonSchemaObjectNode(array &$node): void
     {
         if (($node['type'] ?? 'object') !== 'object') {
@@ -494,11 +613,47 @@ trait HasValidatorSchemaCasting
         $node['properties'] ??= [];
     }
 
+    /** @param SanitizerMap $sanitizerMap */
     protected function hasWildcardSanitizers(array $sanitizerMap): bool
     {
         return array_any(
             array_keys($sanitizerMap),
-            fn(string $field): bool => str_contains($field, '*'),
+            fn(int|string $field): bool => str_contains((string) $field, '*'),
         );
+    }
+
+    /**
+     * @param SanitizerMap $sanitizerMap
+     * @param callable(string): bool $shouldProcessField
+     * @param callable(string, Pipeline): void $applyField
+     */
+    protected function iterateSanitizerMap(
+        array $sanitizerMap,
+        callable $shouldProcessField,
+        callable $applyField,
+    ): void {
+        foreach ($sanitizerMap as $field => $pipeline) {
+            if (!is_string($field) || !$shouldProcessField($field)) {
+                continue;
+            }
+
+            $normalizedPipeline = $this->normalizeSanitizerPipeline($pipeline);
+            if (empty($normalizedPipeline)) {
+                continue;
+            }
+
+            $applyField($field, $normalizedPipeline);
+        }
+    }
+
+    protected function jsonSchemaNumericValue(mixed $rawValue): int|float|null
+    {
+        if (!is_numeric($rawValue)) {
+            return null;
+        }
+
+        return str_contains((string) $rawValue, '.')
+            ? (float) $rawValue
+            : (int) $rawValue;
     }
 }

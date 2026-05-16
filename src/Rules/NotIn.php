@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Rules;
 
-/**
- * NotIn Rule - Cost: 5
- * Validates that a value is not in a list of values.
- */
 class NotIn extends BaseRule
 {
+    /** @param array<int, mixed> $values */
     public function __construct(protected array $values) {}
 
     public function cost(): int
@@ -24,7 +21,8 @@ class NotIn extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
+        $this->consumeRuleContext($value, $field, $data);
+
         return !in_array($value, $this->values, true);
     }
-
 }

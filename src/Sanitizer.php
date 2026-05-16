@@ -4,28 +4,6 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield;
 
-/**
- * Comprehensive input sanitization with high-performance optimizations.
- *
- * This class provides a wide range of static methods for sanitizing and normalizing
- * various types of input data. It's designed for security, performance, and ease of use.
- *
- * Key Features:
- * - Type-safe sanitization with strict type hints
- * - Comprehensive coverage of common sanitization needs
- * - Optimized for high performance with minimal overhead
- * - Consistent behavior across different input types
- * - Built-in protection against common security issues (XSS, SQL injection, etc.)
- *
- * Performance Optimizations:
- * - Type-specific fast paths for common input types
- * - Cached regular expression patterns
- * - Minimal function calls and memory usage
- * - Efficient string operations
- *
- * @package Infocyph\ReqShield
- * @since 1.0.0
- */
 class Sanitizer
 {
     // Common character sets
@@ -41,21 +19,16 @@ class Sanitizer
 
     private const string SLUG_CHARS = self::ALPHANUMERIC . '_-';
 
-    // Cached regex patterns for performance
+    /** @var array<string, string> */
     private static array $patterns = [];
 
-    /**
-     * @var array<string,array<int,callable>>
-     */
+    /** @var array<string, array<int, callable(mixed): mixed>> */
     private static array $pipelineCallables = [];
 
     // ============================================
     // Alphanumeric Filters
     // ============================================
 
-    /**
-     * Keep only alphabetic characters
-     */
     public static function alpha(mixed $value): string
     {
         if (!is_string($value)) {
@@ -65,9 +38,6 @@ class Sanitizer
         return self::pregReplace('/[^' . self::ALPHA . ']/', '', $value);
     }
 
-    /**
-     * Keep alphanumeric, dash, and underscore
-     */
     public static function alphaDash(mixed $value): string
     {
         if (!is_string($value)) {
@@ -77,10 +47,6 @@ class Sanitizer
         return self::pregReplace('/[^' . self::SLUG_CHARS . ']/', '', $value);
     }
 
-    /**
-     * Keep only alphanumeric characters
-     * OPTIMIZED: Cached pattern
-     */
     public static function alphanumeric(mixed $value): string
     {
         if (!is_string($value)) {
@@ -90,9 +56,6 @@ class Sanitizer
         return self::pregReplace('/[^' . self::ALPHANUMERIC . ']/', '', $value);
     }
 
-    /**
-     * Keep alphanumeric plus spaces
-     */
     public static function alphanumericSpace(mixed $value): string
     {
         if (!is_string($value)) {
@@ -110,13 +73,10 @@ class Sanitizer
     // Batch Operations
     // ============================================
 
-    /**
-     * Apply multiple sanitizers in sequence
-     * OPTIMIZED: Minimal overhead
-     */
+    /** @param array<int, mixed> $sanitizers */
     public static function apply(mixed $value, array $sanitizers): mixed
     {
-        $resolved = self::resolvePipelineCallables($sanitizers);
+        $resolved = self::resolvePipelineCallables(array_values($sanitizers));
 
         foreach ($resolved as $callable) {
             $value = $callable($value);
@@ -125,10 +85,7 @@ class Sanitizer
         return $value;
     }
 
-    /**
-     * Sanitize array recursively
-     * OPTIMIZED: Direct recursion without closures
-     */
+    /** @return array<int|string, mixed> */
     public static function array(mixed $value): array
     {
         if (!is_array($value)) {
@@ -144,9 +101,6 @@ class Sanitizer
     // Encoding & Decoding
     // ============================================
 
-    /**
-     * Base64 decode safely
-     */
     public static function base64Decode(mixed $value): string
     {
         if (!is_string($value)) {
@@ -158,9 +112,6 @@ class Sanitizer
         return $decoded !== false ? $decoded : '';
     }
 
-    /**
-     * Base64 encode safely
-     */
     public static function base64Encode(mixed $value): string
     {
         if (!is_string($value)) {
@@ -171,7 +122,8 @@ class Sanitizer
     }
 
     /**
-     * Sanitize array of values with same sanitizer
+     * @param array<int, mixed> $values
+     * @return array<int, mixed>
      */
     public static function batch(
         array $values,
@@ -190,10 +142,6 @@ class Sanitizer
     // Basic Type Sanitizers
     // ============================================
 
-    /**
-     * Sanitize boolean
-     * OPTIMIZED: Faster with match expression
-     */
     public static function boolean(mixed $value): bool
     {
         return match (true) {
@@ -211,9 +159,6 @@ class Sanitizer
     // Case Conversions
     // ============================================
 
-    /**
-     * Convert to camelCase
-     */
     public static function camelCase(mixed $value): string
     {
         if (!is_string($value)) {
@@ -236,50 +181,12 @@ class Sanitizer
     // Utility Methods
     // ============================================
 
-    /**
-     * Clears the internal pattern cache used for regular expressions.
-     *
-     * This method is primarily intended for testing purposes to ensure consistent
-     * behavior between test cases. In production, the cache improves performance
-     * by avoiding recompilation of frequently used patterns.
-     *
-     * @example
-     * // In test setup
-     * Sanitizer::clearCache();
-     *
-     * @internal This method is not part of the public API and may change without notice.
-     */
     public static function clearCache(): void
     {
         self::$patterns = [];
         self::$pipelineCallables = [];
     }
 
-    /**
-     * Sanitizes a currency value by removing all non-numeric characters.
-     *
-     * This method handles various currency formats, including those with:
-     * - Currency symbols (e.g., $, €, £, ¥)
-    - Thousands separators (e.g., 1,000.00 or 1.000,00)
-    - Negative values (with leading minus sign)
-    - European-style decimal separators (comma as decimal point)
-     *
-     * @param mixed $value The input value to sanitize (string, int, or float)
-     * @param string $format The number format ('USD' for 1,234.56 or 'EUR' for 1.234,56)
-     * @return float The sanitized numeric value as a float
-     *
-     * @example
-     * // Basic usage
-     * Sanitizer::currency('$1,234.56', 'USD'); // returns 1234.56
-     * Sanitizer::currency('1.234,56€', 'EUR'); // returns 1234.56
-     * Sanitizer::currency('-$500.75');  // returns -500.75
-     *
-     * // With non-string input
-     * Sanitizer::currency(1234.56);     // returns 1234.56
-     * Sanitizer::currency(null);        // returns 0.0
-     *
-     * @see formatCurrency() For formatting a number as a currency string
-     */
     public static function currency(mixed $value, string $format = 'USD'): float
     {
         if (!is_string($value)) {
@@ -300,10 +207,6 @@ class Sanitizer
         return (float) $value;
     }
 
-    /**
-     * Sanitize domain name
-     * NEW: Added domain sanitization
-     */
     public static function domain(mixed $value): string
     {
         if (!is_string($value)) {
@@ -319,10 +222,6 @@ class Sanitizer
         return strtolower($value);
     }
 
-    /**
-     * Sanitize email
-     * OPTIMIZED: Built-in filter
-     */
     public static function email(mixed $value): string
     {
         if (!is_string($value)) {
@@ -334,10 +233,6 @@ class Sanitizer
         return $sanitized !== false ? $sanitized : '';
     }
 
-    /**
-     * Escape for SQL LIKE queries
-     * NEW: Added SQL LIKE escaping
-     */
     public static function escapeLike(mixed $value): string
     {
         if (!is_string($value)) {
@@ -347,10 +242,6 @@ class Sanitizer
         return addcslashes($value, '%_');
     }
 
-    /**
-     * Sanitize filename
-     * NEW: Added filename sanitization
-     */
     public static function filename(mixed $value): string
     {
         if (!is_string($value)) {
@@ -368,9 +259,6 @@ class Sanitizer
         );
     }
 
-    /**
-     * Sanitize float/decimal
-     */
     public static function float(mixed $value): float
     {
         return match (true) {
@@ -385,10 +273,6 @@ class Sanitizer
         };
     }
 
-    /**
-     * Format as currency string
-     * NEW: Added currency formatting
-     */
     public static function formatCurrency(
         mixed $value,
         string $currency = 'USD',
@@ -404,10 +288,6 @@ class Sanitizer
         };
     }
 
-    /**
-     * HTML decode
-     * NEW: Added HTML decoding
-     */
     public static function htmlDecode(mixed $value): string
     {
         return is_string($value) ? htmlspecialchars_decode(
@@ -416,10 +296,6 @@ class Sanitizer
         ) : '';
     }
 
-    /**
-     * HTML encode (escape HTML entities)
-     * NEW: Added HTML encoding
-     */
     public static function htmlEncode(mixed $value): string
     {
         return is_string($value) ? htmlspecialchars(
@@ -429,9 +305,6 @@ class Sanitizer
         ) : '';
     }
 
-    /**
-     * Sanitize integer
-     */
     public static function integer(mixed $value): int
     {
         return match (true) {
@@ -445,10 +318,6 @@ class Sanitizer
         };
     }
 
-    /**
-     * JSON decode safely
-     * NEW: Added JSON handling
-     */
     public static function jsonDecode(
         mixed $value,
         bool $associative = true,
@@ -470,14 +339,9 @@ class Sanitizer
             return $associative ? [] : null;
         }
 
-
         return $decoded;
     }
 
-    /**
-     * JSON encode safely
-     * NEW: Added JSON handling
-     */
     public static function jsonEncode(mixed $value): string
     {
         // Fix: Wrap in try-catch to handle JSON_THROW_ON_ERROR
@@ -490,14 +354,9 @@ class Sanitizer
             return ''; // Return empty string on encode failure
         }
 
-
-        return $encoded !== false ? $encoded : '';
+        return $encoded;
     }
 
-    /**
-     * Convert to kebab-case
-     * NEW: Added kebab-case support
-     */
     public static function kebabCase(mixed $value): string
     {
         if (!is_string($value)) {
@@ -513,18 +372,11 @@ class Sanitizer
         return self::pregReplace('/\s+/', '-', strtolower($value));
     }
 
-    /**
-     * Convert to lowercase
-     */
     public static function lowercase(mixed $value): string
     {
         return is_string($value) ? mb_strtolower($value, 'UTF-8') : '';
     }
 
-    /**
-     * Normalize whitespace (collapse multiple spaces to single)
-     * NEW: Added whitespace normalization
-     */
     public static function normalizeWhitespace(mixed $value): string
     {
         if (!is_string($value)) {
@@ -538,9 +390,6 @@ class Sanitizer
     // Numeric & Currency
     // ============================================
 
-    /**
-     * Keep only numeric characters
-     */
     public static function numeric(mixed $value): string
     {
         if (!is_string($value)) {
@@ -550,10 +399,6 @@ class Sanitizer
         return self::pregReplace('/[^' . self::NUMERIC . ']/', '', $value);
     }
 
-    /**
-     * Convert to PascalCase
-     * NEW: Added PascalCase support
-     */
     public static function pascalCase(mixed $value): string
     {
         if (!is_string($value)) {
@@ -573,10 +418,6 @@ class Sanitizer
         );
     }
 
-    /**
-     * Sanitize phone number (keep only digits and +)
-     * NEW: Added phone number sanitization
-     */
     public static function phone(mixed $value): string
     {
         if (!is_string($value)) {
@@ -586,10 +427,6 @@ class Sanitizer
         return self::pregReplace('/[^0-9+]/', '', $value);
     }
 
-    /**
-     * Remove line breaks
-     * NEW: Added line break removal
-     */
     public static function removeLineBreaks(mixed $value): string
     {
         if (!is_string($value)) {
@@ -600,12 +437,9 @@ class Sanitizer
     }
 
     // ============================================
-    // Security
+    // Input hardening
     // ============================================
 
-    /**
-     * Remove SQL-like patterns (basic protection)
-     */
     public static function removeSqlPatterns(mixed $value): string
     {
         if (!is_string($value)) {
@@ -626,10 +460,6 @@ class Sanitizer
         return trim($value);
     }
 
-    /**
-     * Remove XSS patterns
-     * OPTIMIZED: Combined operations
-     */
     public static function removeXss(mixed $value): string
     {
         if (!is_string($value)) {
@@ -654,9 +484,6 @@ class Sanitizer
         return self::pregReplace('/javascript:/i', '', $value);
     }
 
-    /**
-     * Convert to sentence case (first letter uppercase)
-     */
     public static function sentenceCase(mixed $value): string
     {
         if (!is_string($value) || $value === '') {
@@ -671,10 +498,6 @@ class Sanitizer
     // Slug & Identifiers
     // ============================================
 
-    /**
-     * Create URL-friendly slug
-     * OPTIMIZED: Efficient character replacement
-     */
     public static function slug(mixed $value, string $separator = '-'): string
     {
         if (!is_string($value)) {
@@ -685,13 +508,9 @@ class Sanitizer
         $value = mb_strtolower($value, 'UTF-8');
 
         // Transliterate unicode to ASCII
-        if (function_exists('iconv')) {
-            $value = iconv(
-                'UTF-8',
-                'ASCII//TRANSLIT//IGNORE',
-                $value,
-            ) ?: $value;
-        }
+        $value = function_exists('iconv')
+            ? (iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value) ?: $value)
+            : $value;
 
         // Replace non-alphanumeric with separator
         $value = self::pregReplace('/[^a-z0-9]+/', $separator, $value);
@@ -707,9 +526,6 @@ class Sanitizer
         );
     }
 
-    /**
-     * Convert to snake_case
-     */
     public static function snakeCase(mixed $value): string
     {
         if (!is_string($value)) {
@@ -725,10 +541,6 @@ class Sanitizer
         return self::pregReplace('/\s+/', '_', strtolower($value));
     }
 
-    /**
-     * Sanitize string - remove HTML/PHP tags and trim
-     * OPTIMIZED: Direct string operations
-     */
     public static function string(mixed $value): string
     {
         return match (true) {
@@ -743,7 +555,7 @@ class Sanitizer
     // ============================================
 
     /**
-     * Strip HTML tags
+     * @param string|array<int, string> $allowedTags
      */
     public static function stripTags(
         mixed $value,
@@ -753,43 +565,33 @@ class Sanitizer
             return '';
         }
 
-        if (is_array($allowedTags)) {
-            $allowedTags = '<' . implode('><', $allowedTags) . '>';
-        }
+        $allowedTags = is_array($allowedTags)
+            ? self::allowedTagString($allowedTags)
+            : $allowedTags;
 
         return strip_tags($value, $allowedTags);
     }
 
-    /**
-     * Strip HTML tags except safe ones
-     */
     public static function stripUnsafeTags(mixed $value): string
     {
         $safeTags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li'];
+        $subject = is_string($value) ? $value : '';
 
         // Fix: First, remove script tags and their content entirely
         $value = self::pregReplace(
             '/<script\b[^>]*>.*?<\/script>/is',
             '',
-            $value ?? '',
+            $subject,
         );
 
         return self::stripTags($value, $safeTags);
     }
 
-    /**
-     * Strip all whitespace
-     * OPTIMIZED: Cached pattern
-     */
     public static function stripWhitespace(mixed $value): string
     {
         return is_string($value) ? self::pregReplace('/\s+/', '', $value) : '';
     }
 
-    /**
-     * Convert to title case
-     * OPTIMIZED: Direct conversion
-     */
     public static function titleCase(mixed $value): string
     {
         return is_string($value) ? mb_convert_case(
@@ -803,18 +605,11 @@ class Sanitizer
     // Text Processing
     // ============================================
 
-    /**
-     * Trim whitespace from both ends
-     */
     public static function trim(mixed $value): string
     {
         return is_string($value) ? trim($value) : '';
     }
 
-    /**
-     * Truncate string to specified length
-     * OPTIMIZED: Direct substring
-     */
     public static function truncate(
         mixed $value,
         int $length,
@@ -831,9 +626,6 @@ class Sanitizer
         return mb_substr($value, 0, $length, 'UTF-8') . $suffix;
     }
 
-    /**
-     * Truncate to word boundary
-     */
     public static function truncateWords(
         mixed $value,
         int $words,
@@ -852,10 +644,6 @@ class Sanitizer
         return implode(' ', array_slice($wordArray, 0, $words)) . $suffix;
     }
 
-    /**
-     * Convert to uppercase
-     * OPTIMIZED: Direct MB function
-     */
     public static function uppercase(mixed $value): string
     {
         return is_string($value) ? mb_strtoupper($value, 'UTF-8') : '';
@@ -865,10 +653,6 @@ class Sanitizer
     // URL & Email
     // ============================================
 
-    /**
-     * Sanitize URL
-     * OPTIMIZED: Built-in filter
-     */
     public static function url(mixed $value): string
     {
         if (!is_string($value)) {
@@ -880,6 +664,18 @@ class Sanitizer
         return $sanitized !== false ? $sanitized : '';
     }
 
+    /** @param array<int, string> $allowedTags */
+    protected static function allowedTagString(array $allowedTags): string
+    {
+        $allowed = array_values(array_filter(
+            $allowedTags,
+            is_string(...),
+        ));
+
+        return $allowed === [] ? '' : '<' . implode('><', $allowed) . '>';
+    }
+
+    /** @param array<int, mixed> $sanitizers */
     protected static function pipelineCacheKey(array $sanitizers): ?string
     {
         $parts = [];
@@ -895,9 +691,6 @@ class Sanitizer
         return implode('|', $parts);
     }
 
-    /**
-     * Optimized preg_replace with pattern caching
-     */
     protected static function pregReplace(
         string $pattern,
         string $replacement,
@@ -918,9 +711,8 @@ class Sanitizer
     }
 
     /**
-     * @param array<int,mixed> $sanitizers
-     *
-     * @return array<int,callable>
+     * @param array<int, mixed> $sanitizers
+     * @return array<int, callable(mixed): mixed>
      */
     protected static function resolvePipelineCallables(array $sanitizers): array
     {
@@ -948,24 +740,23 @@ class Sanitizer
         return $resolved;
     }
 
-    /**
-     * Resolve a sanitizer into a callable once per invocation.
-     */
     protected static function resolveSanitizerCallable(
         mixed $sanitizer,
     ): ?callable {
         if (is_string($sanitizer)) {
             if (method_exists(self::class, $sanitizer)) {
-                return [self::class, $sanitizer];
+                return static fn(mixed $input): mixed => self::{$sanitizer}($input);
             }
 
             if (is_callable($sanitizer)) {
-                return $sanitizer;
+                return static fn(mixed $input): mixed => $sanitizer($input);
             }
 
             return null;
         }
 
-        return is_callable($sanitizer) ? $sanitizer : null;
+        return is_callable($sanitizer)
+            ? static fn(mixed $input): mixed => $sanitizer($input)
+            : null;
     }
 }

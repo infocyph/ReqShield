@@ -1,5 +1,7 @@
 <?php
 
+// phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter
+
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Executors\BatchExecutor;
 use Infocyph\ReqShield\Rules\Exists;

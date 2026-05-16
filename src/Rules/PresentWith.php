@@ -7,33 +7,15 @@ namespace Infocyph\ReqShield\Rules;
 /**
  * PresentWith Rule - Cost: 2
  */
-class PresentWith extends BaseRule
+class PresentWith extends AbstractPresentWithRule
 {
-    protected array $fields;
-
-    public function __construct(string ...$fields)
-    {
-        $this->fields = $fields;
-    }
-
-    public function cost(): int
-    {
-        return 2;
-    }
-
     public function message(string $field): string
     {
-        return "The {$field} must be present when any of " . implode(
-            ', ',
-            $this->fields,
-        ) . ' are present.';
+        return "The {$field} must be present when any of {$this->joinedFields()} are present.";
     }
 
-    public function passes(mixed $value, string $field, array $data): bool
+    protected function requiresAllFields(): bool
     {
-        $hasAny = array_any($this->fields, fn($f) => array_key_exists($f, $data));
-
-        return !$hasAny || array_key_exists($field, $data);
+        return false;
     }
-
 }

@@ -1,7 +1,7 @@
 Complete Rule Reference
 =======================
 
-ReqShield supports 107 validation rules, covering a vast range of validation scenarios from basic type checks to complex database and conditional logic.
+ReqShield supports 108 validation rules, covering a vast range of validation scenarios from basic type checks to complex database and conditional logic.
 
 This page serves as a complete reference, categorized for easy lookup.
 
@@ -80,7 +80,7 @@ The field under validation must be present in the input data but can be empty.
 
     'field' => 'present'
 
-Format Rules (10)
+Format Rules (11)
 -----------------
 
 email
@@ -167,6 +167,15 @@ The field under validation must be a valid timezone identifier according to the 
 .. code-block:: php
 
     'timezone' => 'timezone'  // e.g., 'America/New_York'
+
+enum
+~~~~
+The field under validation must be a valid enum case for the given enum class.
+Supports backed enums and unit enums.
+
+.. code-block:: php
+
+    'status' => 'enum:App\\Enums\\OrderStatus'
 
 String Rules (12)
 -----------------

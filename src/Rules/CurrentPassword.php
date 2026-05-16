@@ -9,7 +9,8 @@ namespace Infocyph\ReqShield\Rules;
  */
 class CurrentPassword extends BaseRule
 {
-    protected mixed $callback;
+    /** @var callable(mixed,string,array<int|string,mixed>):bool */
+    protected $callback;
 
     public function __construct(callable $callback)
     {
@@ -28,7 +29,8 @@ class CurrentPassword extends BaseRule
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        return (bool) call_user_func($this->callback, $value, $field, $data);
-    }
+        $this->consumeRuleContext($value, $field, $data);
 
+        return call_user_func($this->callback, $value, $field, $data);
+    }
 }
