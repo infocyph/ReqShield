@@ -8,27 +8,31 @@ Core Commands
 
 .. code-block:: bash
 
-    composer test
-    composer tests
-    composer test:code
-    composer test:lint
-    composer test:refactor
-    composer test:security
-    composer benchmark
-    composer lint
-    composer refactor
-    composer security:scan
+    composer ic:tests
+    composer ic:tests:details
+    composer ic:test:code
+    composer ic:test:lint
+    composer ic:test:sniff
+    composer ic:test:static
+    composer ic:test:security
+    composer ic:test:duplicates
+    composer ic:benchmark
+    composer ic:bench:quick
+    composer ic:process
 
 What They Run
 -------------
 
-* ``test``: Pest test run
-* ``tests``: combined suite (code, lint, refactor dry-run, security analysis)
-* ``test:code``: Pest in parallel mode
-* ``test:lint`` / ``lint``: Pint
-* ``test:refactor`` / ``refactor``: Rector
-* ``test:security`` / ``security:scan``: Psalm security analysis
-* ``benchmark``: PhpBench validator benchmark suite
+* ``ic:tests``: full quality suite
+* ``ic:tests:details``: expanded non-shortcut quality suite
+* ``ic:test:code``: Pest test run
+* ``ic:test:lint``: Pint check mode
+* ``ic:test:sniff``: PHPCS
+* ``ic:test:static``: PHPStan
+* ``ic:test:security``: Psalm security analysis
+* ``ic:test:duplicates``: duplicate code detection
+* ``ic:benchmark`` / ``ic:bench:quick``: PhpBench benchmark suite
+* ``ic:process``: Rector + Pint + PHPCBF processing pipeline
 
 Git Hooks
 ---------
@@ -37,6 +41,6 @@ CaptainHook is wired through Composer:
 
 .. code-block:: bash
 
-    composer git:hook
+    composer ic:hooks
 
 Hooks are also installed automatically on ``post-autoload-dump``.

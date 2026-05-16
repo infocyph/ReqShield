@@ -8,7 +8,7 @@
 ![GitHub Code Size](https://img.shields.io/github/languages/code-size/infocyph/ReqShield)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://docs.infocyph.com/projects/reqshield)
 
-**Fast, modern PHP request validation and sanitization.** Schema-based rules, fail-fast execution, intelligent batching, and 107 built-in validation rules.
+**Fast, modern PHP request validation and sanitization.** Schema-based rules, fail-fast execution, intelligent batching, and 108 built-in validation rules.
 
 ```php
 $validator = Validator::make([
@@ -30,7 +30,7 @@ if ($result->passes()) {
 
 ## Features
 
--  **107 Built-in Rules** - Basic types, conditional rules, files, database checks, and more
+-  **108 Built-in Rules** - Basic types, conditional rules, files, database checks, enums, and more
 -  **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
 -  **Intelligent Batching** - Expensive DB checks are batched automatically
 -  **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
@@ -124,9 +124,9 @@ $clean = sanitize('  TEST@ex.com  ', 'email');           // 'TEST@ex.com'
 $clean = sanitize('<b>TEXT</b>', ['string', 'lowercase']); // 'text'
 ```
 
-## Available Rules (107)
+## Available Rules (108)
 
-ReqShield includes 107 validation rules covering several common scenarios:
+ReqShield includes 108 validation rules covering several common scenarios:
 
 - Basic Types
 - Formats
@@ -178,6 +178,72 @@ ReqShield includes 46 built-in sanitizers covering several common scenarios:
 ---
 
 ## Advanced Features
+
+### Request Input Helpers
+
+```php
+$result = Validator::fromArray($rules, $data);
+$result = Validator::fromQuery($rules, $_GET);
+$result = Validator::fromBody($rules, $body);
+$result = Validator::fromFiles($rules, $_FILES);
+```
+
+PSR-style request objects are supported through `fromServerRequest()` when compatible accessors are available.
+
+```php
+$result = Validator::fromServerRequest($rules, $request);
+```
+
+### Strict Unknown Field Handling
+
+```php
+$validator = Validator::make($rules)
+    ->strict();            // same as allowUnknown(false)
+
+$validator = Validator::make($rules)
+    ->stripUnknown();      // remove unknown fields instead of failing
+```
+
+### Enum Validation and Casting
+
+```php
+'status' => 'required|enum:App\\Enums\\OrderStatus'
+```
+
+```php
+'status' => [
+    'rules' => 'required|enum:App\\Enums\\OrderStatus',
+    'cast' => App\\Enums\\OrderStatus::class,
+]
+```
+
+### After Validation Hooks
+
+```php
+use Infocyph\ReqShield\Support\ValidationContext;
+
+$validator->after(function (ValidationContext $ctx): void {
+    if ((string) $ctx->get('start_date') > (string) $ctx->get('end_date')) {
+        $ctx->addError('end_date', 'End date must be after start date.');
+    }
+});
+```
+
+### API Error Formatters and Input Bag
+
+```php
+$result->toProblemJson();
+$result->toJsonApiErrors();
+$result->toApiErrors();
+$result->toFlatErrors();
+```
+
+```php
+$input = $result->input();
+$input->string('email');
+$input->int('age');
+$input->only(['email', 'age']);
+```
 
 ### Nested Validation
 
@@ -304,6 +370,19 @@ $validator = Validator::make([
 $result = $validator->validate($data);
 $typed = $result->typed();
 $dto = $result->toDTO();
+```
+
+### Compiled Validator Wrapper
+
+`Validator::compile()` returns a reusable validator wrapper.
+
+```php
+$compiled = Validator::compile([
+    'email' => 'required|email',
+    'age' => 'required|integer|min:18',
+]);
+
+$result = $compiled->validate($data);
 ```
 
 ### Custom Rules (Simple)

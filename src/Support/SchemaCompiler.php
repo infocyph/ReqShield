@@ -5,22 +5,29 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Support;
 
 use Infocyph\ReqShield\Contracts\Rule;
+use Infocyph\ReqShield\Enums\BuiltinRule;
 use Infocyph\ReqShield\Exceptions\InvalidRuleException;
 
 class SchemaCompiler
 {
+    /** @var array<string, class-string<Rule>> */
+    protected static array $resolvedBuiltinRuleClassCache = [];
+
     /** @var array<int,string> */
     protected array $arrayRules = ['in', 'not_in'];
 
-    /** @var array<string,string>|null */
-    protected ?array $reverseRuleMap = null;
-
     /** @var array<string,class-string<Rule>> */
-    protected array $ruleMap = [];
+    protected array $customRuleMap = [];
 
-    public function __construct()
+    /** @var array<string,class-string<Rule>>|null */
+    protected ?array $mergedRuleMap = null;
+
+    /** @var array<string,string>|null */
+    protected ?array $reverseCustomRuleMap = null;
+
+    public static function clearResolvedBuiltinRuleClassCache(): void
     {
-        $this->loadRuleMap();
+        self::$resolvedBuiltinRuleClassCache = [];
     }
 
     /**
@@ -61,22 +68,41 @@ class SchemaCompiler
     /** @return array<string,class-string<Rule>> */
     public function getRuleMap(): array
     {
-        return $this->ruleMap;
+        if ($this->customRuleMap === []) {
+            return BuiltinRule::tokenToClassMap();
+        }
+
+        if ($this->mergedRuleMap !== null) {
+            return $this->mergedRuleMap;
+        }
+
+        $this->mergedRuleMap = array_merge(
+            BuiltinRule::tokenToClassMap(),
+            $this->customRuleMap,
+        );
+
+        return $this->mergedRuleMap;
     }
 
     public function getRuleNameForRule(Rule $rule): string
     {
         $class = ltrim($rule::class, '\\');
 
-        if ($this->reverseRuleMap === null) {
-            $this->reverseRuleMap = [];
-            foreach ($this->ruleMap as $name => $mappedClass) {
-                $this->reverseRuleMap[ltrim($mappedClass, '\\')] = $name;
+        if ($this->reverseCustomRuleMap === null) {
+            $this->reverseCustomRuleMap = [];
+
+            foreach ($this->customRuleMap as $name => $mappedClass) {
+                $this->reverseCustomRuleMap[ltrim($mappedClass, '\\')] = $name;
             }
         }
 
-        if (isset($this->reverseRuleMap[$class])) {
-            return $this->reverseRuleMap[$class];
+        if (isset($this->reverseCustomRuleMap[$class])) {
+            return $this->reverseCustomRuleMap[$class];
+        }
+
+        $builtin = BuiltinRule::resolveNameForClass($class);
+        if (is_string($builtin)) {
+            return $builtin;
         }
 
         $pos = strrpos($class, '\\');
@@ -87,20 +113,11 @@ class SchemaCompiler
 
     public function registerRule(string $name, string $class): void
     {
-        if (!class_exists($class)) {
-            throw new InvalidRuleException(
-                "Rule class does not exist: {$class}",
-            );
-        }
+        $this->assertRuleClass($name, $class);
 
-        if (!is_subclass_of($class, Rule::class)) {
-            throw new InvalidRuleException(
-                'Rule class must implement ' . Rule::class . ": {$class}",
-            );
-        }
-
-        $this->ruleMap[$name] = $class;
-        $this->reverseRuleMap = null;
+        $this->customRuleMap[$name] = $class;
+        $this->mergedRuleMap = null;
+        $this->reverseCustomRuleMap = null;
     }
 
     /**
@@ -112,13 +129,11 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        $this->applyJoinedPlaceholder(
-            $placeholders,
-            $ruleName,
-            $params,
-            'other',
-            ['required_if_accepted', 'required_if_declined'],
-        );
+        if (!BuiltinRule::supportsAcceptedDeclinedPlaceholder($ruleName)) {
+            return;
+        }
+
+        $placeholders['other'] = $this->implodeScalarParams($params);
     }
 
     /**
@@ -130,13 +145,11 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        $this->applyJoinedPlaceholder(
-            $placeholders,
-            $ruleName,
-            $params,
-            'other',
-            ['required_with', 'required_with_all', 'required_without', 'required_without_all', 'present_with', 'present_with_all', 'exclude_with', 'exclude_without', 'prohibits'],
-        );
+        if (!BuiltinRule::supportsAggregateOtherPlaceholder($ruleName)) {
+            return;
+        }
+
+        $placeholders['other'] = $this->implodeScalarParams($params);
     }
 
     /**
@@ -148,7 +161,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array($ruleName, ['same', 'different', 'gt', 'gte', 'lt', 'lte'], true)) {
+        if (!BuiltinRule::supportsComparisonPlaceholder($ruleName)) {
             return;
         }
 
@@ -164,11 +177,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array(
-            $ruleName,
-            ['required_if', 'required_unless', 'present_if', 'present_unless', 'missing_if', 'missing_unless', 'prohibited_if', 'prohibited_unless', 'accepted_if', 'declined_if'],
-            true,
-        )) {
+        if (!BuiltinRule::supportsConditionalPlaceholder($ruleName)) {
             return;
         }
 
@@ -185,7 +194,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if ($ruleName === 'unique') {
+        if (BuiltinRule::isUniqueRule($ruleName)) {
             $placeholders['table'] = $params[0] ?? null;
             $placeholders['column'] = $params[1] ?? null;
             $placeholders['ignore'] = $params[2] ?? null;
@@ -196,7 +205,7 @@ class SchemaCompiler
             return;
         }
 
-        if ($ruleName !== 'exists') {
+        if (!BuiltinRule::isExistsRule($ruleName)) {
             return;
         }
 
@@ -213,35 +222,12 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array(
-            $ruleName,
-            ['before', 'before_or_equal', 'after', 'after_or_equal', 'date_equals', 'date_format'],
-            true,
-        )) {
+        if (!BuiltinRule::supportsDatePlaceholder($ruleName)) {
             return;
         }
 
         $placeholders['date'] = $params[0] ?? null;
         $placeholders['format'] = $params[0] ?? null;
-    }
-
-    /**
-     * @param array<string,mixed> $placeholders
-     * @param array<int,mixed> $params
-     * @param array<int,string> $ruleNames
-     */
-    protected function applyJoinedPlaceholder(
-        array &$placeholders,
-        string $ruleName,
-        array $params,
-        string $key,
-        array $ruleNames,
-    ): void {
-        if (!in_array($ruleName, $ruleNames, true)) {
-            return;
-        }
-
-        $placeholders[$key] = $this->implodeScalarParams($params);
     }
 
     /**
@@ -253,7 +239,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (!in_array($ruleName, ['regex', 'not_regex'], true)) {
+        if (!BuiltinRule::supportsPatternPlaceholder($ruleName)) {
             return;
         }
 
@@ -269,14 +255,14 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        if (in_array($ruleName, ['between', 'digits_between'], true)) {
+        if (BuiltinRule::supportsBetweenRangePlaceholder($ruleName)) {
             $placeholders['min'] = $params[0] ?? null;
             $placeholders['max'] = $params[1] ?? null;
 
             return;
         }
 
-        if ($ruleName !== 'decimal') {
+        if (!BuiltinRule::supportsDecimalRangePlaceholder($ruleName)) {
             return;
         }
 
@@ -293,16 +279,7 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        $key = match ($ruleName) {
-            'min' => 'min',
-            'max' => 'max',
-            'size' => 'size',
-            'digits' => 'digits',
-            'min_digits' => 'min',
-            'max_digits' => 'max',
-            'multiple_of' => 'multiple',
-            default => null,
-        };
+        $key = BuiltinRule::singleValuePlaceholderKey($ruleName);
 
         if ($key === null) {
             return;
@@ -320,13 +297,32 @@ class SchemaCompiler
         string $ruleName,
         array $params,
     ): void {
-        $this->applyJoinedPlaceholder(
-            $placeholders,
-            $ruleName,
-            $params,
-            'values',
-            ['in', 'not_in', 'contains', 'doesnt_contain', 'starts_with', 'ends_with', 'doesnt_start_with', 'doesnt_end_with', 'required_array_keys'],
-        );
+        if (!BuiltinRule::supportsValuesPlaceholder($ruleName)) {
+            return;
+        }
+
+        $placeholders['values'] = $this->implodeScalarParams($params);
+    }
+
+    /**
+     * @param class-string<Rule>|string $class
+     * @phpstan-assert class-string<Rule> $class
+     */
+    protected function assertRuleClass(string $ruleName, string $class): void
+    {
+        if (!class_exists($class)) {
+            throw InvalidRuleException::invalidFormat(
+                $ruleName,
+                "Resolved rule class does not exist: {$class}",
+            );
+        }
+
+        if (!is_subclass_of($class, Rule::class)) {
+            throw InvalidRuleException::invalidFormat(
+                $ruleName,
+                'Resolved rule class must implement ' . Rule::class . ": {$class}",
+            );
+        }
     }
 
     /**
@@ -421,11 +417,8 @@ class SchemaCompiler
     /** @param array<int,mixed> $params */
     protected function createRuleInstance(string $name, array $params): Rule
     {
-        if (!isset($this->ruleMap[$name])) {
-            throw new InvalidRuleException("Unknown rule: {$name}");
-        }
-
-        $class = $this->ruleMap[$name];
+        /** @var class-string<Rule> $class */
+        $class = $this->resolveRuleClass($name);
 
         // Cast parameters to appropriate types
         $params = $this->castParameters($params);
@@ -462,33 +455,6 @@ class SchemaCompiler
                 : '',
             $params,
         ));
-    }
-
-    protected function loadRuleMap(): void
-    {
-        $mapPath = __DIR__ . '/../Rules/rule-map.php';
-
-        if (!file_exists($mapPath)) {
-            throw new InvalidRuleException(
-                "Rule map file not found: {$mapPath}",
-            );
-        }
-
-        $map = require $mapPath;
-        if (!is_array($map)) {
-            throw new InvalidRuleException("Rule map file must return an array: {$mapPath}");
-        }
-
-        $normalized = [];
-        foreach ($map as $name => $class) {
-            if (!is_string($name) || !is_string($class) || !is_subclass_of($class, Rule::class)) {
-                continue;
-            }
-
-            $normalized[$name] = $class;
-        }
-
-        $this->ruleMap = $normalized;
     }
 
     /**
@@ -536,5 +502,29 @@ class SchemaCompiler
         [$name, $params] = $this->parseRuleString($rule);
 
         return $this->createRuleInstance($name, $params);
+    }
+
+    /**
+     * @return class-string<Rule>
+     */
+    protected function resolveRuleClass(string $ruleName): string
+    {
+        if (isset($this->customRuleMap[$ruleName])) {
+            return $this->customRuleMap[$ruleName];
+        }
+
+        if (isset(self::$resolvedBuiltinRuleClassCache[$ruleName])) {
+            return self::$resolvedBuiltinRuleClassCache[$ruleName];
+        }
+
+        $class = BuiltinRule::resolve($ruleName);
+        if ($class === null) {
+            throw InvalidRuleException::unknownRule($ruleName);
+        }
+
+        $this->assertRuleClass($ruleName, $class);
+        self::$resolvedBuiltinRuleClassCache[$ruleName] = $class;
+
+        return $class;
     }
 }

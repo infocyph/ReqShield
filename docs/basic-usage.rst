@@ -51,6 +51,24 @@ Validate Data
 
 See :doc:`handling-results` for all result helpers.
 
+Request Input Helpers
+---------------------
+
+Use static helpers when your input is already separated by source.
+
+.. code-block:: php
+
+    $result = Validator::fromArray($rules, $data);
+    $result = Validator::fromQuery($rules, $_GET);
+    $result = Validator::fromBody($rules, $body);
+    $result = Validator::fromFiles($rules, $_FILES);
+
+For PSR-style request objects:
+
+.. code-block:: php
+
+    $result = Validator::fromServerRequest($rules, $request);
+
 Field Aliases
 -------------
 
@@ -87,6 +105,17 @@ Runtime Behavior
         ->setFailFast(false)         // collect all failing rules per field
         ->setStopOnFirstError(false) // continue all fields
         ->throwOnFailure(false);     // return ValidationResult instead of throwing
+
+Unknown Field Handling
+----------------------
+
+.. code-block:: php
+
+    $validator
+        ->allowUnknown(false); // reject fields not defined in schema
+
+    $validator->strict();      // alias of allowUnknown(false)
+    $validator->stripUnknown(); // drop unknown fields instead of failing
 
 Throw on Failure
 ----------------

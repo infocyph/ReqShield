@@ -78,6 +78,19 @@ test('strict unknown mode rejects non schema fields', function () {
     expect($result->failures()[0]['rule'])->toBe('unknown');
 });
 
+test('allow unknown false behaves like strict mode', function () {
+    $result = Validator::make([
+        'email' => 'required|email',
+    ])->allowUnknown(false)->validate([
+        'email' => 'demo@example.com',
+        'unexpected' => 'value',
+    ]);
+
+    expect($result->fails())->toBeTrue();
+    expect($result->errors())->toHaveKey('unexpected');
+    expect($result->failures()[0]['rule'])->toBe('unknown');
+});
+
 test('strip unknown mode removes non schema fields without failing', function () {
     $result = Validator::make([
         'email' => 'required|email',
@@ -171,6 +184,25 @@ test('validation result exposes formatter outputs and immutable input', function
     expect($problem['status'])->toBe(422);
     expect($jsonApi)->toHaveKey('errors');
     expect($apiErrors)->toHaveKeys(['ok', 'message', 'errors', 'failures']);
+});
+
+test('formatter outputs include expected failure metadata', function () {
+    $result = Validator::make([
+        'email' => 'required|email',
+    ])->validate([
+        'email' => 'bad-email',
+    ]);
+
+    $flat = $result->toFlatErrors();
+    $problem = $result->toProblemJson();
+    $jsonApi = $result->toJsonApiErrors();
+
+    expect($result->fails())->toBeTrue();
+    expect($flat)->toHaveCount(1);
+    expect($flat[0])->toHaveKeys(['field', 'rule', 'message', 'value']);
+    expect($problem)->toHaveKeys(['type', 'title', 'status', 'detail', 'errors', 'failures']);
+    expect($jsonApi)->toHaveKey('errors');
+    expect($jsonApi['errors'][0])->toHaveKeys(['status', 'source', 'title', 'detail', 'meta']);
 });
 
 test('compiled validator reuses schema for repeated payloads', function () {
