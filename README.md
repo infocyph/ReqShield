@@ -520,12 +520,13 @@ Protected by [PHPForge](https://github.com/infocyph/PHPForge) — an automated q
 
 ---
 
-<div style="text-align:center;">
+<div align="center">
   <sub><strong>Made with ❤️ for the PHP community</strong></sub><br />
   <sub><a href="LICENSE">MIT Licensed</a></sub><br />
-  <a href="https://docs.infocyph.com/projects/reqshield">Documentation</a> •
+  <a href="https://docs.infocyph.com/projects/ReqShield">Documentation</a> •
   <a href="SECURITY.md">Security</a> •
   <a href="CODE_OF_CONDUCT.md">Code of Conduct</a> •
-  <a href="https://github.com/infocyph/reqshield/issues">Report Bug</a> •
-  <a href="https://github.com/infocyph/reqshield/issues">Request Feature</a>
+  <a href="CONTRIBUTING.md">Contributing</a> •
+  <a href="https://github.com/infocyph/ReqShield/issues">Report Bug</a> •
+  <a href="https://github.com/infocyph/ReqShield/issues">Request Feature</a>
 </div>
