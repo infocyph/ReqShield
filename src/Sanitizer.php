@@ -332,7 +332,7 @@ class Sanitizer
                 $value,
                 $associative,
                 512,
-                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+                JSON_THROW_ON_ERROR,
             );
         } catch (\JsonException) {
             // On error, return the default empty value
