@@ -1,6 +1,6 @@
 <?php
 
-// phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter
+declare(strict_types=1);
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Executors\BatchExecutor;
@@ -84,11 +84,14 @@ test('shapeSignature tracks structure but ignores scalar values', function () {
 
 test('batch executor groups checks by table and uses structured batch payloads', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public array $existsPayloads = [];
         public int $queryCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             $this->existsPayloads[] = ['table' => $table, 'checks' => $checks];
 
             return [];
@@ -96,6 +99,7 @@ test('batch executor groups checks by table and uses structured batch payloads',
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             return [];
         }
 
@@ -104,6 +108,7 @@ test('batch executor groups checks by table and uses structured batch payloads',
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -113,11 +118,13 @@ test('batch executor groups checks by table and uses structured batch payloads',
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return false;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             $this->queryCalls++;
 
             return [];
@@ -159,10 +166,13 @@ test('batch executor groups checks by table and uses structured batch payloads',
 
 test('batch executor chunks large batch payloads', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public array $existsPayloads = [];
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             $this->existsPayloads[] = ['table' => $table, 'checks' => $checks];
 
             return [];
@@ -170,6 +180,7 @@ test('batch executor chunks large batch payloads', function () {
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             return [];
         }
 
@@ -178,6 +189,7 @@ test('batch executor chunks large batch payloads', function () {
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -187,11 +199,13 @@ test('batch executor chunks large batch payloads', function () {
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return false;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             return [];
         }
     };
@@ -217,11 +231,14 @@ test('batch executor chunks large batch payloads', function () {
 
 test('batch executor records failures returned by provider batch methods', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public int $existsCalls = 0;
         public int $uniqueCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             $this->existsCalls++;
 
             return ['missing_email'];
@@ -229,6 +246,7 @@ test('batch executor records failures returned by provider batch methods', funct
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             $this->uniqueCalls++;
 
             return ['taken_email'];
@@ -239,6 +257,7 @@ test('batch executor records failures returned by provider batch methods', funct
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -248,11 +267,13 @@ test('batch executor records failures returned by provider batch methods', funct
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return false;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             throw new RuntimeException('query() should not be used by batch executor');
         }
     };

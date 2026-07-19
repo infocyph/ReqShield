@@ -18,7 +18,7 @@ class PresentUnless extends AbstractComparisonConditionRule
     /** @param array<array-key, mixed> $data */
     protected function passesWhenConditionApplies(mixed $value, string $field, array $data): bool
     {
-        unset($value);
+        $this->consumeRuleContext($value);
 
         return array_key_exists($field, $data);
     }

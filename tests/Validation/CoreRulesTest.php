@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Infocyph\ReqShield\Rules\CurrentPassword;
 use Infocyph\ReqShield\Validator;
 
@@ -26,6 +28,27 @@ test('basic validation passes', function () {
       ->toBeTrue()
       ->and($result->fails())->toBeFalse()
       ->and($result->validated())->toEqual($data);
+});
+
+test('required rule does not consult ambient uploaded files', function () {
+    $originalFiles = $_FILES;
+
+    try {
+        $_FILES['avatar'] = [
+            'error' => UPLOAD_ERR_OK,
+            'size' => 1024,
+        ];
+
+        $result = Validator::make([
+            'avatar' => 'required',
+        ])->validate([
+            'avatar' => [],
+        ]);
+
+        expect($result->fails())->toBeTrue();
+    } finally {
+        $_FILES = $originalFiles;
+    }
 });
 
 test('string validation rules pass', function () {

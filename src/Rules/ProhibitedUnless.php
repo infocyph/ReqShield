@@ -18,7 +18,7 @@ class ProhibitedUnless extends AbstractComparisonConditionRule
     /** @param array<array-key, mixed> $data */
     protected function passesWhenConditionApplies(mixed $value, string $field, array $data): bool
     {
-        unset($field, $data);
+        $this->consumeRuleContext($field, $data);
 
         return $this->isEmpty($value);
     }
