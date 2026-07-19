@@ -18,7 +18,7 @@ class ExcludeUnless extends AbstractComparisonConditionRule
     /** @param array<array-key, mixed> $data */
     protected function passesWhenConditionApplies(mixed $value, string $field, array $data): bool
     {
-        unset($value, $field, $data);
+        $this->consumeRuleContext($value, $field, $data);
 
         return false;
     }

@@ -31,10 +31,6 @@ class Required extends BaseRule
             return true;
         }
 
-        if ($this->hasUploadedFile($field)) {
-            return true;
-        }
-
         if ($this->hasNonEmptyStringRepresentation($value)) {
             return true;
         }
@@ -51,24 +47,6 @@ class Required extends BaseRule
         $stringValue = (string) $value;
 
         return $stringValue !== '' && trim($stringValue) !== '';
-    }
-
-    protected function hasUploadedFile(string $field): bool
-    {
-        if (!isset($_FILES[$field])) {
-            return false;
-        }
-
-        $file = $_FILES[$field];
-        if (!is_array($file)) {
-            return false;
-        }
-
-        if (isset($file['error'])) {
-            return $file['error'] === UPLOAD_ERR_OK;
-        }
-
-        return isset($file['size']) && $file['size'] > 0;
     }
 
     protected function isEmptyCountable(mixed $value): bool

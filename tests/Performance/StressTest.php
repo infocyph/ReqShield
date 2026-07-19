@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Infocyph\ReqShield\Validator;
 
 test('wildcard schema cache stays capped under shape churn', function () {

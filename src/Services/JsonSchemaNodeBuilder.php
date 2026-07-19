@@ -38,6 +38,8 @@ final class JsonSchemaNodeBuilder
                     $this->normalizeNode($child);
                 }
             }
+
+            unset($child);
         }
 
         if (isset($node['items']) && is_array($node['items'])) {

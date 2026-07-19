@@ -6,7 +6,7 @@ use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Enums\BuiltinRule;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 
-final class SchemaCompilerTestEvenRule implements Rule
+final class SchemaCompilerTestRule implements Rule
 {
     public function cost(): int
     {
@@ -20,14 +20,12 @@ final class SchemaCompilerTestEvenRule implements Rule
 
     public function message(string $field): string
     {
-        return "{$field} must be even.";
+        return "{$field} is invalid.";
     }
 
     public function passes(mixed $value, string $field, array $data): bool
     {
-        unset($field, $data);
-
-        return is_int($value) && $value % 2 === 0;
+        return true;
     }
 }
 
@@ -77,15 +75,15 @@ it('keeps custom rules outside builtin rule class cache', function (): void {
     SchemaCompiler::clearResolvedBuiltinRuleClassCache();
 
     $compiler = new SchemaCompiler();
-    $compiler->registerRule('even', SchemaCompilerTestEvenRule::class);
+    $compiler->registerRule('custom', SchemaCompilerTestRule::class);
 
     $compiler->compile([
-        'number' => 'required|even',
+        'number' => 'required|custom',
     ]);
 
     $cache = (new ReflectionClass(SchemaCompiler::class))
         ->getStaticPropertyValue('resolvedBuiltinRuleClassCache');
 
     expect($cache)->toHaveKey('required');
-    expect($cache)->not->toHaveKey('even');
+    expect($cache)->not->toHaveKey('custom');
 });

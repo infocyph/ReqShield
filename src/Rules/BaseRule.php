@@ -14,7 +14,11 @@ abstract class BaseRule implements Rule
         return false;
     }
 
-    protected function consumeRuleContext(mixed ...$values): void {}
+    protected function consumeRuleContext(
+        mixed $value = null,
+        mixed $field = null,
+        mixed $data = null,
+    ): void {}
 
     protected function detectMimeTypeFromPath(string $path): ?string
     {

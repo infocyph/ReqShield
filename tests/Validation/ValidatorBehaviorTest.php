@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Infocyph\ReqShield\Exceptions\ValidationException;
 use Infocyph\ReqShield\Rules\Callback;
 use Infocyph\ReqShield\Support\FieldAlias;

@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-// phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter
-
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Rules\Unique;
 use Infocyph\ReqShield\Validator;
@@ -218,16 +216,20 @@ test('composeSchemas preserves regex rules that contain pipes', function () {
 
 test('unique rule forwards soft-delete options in batch payload', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public array $uniquePayloads = [];
         public int $queryCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             return [];
         }
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
 
             $failed = [];
@@ -246,6 +248,7 @@ test('unique rule forwards soft-delete options in batch payload', function () {
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -255,11 +258,13 @@ test('unique rule forwards soft-delete options in batch payload', function () {
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return false;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             $this->queryCalls++;
 
             return [];
@@ -286,15 +291,19 @@ test('unique rule forwards soft-delete options in batch payload', function () {
 
 test('unique string syntax preserves optional parameter positions', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public array $uniquePayloads = [];
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             return [];
         }
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
 
             return [];
@@ -305,6 +314,7 @@ test('unique string syntax preserves optional parameter positions', function () 
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -314,11 +324,13 @@ test('unique string syntax preserves optional parameter positions', function () 
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return false;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             return [];
         }
     };
@@ -339,16 +351,20 @@ test('unique string syntax preserves optional parameter positions', function () 
 
 test('unique batching preserves id column per check in payload', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public array $uniquePayloads = [];
         public int $queryCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             return [];
         }
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
 
             return [];
@@ -359,6 +375,7 @@ test('unique batching preserves id column per check in payload', function () {
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -368,11 +385,13 @@ test('unique batching preserves id column per check in payload', function () {
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return false;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             $this->queryCalls++;
 
             return [];

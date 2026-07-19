@@ -50,7 +50,7 @@ abstract class DateComparisonRule extends BaseRule
      */
     protected function resolveReferenceDate(array $data): mixed
     {
-        unset($data);
+        $this->consumeRuleContext($data);
 
         return $this->date;
     }

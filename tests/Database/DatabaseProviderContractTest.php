@@ -1,18 +1,21 @@
 <?php
 
-// phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter
+declare(strict_types=1);
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Validator;
 
 test('database provider contract uses structured batch payloads for all providers', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public array $existsPayloads = [];
         public array $uniquePayloads = [];
         public int $queryCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             $this->existsPayloads[] = ['table' => $table, 'checks' => $checks];
 
             $missing = [];
@@ -27,6 +30,7 @@ test('database provider contract uses structured batch payloads for all provider
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
 
             $taken = [];
@@ -44,6 +48,7 @@ test('database provider contract uses structured batch payloads for all provider
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -53,11 +58,13 @@ test('database provider contract uses structured batch payloads for all provider
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return true;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             $this->queryCalls++;
 
             return [];
@@ -97,15 +104,19 @@ test('database provider contract uses structured batch payloads for all provider
 
 test('batch execution does not fall back to query when provider batch methods throw', function () {
     $provider = new class implements DatabaseProvider {
+        /** @var array<int, array<int, mixed>> */
+        public array $contractCalls = [];
         public int $queryCalls = 0;
 
         public function batchExistsCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
             throw new RuntimeException('batch exists unavailable');
         }
 
         public function batchUniqueCheck(string $table, array $checks): array
         {
+            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
             throw new RuntimeException('batch unique unavailable');
         }
 
@@ -114,6 +125,7 @@ test('batch execution does not fall back to query when provider batch methods th
             array $columns,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
             return true;
         }
 
@@ -123,11 +135,13 @@ test('batch execution does not fall back to query when provider batch methods th
             $value,
             ?int $ignoreId = null,
         ): bool {
+            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
             return true;
         }
 
         public function query(string $query, array $params = []): array
         {
+            $this->contractCalls[] = ['query', $query, $params];
             $this->queryCalls++;
 
             return [];

@@ -12,7 +12,7 @@ abstract class AbstractComparisonStateConditionRule extends AbstractComparisonCo
     /** @param array<array-key, mixed> $data */
     protected function passesWhenConditionApplies(mixed $value, string $field, array $data): bool
     {
-        unset($field, $data);
+        $this->consumeRuleContext($field, $data);
 
         return in_array($value, $this->validStates(), true);
     }
