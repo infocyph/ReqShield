@@ -6,18 +6,8 @@ use Infocyph\ReqShield\Rule;
 use Infocyph\ReqShield\Validator;
 use Infocyph\ReqShield\Exceptions\UnsupportedRequestObjectException;
 use Infocyph\ReqShield\Support\ValidationContext;
-
-enum ReqShieldStatus: string
-{
-    case Draft = 'draft';
-    case Published = 'published';
-}
-
-enum ReqShieldState
-{
-    case Pending;
-    case Approved;
-}
+use Infocyph\ReqShield\Tests\Fixtures\ReqShieldState;
+use Infocyph\ReqShield\Tests\Fixtures\ReqShieldStatus;
 
 test('request helper static constructors validate arrays', function () {
     $schema = ['email' => 'required|email'];
