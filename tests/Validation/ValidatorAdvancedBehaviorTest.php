@@ -4,27 +4,9 @@ declare(strict_types=1);
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Rules\Unique;
+use Infocyph\ReqShield\Tests\Fixtures\ReqShieldCtorDto;
+use Infocyph\ReqShield\Tests\Fixtures\ReqShieldFeatureDto;
 use Infocyph\ReqShield\Validator;
-
-if (!class_exists('ReqShieldFeatureDto')) {
-    class ReqShieldFeatureDto
-    {
-        public int $age = 0;
-
-        public bool $active = false;
-    }
-}
-
-if (!class_exists('ReqShieldCtorDto')) {
-    class ReqShieldCtorDto
-    {
-        public function __construct(
-            public int $age,
-            public bool $active,
-        ) {
-        }
-    }
-}
 
 if (!function_exists('reqShieldDeleteTempFile')) {
     function reqShieldDeleteTempFile(string|false $path): void

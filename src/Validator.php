@@ -85,7 +85,7 @@ class Validator
     protected bool $localeMessagesEnabled = false;
 
     /** @var array<string,array<string,mixed>> */
-    protected array $localePacks = [];
+    protected array $localePacks;
 
     protected MessageTokenBuilder $messageTokenBuilder;
 
@@ -96,7 +96,7 @@ class Validator
     /** @var array<int|string,mixed> */
     protected array $rules;
 
-    protected string $rulesCacheKey = '';
+    protected string $rulesCacheKey;
 
     protected SanitizerMapApplier $sanitizerMapApplier;
 
@@ -107,10 +107,10 @@ class Validator
     protected array $schema;
 
     /** @var array<string,mixed> */
-    protected array $schemaCasts = [];
+    protected array $schemaCasts;
 
     /** @var array<string,mixed> */
-    protected array $schemaSanitizers = [];
+    protected array $schemaSanitizers;
 
     protected bool $stopOnFirstError = false;
 

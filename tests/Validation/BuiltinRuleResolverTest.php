@@ -5,29 +5,7 @@ declare(strict_types=1);
 use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Enums\BuiltinRule;
 use Infocyph\ReqShield\Support\SchemaCompiler;
-
-final class SchemaCompilerTestRule implements Rule
-{
-    public function cost(): int
-    {
-        return 1;
-    }
-
-    public function isBatchable(): bool
-    {
-        return false;
-    }
-
-    public function message(string $field): string
-    {
-        return "{$field} is invalid.";
-    }
-
-    public function passes(mixed $value, string $field, array $data): bool
-    {
-        return true;
-    }
-}
+use Infocyph\ReqShield\Tests\Fixtures\SchemaCompilerTestRule;
 
 it('all builtin rules resolve to valid rule classes', function (): void {
     foreach (BuiltinRule::cases() as $rule) {
