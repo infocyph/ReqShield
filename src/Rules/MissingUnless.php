@@ -18,7 +18,9 @@ class MissingUnless extends AbstractComparisonConditionRule
     /** @param array<array-key, mixed> $data */
     protected function passesWhenConditionApplies(mixed $value, string $field, array $data): bool
     {
-        return !array_key_exists($field, $data) || $this->isEmpty($value);
+        $this->consumeRuleContext($value, $field, $data);
+
+        return !array_key_exists($field, $data);
     }
 
     #[\Override]

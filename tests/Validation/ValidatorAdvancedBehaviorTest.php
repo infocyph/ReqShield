@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
+use Infocyph\ReqShield\Tests\Fixtures\Database\MockDatabaseProvider;
 use Infocyph\ReqShield\Rules\Unique;
 use Infocyph\ReqShield\Tests\Fixtures\ReqShieldCtorDto;
 use Infocyph\ReqShield\Tests\Fixtures\ReqShieldFeatureDto;
@@ -201,134 +202,53 @@ test('unique rule forwards soft-delete options in batch payload', function () {
         /** @var array<int, array<int, mixed>> */
         public array $contractCalls = [];
         public array $uniquePayloads = [];
-        public int $queryCalls = 0;
 
-        public function batchExistsCheck(string $table, array $checks): array
+        public function batchExists(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
+            $this->contractCalls[] = ['batchExists', $table, $checks];
             return [];
         }
 
-        public function batchUniqueCheck(string $table, array $checks): array
+        public function batchUnique(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
+            $this->contractCalls[] = ['batchUnique', $table, $checks];
             $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
 
             $failed = [];
             foreach ($checks as $check) {
-                $withTrashed = (bool)($check['with_trashed'] ?? false);
+                $withTrashed = (bool)($check['include_trashed'] ?? false);
                 if ($withTrashed && ($check['value'] ?? null) === 'taken@example.com') {
-                    $failed[] = $check['field'];
+                    $failed[] = $check['id'];
                 }
             }
 
             return $failed;
         }
 
-        public function compositeUnique(
-            string $table,
-            array $columns,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
-            return true;
-        }
-
-        public function exists(
-            string $table,
-            string $column,
-            $value,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
-            return false;
-        }
-
-        public function query(string $query, array $params = []): array
-        {
-            $this->contractCalls[] = ['query', $query, $params];
-            $this->queryCalls++;
-
-            return [];
-        }
     };
 
     $softAware = Validator::make([
-        'email' => [new Unique('users', 'email')],
+        'email' => [(new Unique('users', 'email'))->withoutTrashed()],
     ], $provider);
 
     $withTrashed = Validator::make([
-        'email' => [new Unique('users', 'email', null, 'id', true, 'deleted_at')],
+        'email' => [(new Unique('users', 'email'))->withoutTrashed()->withTrashed()],
     ], $provider);
 
     expect($softAware->validate(['email' => 'taken@example.com'])->passes())->toBeTrue();
     expect($withTrashed->validate(['email' => 'taken@example.com'])->fails())->toBeTrue();
-    expect($provider->queryCalls)->toBe(0);
     expect($provider->uniquePayloads)->toHaveCount(2);
-    expect($provider->uniquePayloads[0]['checks'][0]['with_trashed'])->toBeFalse();
+    expect($provider->uniquePayloads[0]['checks'][0]['include_trashed'])->toBeFalse();
     expect($provider->uniquePayloads[0]['checks'][0]['soft_delete_column'])->toBe('deleted_at');
-    expect($provider->uniquePayloads[1]['checks'][0]['with_trashed'])->toBeTrue();
-    expect($provider->uniquePayloads[1]['checks'][0]['soft_delete_column'])->toBe('deleted_at');
+    expect($provider->uniquePayloads[1]['checks'][0]['include_trashed'])->toBeTrue();
+    expect($provider->uniquePayloads[1]['checks'][0]['soft_delete_column'])->toBeNull();
 });
 
-test('unique string syntax preserves optional parameter positions', function () {
-    $provider = new class implements DatabaseProvider {
-        /** @var array<int, array<int, mixed>> */
-        public array $contractCalls = [];
-        public array $uniquePayloads = [];
-
-        public function batchExistsCheck(string $table, array $checks): array
-        {
-            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
-            return [];
-        }
-
-        public function batchUniqueCheck(string $table, array $checks): array
-        {
-            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
-            $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
-
-            return [];
-        }
-
-        public function compositeUnique(
-            string $table,
-            array $columns,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
-            return true;
-        }
-
-        public function exists(
-            string $table,
-            string $column,
-            $value,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
-            return false;
-        }
-
-        public function query(string $query, array $params = []): array
-        {
-            $this->contractCalls[] = ['query', $query, $params];
-            return [];
-        }
-    };
-
-    $validator = Validator::make([
+test('unique string syntax rejects advanced positional options', function () {
+    expect(fn() => Validator::make([
         'email' => 'required|email|unique:users,email,,uuid,true,deleted_at',
-    ], $provider);
-
-    $validator->validate([
-        'email' => 'alice@example.com',
-    ]);
-
-    expect($provider->uniquePayloads)->toHaveCount(1);
-    expect($provider->uniquePayloads[0]['checks'][0]['id_column'])->toBe('uuid');
-    expect($provider->uniquePayloads[0]['checks'][0]['with_trashed'])->toBeTrue();
-    expect($provider->uniquePayloads[0]['checks'][0]['soft_delete_column'])->toBe('deleted_at');
+    ], new MockDatabaseProvider()))
+        ->toThrow(\Infocyph\ReqShield\Exceptions\InvalidRuleParameterException::class);
 });
 
 test('unique batching preserves id column per check in payload', function () {
@@ -336,48 +256,21 @@ test('unique batching preserves id column per check in payload', function () {
         /** @var array<int, array<int, mixed>> */
         public array $contractCalls = [];
         public array $uniquePayloads = [];
-        public int $queryCalls = 0;
 
-        public function batchExistsCheck(string $table, array $checks): array
+        public function batchExists(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
+            $this->contractCalls[] = ['batchExists', $table, $checks];
             return [];
         }
 
-        public function batchUniqueCheck(string $table, array $checks): array
+        public function batchUnique(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
+            $this->contractCalls[] = ['batchUnique', $table, $checks];
             $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
 
             return [];
         }
 
-        public function compositeUnique(
-            string $table,
-            array $columns,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
-            return true;
-        }
-
-        public function exists(
-            string $table,
-            string $column,
-            $value,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
-            return false;
-        }
-
-        public function query(string $query, array $params = []): array
-        {
-            $this->contractCalls[] = ['query', $query, $params];
-            $this->queryCalls++;
-
-            return [];
-        }
     };
 
     $validator = Validator::make([
@@ -390,7 +283,6 @@ test('unique batching preserves id column per check in payload', function () {
         'email_b' => 'b@example.com',
     ]);
 
-    expect($provider->queryCalls)->toBe(0);
     expect($provider->uniquePayloads)->toHaveCount(1);
     expect($provider->uniquePayloads[0]['checks'])->toHaveCount(2);
     expect($provider->uniquePayloads[0]['checks'][0]['id_column'])->toBe('id');

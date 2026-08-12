@@ -2,7 +2,14 @@
 
 declare(strict_types=1);
 
+use Infocyph\ReqShield\Rules\Callback;
+use Infocyph\ReqShield\Support\RuleExpressionParser;
 use Infocyph\ReqShield\Validator;
+
+final readonly class ReqShieldStressDto
+{
+    public function __construct(public string $value) {}
+}
 
 test('wildcard schema cache stays capped under shape churn', function () {
     $validator = Validator::make([
@@ -84,4 +91,50 @@ test('field aliases remain isolated per validator instance', function () {
     expect($resultB->fails())->toBeTrue();
     expect($resultA->errors()['email'][0])->toContain('Primary Email');
     expect($resultB->errors()['email'][0])->toContain('Login Email');
+})->group('stress');
+
+test('long-running validator workloads keep process caches bounded', function () {
+    Validator::clearFragments();
+    Validator::clearPlanCache();
+    RuleExpressionParser::clearCache();
+    Validator::defineFragment('worker_value', [
+        'value' => 'required|string',
+    ]);
+
+    try {
+        foreach (range(1, 1_100) as $iteration) {
+            $callback = static fn(mixed $value): bool => is_string($value);
+            $validator = Validator::make([
+                'value' => [new Callback($callback)],
+            ])->setLocale('en-US')
+                ->addLocalePack('en-US', ['callback' => 'Invalid value.'])
+                ->setDtoClass(ReqShieldStressDto::class);
+
+            expect($validator->validate(['value' => 'ok'])->toDTO())
+                ->toBeInstanceOf(ReqShieldStressDto::class);
+
+            expect(Validator::make([
+                "field_{$iteration}" => "required|string|max:{$iteration}",
+            ])->validate(["field_{$iteration}" => 'x'])->passes())->toBeTrue();
+
+            RuleExpressionParser::parse("max:{$iteration}");
+            RuleExpressionParser::splitRules("required|string|max:{$iteration}");
+        }
+
+        $validatorReflection = new ReflectionClass(Validator::class);
+        $parserReflection = new ReflectionClass(RuleExpressionParser::class);
+
+        expect(count($validatorReflection->getStaticPropertyValue('processPlanCache')))
+            ->toBeLessThanOrEqual((int)$validatorReflection->getConstant('MAX_PROCESS_PLAN_CACHE'))
+            ->and(count($validatorReflection->getStaticPropertyValue('callableMaxArityCache')))
+            ->toBeLessThanOrEqual((int)$validatorReflection->getConstant('MAX_CALLABLE_ARITY_CACHE'))
+            ->and(count($parserReflection->getStaticPropertyValue('parseCache')))
+            ->toBeLessThanOrEqual((int)$parserReflection->getConstant('MAX_PARSED_RULE_CACHE'))
+            ->and(count($parserReflection->getStaticPropertyValue('splitCache')))
+            ->toBeLessThanOrEqual((int)$parserReflection->getConstant('MAX_PARSED_RULE_CACHE'));
+    } finally {
+        Validator::clearFragments();
+        Validator::clearPlanCache();
+        RuleExpressionParser::clearCache();
+    }
 })->group('stress');

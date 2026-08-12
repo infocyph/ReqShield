@@ -6,7 +6,20 @@ namespace Infocyph\ReqShield\Rules;
 
 abstract class AbstractRegexPatternRule extends BaseRule
 {
-    public function __construct(protected string $pattern) {}
+    public function __construct(protected string $pattern)
+    {
+        set_error_handler(static fn(): bool => true);
+
+        try {
+            $result = preg_match($this->pattern, '');
+        } finally {
+            restore_error_handler();
+        }
+
+        if ($result === false) {
+            throw new \InvalidArgumentException('The regular expression is invalid.');
+        }
+    }
 
     abstract protected function isPatternResultValid(int|false $result): bool;
 

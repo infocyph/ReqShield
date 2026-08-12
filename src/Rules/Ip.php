@@ -16,12 +16,10 @@ class Ip extends BaseRule
 
     protected bool $publicOnly = false;
 
-    public function __construct(?string $options = null)
+    public function __construct(string ...$options)
     {
-        if ($options !== null && $options !== '') {
-            $this->parseOptions($options);
-        }
-
+        $this->parseOptions($options);
+        $this->assertCompatibleOptions();
         $this->buildFlags();
     }
 
@@ -90,6 +88,17 @@ class Ip extends BaseRule
         return filter_var($value, FILTER_VALIDATE_IP, $this->flags) !== false;
     }
 
+    protected function assertCompatibleOptions(): void
+    {
+        if ($this->ipv4Only && $this->ipv6Only) {
+            throw new \InvalidArgumentException('IP options v4 and v6 are mutually exclusive.');
+        }
+
+        if ($this->privateOnly && $this->publicOnly) {
+            throw new \InvalidArgumentException('IP options private and public are mutually exclusive.');
+        }
+    }
+
     protected function buildFlags(): void
     {
         // IPv4 only
@@ -134,21 +143,23 @@ class Ip extends BaseRule
         return filter_var($value, FILTER_VALIDATE_IP, $publicFlags) === false;
     }
 
-    protected function parseOptions(string $options): void
+    /** @param array<int|string,string> $options */
+    protected function parseOptions(array $options): void
     {
-        // Split by comma and process each option
-        $parts = explode(',', strtolower($options));
-        foreach ($parts as $option) {
-            match (trim($option)) {
-                'v4', '4', 'ipv4' => $this->ipv4Only = true,
-                'v6', '6', 'ipv6' => $this->ipv6Only = true,
-                'public' => $this->publicOnly = true,
-                'private', 'priv' => $this->privateOnly = true,
-                'no_res', 'no_reserved' => $this->flags |= FILTER_FLAG_NO_RES_RANGE,
-                'no_priv', 'no_private' => $this->flags |= FILTER_FLAG_NO_PRIV_RANGE,
-                'global' => $this->flags |= FILTER_FLAG_GLOBAL_RANGE,
-                default => null,
-            };
+        foreach ($options as $optionGroup) {
+            foreach (explode(',', strtolower($optionGroup)) as $option) {
+                match (trim($option)) {
+                    '' => null,
+                    'v4', '4', 'ipv4' => $this->ipv4Only = true,
+                    'v6', '6', 'ipv6' => $this->ipv6Only = true,
+                    'public' => $this->publicOnly = true,
+                    'private', 'priv' => $this->privateOnly = true,
+                    'no_res', 'no_reserved' => $this->flags |= FILTER_FLAG_NO_RES_RANGE,
+                    'no_priv', 'no_private' => $this->flags |= FILTER_FLAG_NO_PRIV_RANGE,
+                    'global' => $this->flags |= FILTER_FLAG_GLOBAL_RANGE,
+                    default => throw new \InvalidArgumentException("Unknown IP option: {$option}"),
+                };
+            }
         }
     }
 }

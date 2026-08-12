@@ -13,6 +13,11 @@ abstract class AbstractOtherFieldRule extends BaseRule
         return $this->ruleCost();
     }
 
+    public function getOtherField(): string
+    {
+        return $this->otherField;
+    }
+
     protected function ruleCost(): int
     {
         return 2;

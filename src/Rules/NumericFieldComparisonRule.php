@@ -15,6 +15,11 @@ abstract class NumericFieldComparisonRule extends BaseRule
         return 3;
     }
 
+    public function getOtherField(): string
+    {
+        return $this->otherField;
+    }
+
     public function passes(mixed $value, string $field, array $data): bool
     {
         $this->consumeRuleContext($value, $field, $data);

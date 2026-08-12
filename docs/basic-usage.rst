@@ -69,6 +69,10 @@ For PSR-style request objects:
 
     $result = Validator::fromServerRequest($rules, $request);
 
+When a key exists in more than one request source, later sources win. The merge
+precedence is query parameters, then parsed body, then uploaded files, then
+request attributes (highest priority).
+
 Field Aliases
 -------------
 

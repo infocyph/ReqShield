@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Infocyph\ReqShield\Tests\Fixtures\Database\MockDatabaseProvider;
 use Infocyph\ReqShield\Exceptions\ValidationException;
 use Infocyph\ReqShield\Rules\Callback;
 use Infocyph\ReqShield\Support\FieldAlias;
@@ -272,13 +273,15 @@ test('schema statistics are calculated', function () {
         'email' => 'required|email|unique:users,email',
         'username' => 'required|alpha_dash|min:3',
         'password' => 'required|min:8',
-    ]);
+    ], new MockDatabaseProvider());
 
     $stats = $validator->getSchemaStats();
 
     expect($stats['total_fields'])->toBe(3);
-    expect($stats['fields']['email']['cheap_rules'])->toBe(2);
-    expect($stats['fields']['email']['expensive_rules'])->toBe(1);
-    expect($stats['fields']['username']['cheap_rules'])->toBe(3);
-    expect($stats['fields']['password']['cheap_rules'])->toBe(2);
+    expect($stats['fields']['email']['implicit_rules'])->toBe(1);
+    expect($stats['fields']['email']['cheap_rules'])->toBe(1);
+    expect($stats['fields']['email']['expensive_rules'])->toBe(0);
+    expect($stats['fields']['email']['batch_rules'])->toBe(1);
+    expect($stats['fields']['username']['cheap_rules'])->toBe(2);
+    expect($stats['fields']['password']['cheap_rules'])->toBe(1);
 });

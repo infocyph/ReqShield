@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Services;
 
+use Infocyph\ReqShield\Support\FieldPlan;
 use Infocyph\ReqShield\Support\JsonSchemaTypeHelper;
 use Infocyph\ReqShield\Support\RuleExpressionParser;
-use Infocyph\ReqShield\Support\ValidationNode;
 
 /**
  * @phpstan-type JsonNode array<int|string, mixed>
@@ -112,7 +112,7 @@ final class JsonSchemaExporter
                 $normalizeRegexForJsonSchema,
             );
             $node = $schema[$field] ?? null;
-            $isRequired = $node instanceof ValidationNode && !$node->isOptional;
+            $isRequired = $node instanceof FieldPlan && !$node->isOptional;
             $this->addProperty($document, $field, $property, $isRequired);
         }
 
@@ -324,12 +324,6 @@ final class JsonSchemaExporter
             return true;
         }
 
-        if (in_array($ruleName, ['date_format', 'date_equals', 'before', 'before_or_equal', 'after', 'after_or_equal'], true)) {
-            $property['format'] = 'date-time';
-
-            return true;
-        }
-
         return false;
     }
 
@@ -361,6 +355,54 @@ final class JsonSchemaExporter
     }
 
     /**
+     * @param JsonNode $property
+     * @param array<int,mixed> $params
+     */
+    protected function applyReqShieldExtension(array &$property, string $ruleName, array $params): void
+    {
+        if ($ruleName === 'active_url') {
+            $property['x-reqshield-active-url'] = true;
+
+            return;
+        }
+
+        if (in_array($ruleName, ['exists', 'unique'], true)) {
+            $property['x-reqshield-' . $ruleName] = [
+                'table' => $params[0] ?? null,
+                'column' => $params[1] ?? null,
+            ];
+
+            return;
+        }
+
+        if ($ruleName === 'date_format') {
+            $property['x-reqshield-date-format'] = $params[0] ?? null;
+
+            return;
+        }
+
+        $crossFieldRules = [
+            'same', 'different', 'gt', 'gte', 'lt', 'lte', 'in_array',
+            'date_equals', 'before', 'before_or_equal', 'after', 'after_or_equal',
+        ];
+        if (in_array($ruleName, $crossFieldRules, true)) {
+            $property['x-reqshield-' . str_replace('_', '-', $ruleName)] = $params[0] ?? true;
+
+            return;
+        }
+
+        if ($ruleName === 'confirmed') {
+            $property['x-reqshield-confirmed-by'] = true;
+
+            return;
+        }
+
+        if (str_starts_with($ruleName, 'required_') || str_starts_with($ruleName, 'present_')) {
+            $property['x-reqshield-' . str_replace('_', '-', $ruleName)] = $params;
+        }
+    }
+
+    /**
      * @param RuleDefinition $definition
      * @param array<int|string, mixed> $schemaSanitizers
      * @param array<int|string, mixed> $schemaCasts
@@ -384,6 +426,7 @@ final class JsonSchemaExporter
         $property = ['type' => $this->inferJsonSchemaType($ruleNames)];
 
         foreach ($parsedRules as $rule) {
+            $this->applyReqShieldExtension($property, $rule['name'], $rule['params']);
             $this->applyRuleConstraint(
                 $property,
                 $rule['name'],

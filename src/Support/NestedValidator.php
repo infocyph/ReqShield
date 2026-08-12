@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
-class NestedValidator
+use Infocyph\ReqShield\Exceptions\InputLimitException;
+
+final class NestedValidator
 {
     /**
      * @param array<int|string,mixed> $data
-     * @param array<string,array{path:string,segments:array<int,string>,rule:mixed,is_wildcard:bool}> $parsedRules
+     * @param array<string,array{path:string,segments:list<string>,rule:mixed,is_wildcard:bool}> $parsedRules
      *
      * @return array<string,mixed>
      */
     public static function expandWildcards(
         array $data,
         array $parsedRules,
+        int $maxExpansions = 10_000,
     ): array {
         $expanded = [];
 
@@ -25,7 +28,14 @@ class NestedValidator
                 continue;
             }
 
-            static::expandWildcardRule($expanded, $data, $ruleData);
+            static::expandWildcardSegments(
+                $expanded,
+                $data,
+                $ruleData['segments'],
+                [],
+                $ruleData['rule'],
+                $maxExpansions,
+            );
         }
 
         return $expanded;
@@ -109,11 +119,12 @@ class NestedValidator
                 continue;
             }
 
-            if (!static::has($data, $path)) {
+            [$found, $value] = static::findValue($data, $path);
+            if (!$found) {
                 continue;
             }
 
-            $flattened[$path] = static::extractValue($data, $path);
+            $flattened[$path] = $value;
         }
 
         return $flattened;
@@ -193,7 +204,7 @@ class NestedValidator
     /**
      * @param array<int|string,mixed> $rules
      *
-     * @return array<string,array{path:string,segments:array<int,string>,rule:mixed,is_wildcard:bool}>
+     * @return array<string,array{path:string,segments:list<string>,rule:mixed,is_wildcard:bool}>
      */
     public static function parseRules(array $rules): array
     {
@@ -268,75 +279,122 @@ class NestedValidator
         return $result;
     }
 
-    /**
-     * @param array<string,mixed> $expanded
-     * @param array<int|string,mixed> $arrayData
-     */
-    protected static function appendExpandedWildcardRules(
-        array &$expanded,
-        array $arrayData,
-        string $pathBeforeWildcard,
-        string $pathAfterWildcard,
-        mixed $rule,
-    ): void {
-        foreach (array_keys($arrayData) as $index) {
-            $expandedPath = static::buildExpandedPath(
-                $pathBeforeWildcard,
-                $index,
-                $pathAfterWildcard,
+    /** @param list<string> $captures */
+    protected static function bindRuleToken(string $token, array $captures): string
+    {
+        [$name, $params] = RuleExpressionParser::parse($token);
+        if ($params === [] || in_array($name, ['regex', 'not_regex'], true)) {
+            return $token;
+        }
+
+        foreach ($params as &$parameter) {
+            $captureIndex = 0;
+            $parameter = preg_replace_callback(
+                '/(^|\.)\*(?=\.|$)/',
+                static function (array $match) use ($captures, &$captureIndex): string {
+                    $capture = $captures[$captureIndex] ?? end($captures);
+                    ++$captureIndex;
+
+                    return $match[1] . $capture;
+                },
+                $parameter,
+            ) ?? $parameter;
+        }
+        unset($parameter);
+
+        return $name . ':' . implode(',', $params);
+    }
+
+    /** @param list<string> $targetSegments */
+    protected static function bindWildcardDependencies(mixed $definition, string $targetPath, array $targetSegments): mixed
+    {
+        $captures = [];
+        $targetParts = explode('.', $targetPath);
+        foreach ($targetSegments as $index => $segment) {
+            if (ctype_digit($segment) && isset($targetParts[$index])) {
+                $captures[] = $targetParts[$index];
+            }
+        }
+
+        if ($captures === []) {
+            return $definition;
+        }
+
+        if (is_string($definition)) {
+            $tokens = RuleExpressionParser::splitRules($definition);
+            $bound = array_map(
+                static fn(string $token): string => static::bindRuleToken($token, $captures),
+                $tokens,
             );
-            $expanded[$expandedPath] = $rule;
-        }
-    }
 
-    protected static function buildExpandedPath(
-        string $before,
-        int|string $index,
-        string $after,
-    ): string {
-        if ($before && $after) {
-            return "{$before}.{$index}.{$after}";
+            return implode('|', $bound);
         }
 
-        if ($before) {
-            return "{$before}.{$index}";
+        if (!is_array($definition)) {
+            return $definition;
         }
 
-        if ($after) {
-            return "{$index}.{$after}";
-        }
-
-        return (string) $index;
+        return array_map(
+            static fn(mixed $rule): mixed => is_string($rule)
+                ? static::bindRuleToken($rule, $captures)
+                : $rule,
+            $definition,
+        );
     }
 
     /**
      * @param array<string,mixed> $expanded
-     * @param array<int|string,mixed> $data
-     * @param array{path:string,segments:array<int,string>,rule:mixed,is_wildcard:bool} $ruleData
+     * @param list<string> $segments
+     * @param list<string> $path
      */
-    protected static function expandWildcardRule(
+    protected static function expandWildcardSegments(
         array &$expanded,
-        array $data,
-        array $ruleData,
+        mixed $data,
+        array $segments,
+        array $path,
+        mixed $rule,
+        int $maxExpansions,
     ): void {
-        $paths = static::resolveWildcardPaths($ruleData['segments']);
+        if ($segments === []) {
+            if (count($expanded) >= $maxExpansions) {
+                throw new InputLimitException("Maximum wildcard expansion limit of {$maxExpansions} exceeded.");
+            }
 
-        if ($paths === null) {
+            $targetPath = implode('.', $path);
+            $expanded[$targetPath] = static::bindWildcardDependencies($rule, $targetPath, $path);
+
             return;
         }
 
-        $arrayData = static::resolveWildcardArrayData($data, $paths['before']);
+        $segment = $segments[0];
+        $remaining = array_slice($segments, 1);
 
-        if ($arrayData === null) {
+        if ($segment === '*') {
+            if (!is_array($data)) {
+                return;
+            }
+
+            foreach ($data as $key => $value) {
+                static::expandWildcardSegments(
+                    $expanded,
+                    $value,
+                    $remaining,
+                    [...$path, (string) $key],
+                    $rule,
+                    $maxExpansions,
+                );
+            }
+
             return;
         }
 
-        static::appendExpandedWildcardRules(
+        static::expandWildcardSegments(
             $expanded,
-            $arrayData,
-            $paths['before'],
-            $paths['after'],
-            $ruleData['rule'],
+            is_array($data) && array_key_exists($segment, $data) ? $data[$segment] : null,
+            $remaining,
+            [...$path, $segment],
+            $rule,
+            $maxExpansions,
         );
     }
 
@@ -356,63 +414,12 @@ class NestedValidator
         return HashAlgorithm::require('xxh3');
     }
 
-    /**
-     * @param array<int|string,mixed> $data
-     *
-     * @return array<int|string,mixed>|null
-     */
-    protected static function resolveWildcardArrayData(
-        array $data,
-        string $pathBeforeWildcard,
-    ): ?array {
-        if ($pathBeforeWildcard === '') {
-            return $data;
-        }
-
-        $value = static::extractValue($data, $pathBeforeWildcard);
-
-        return is_array($value) ? $value : null;
-    }
-
-    /**
-     * @param array<int,string> $segments
-     *
-     * @return array{before:string,after:string}|null
-     */
-    protected static function resolveWildcardPaths(array $segments): ?array
-    {
-        $segments = array_values($segments);
-        $wildcardIndex = array_search('*', $segments, true);
-
-        if ($wildcardIndex === false) {
-            return null;
-        }
-
-        $wildcardIndexInt = (int) $wildcardIndex;
-        $before = $wildcardIndex > 0
-            ? implode('.', array_slice($segments, 0, $wildcardIndexInt))
-            : '';
-
-        $after = $wildcardIndexInt < count($segments) - 1
-            ? implode('.', array_slice($segments, $wildcardIndexInt + 1))
-            : '';
-
-        return [
-            'before' => $before,
-            'after' => $after,
-        ];
-    }
-
     /** @param array<int|string,mixed> $data */
     protected static function updateShapeHash(\HashContext $context, array $data): void
     {
         hash_update($context, '{');
 
-        $keys = array_keys($data);
-        usort($keys, fn($left, $right) => strcmp((string) $left, (string) $right));
-
-        foreach ($keys as $key) {
-            $value = $data[$key];
+        foreach ($data as $key => $value) {
             hash_update($context, 'k:' . $key . ';');
 
             if (is_array($value)) {
@@ -423,5 +430,24 @@ class NestedValidator
         }
 
         hash_update($context, '}');
+    }
+
+    /**
+     * @param array<int|string,mixed> $data
+     * @return array{0:bool,1:mixed}
+     */
+    private static function findValue(array $data, string $path): array
+    {
+        $value = $data;
+
+        foreach (explode('.', $path) as $segment) {
+            if ($segment === '*' || !is_array($value) || !array_key_exists($segment, $value)) {
+                return [false, null];
+            }
+
+            $value = $value[$segment];
+        }
+
+        return [true, $value];
     }
 }

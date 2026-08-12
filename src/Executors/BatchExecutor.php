@@ -4,64 +4,79 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Executors;
 
+use Infocyph\ReqShield\Contracts\DatabaseBatchRule;
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Contracts\Rule;
-use Infocyph\ReqShield\Rules\Exists;
-use Infocyph\ReqShield\Rules\Unique;
+use Infocyph\ReqShield\Exceptions\DatabaseProviderRequiredException;
+use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
 
 /**
  * @phpstan-type BatchItem array{
- *   rule:Rule,
- *   value:mixed,
- *   field:string,
- *   rule_name?:string,
- *   field_label?:string,
- *   message?:string,
- *   message_resolver?:callable(): string
+ *   rule:Rule,value:mixed,field:string,rule_name?:string,field_label?:string,
+ *   message?:string,message_resolver?:callable():string,field_fail_fast?:bool
  * }
  * @phpstan-type Failure array{field:string,rule:string,message:string,value:mixed}
- * @phpstan-type GroupedChecks array<string, array<int, BatchItem>>
- * @phpstan-type CategorizedBatch array{unique: GroupedChecks, exists: GroupedChecks}
+ * @phpstan-type Prepared array{id:int,item:BatchItem,rule:DatabaseBatchRule,payload:array<string,mixed>}
  */
-class BatchExecutor
+final class BatchExecutor
 {
-    protected const BATCH_CHECK_CHUNK_SIZE = 500;
-
-    public function __construct(protected ?DatabaseProvider $db = null) {}
+    public function __construct(private ?DatabaseProvider $db = null) {}
 
     /**
-     * @param array<int, BatchItem> $batch
-     * @param array<string, array<int, string>> $errors
-     * @param array<int, Failure> $failures
+     * @param array<int,BatchItem> $batch
+     * @param array<string,array<int,string>> $errors
+     * @param-out array<string,array<int,string>> $errors
+     * @param array<int,Failure> $failures
+     * @param-out array<int,Failure> $failures
      */
-    public function executeBatch(array $batch, array &$errors, array &$failures = []): void
-    {
-        $db = $this->db;
-        if ($db === null || empty($batch)) {
+    public function executeBatch(
+        array $batch,
+        array &$errors,
+        array &$failures = [],
+        bool $stopOnFirstError = false,
+    ): void {
+        if ($batch === []) {
             return;
         }
 
-        $categorized = $this->categorizeRulesByTypeAndTable($batch);
-
-        foreach ($categorized['unique'] as $table => $checks) {
-            $this->processUniqueChecksForTable(
-                $table,
-                $checks,
-                $errors,
-                $failures,
-                $db,
-            );
+        if ($this->db === null) {
+            throw DatabaseProviderRequiredException::forRule($batch[0]['rule_name'] ?? 'database');
         }
 
-        foreach ($categorized['exists'] as $table => $checks) {
-            $this->processExistsChecksForTable(
-                $table,
-                $checks,
-                $errors,
-                $failures,
-                $db,
-            );
+        $prepared = $this->prepare($batch);
+        $failed = $this->runGroups($prepared, $this->db);
+        $failedFields = [];
+
+        foreach ($prepared as $check) {
+            if (!isset($failed[$check['id']])) {
+                continue;
+            }
+
+            $item = $check['item'];
+            $field = $item['field'];
+            if (($item['field_fail_fast'] ?? false) && isset($failedFields[$field])) {
+                continue;
+            }
+
+            $message = $this->resolveFailureMessage($item, $check['rule']);
+            $errors[$field][] = $message;
+            $failures[] = [
+                'field' => $field,
+                'rule' => $item['rule_name'] ?? $check['rule']->operation(),
+                'message' => $message,
+                'value' => $item['value'],
+            ];
+            $failedFields[$field] = true;
+
+            if ($stopOnFirstError) {
+                break;
+            }
         }
+    }
+
+    public function hasProvider(): bool
+    {
+        return $this->db !== null;
     }
 
     public function setDatabaseProvider(DatabaseProvider $db): void
@@ -70,273 +85,87 @@ class BatchExecutor
     }
 
     /**
-     * @param array<int, BatchItem> $batch
-     * @return CategorizedBatch
+     * @param array<int,BatchItem> $batch
+     * @return list<Prepared>
      */
-    protected function categorizeRulesByTypeAndTable(array $batch): array
+    private function prepare(array $batch): array
     {
-        $categorized = [
-            'unique' => [],
-            'exists' => [],
-        ];
-
-        foreach ($batch as $item) {
+        $prepared = [];
+        foreach ($batch as $id => $item) {
             $rule = $item['rule'];
-
-            if ($rule instanceof Unique) {
-                $categorized['unique'][$rule->getTable()][] = $item;
-
-                continue;
+            if (!$rule instanceof DatabaseBatchRule) {
+                throw new DatabaseValidationException('Unsupported database batch rule: ' . $rule::class);
             }
 
-            if ($rule instanceof Exists) {
-                $categorized['exists'][$rule->getTable()][] = $item;
-            }
+            $prepared[] = [
+                'id' => $id,
+                'item' => $item,
+                'rule' => $rule,
+                'payload' => ['id' => $id] + $rule->databasePayload($item['value'], $item['field']),
+            ];
         }
 
-        return $categorized;
+        return $prepared;
     }
 
-    /**
-     * @param array<int, BatchItem> $checks
-     * @return array<string, array<int, BatchItem>>
-     */
-    protected function checksByField(array $checks): array
+    /** @param BatchItem $item */
+    private function resolveFailureMessage(array $item, Rule $rule): string
     {
-        $checksByField = [];
-
-        foreach ($checks as $check) {
-            $field = $this->normalizeFieldIdentifier($check['field']);
-
-            if ($field === '') {
-                continue;
-            }
-
-            $checksByField[$field][] = $check;
+        if (isset($item['message'])) {
+            return $item['message'];
         }
 
-        return $checksByField;
-    }
-
-    protected function makeValueKey(mixed $value): string
-    {
-        if (is_array($value)) {
-            $value = 'array:' . json_encode($value);
-        } elseif (is_object($value)) {
-            $value = 'object:' . json_encode($value);
-        } elseif (is_bool($value)) {
-            $value = $value ? 'bool:true' : 'bool:false';
-        } elseif (is_null($value)) {
-            $value = 'null';
-        } else {
-            $value = $this->normalizeFieldIdentifier($value);
-        }
-
-        return $value;
-    }
-
-    protected function normalizeFieldIdentifier(
-        mixed $value,
-        string $fallback = '',
-    ): string {
-        if (is_string($value)) {
-            return $value;
-        }
-
-        if (is_int($value) || is_float($value) || is_bool($value)) {
-            return (string) $value;
-        }
-
-        if (is_object($value) && method_exists($value, '__toString')) {
-            return (string) $value;
-        }
-
-        return $fallback;
-    }
-
-    /**
-     * @param array<int, BatchItem> $checks
-     * @param array<string, array<int, string>> $errors
-     * @param array<int, Failure> $failures
-     * @param callable(BatchItem):(array<string, mixed>|null) $payloadBuilder
-     * @param callable(DatabaseProvider, string, array<int, array<string, mixed>>):array<int, int|string> $batchRunner
-     */
-    protected function processChecksForTable(
-        string $table,
-        array $checks,
-        array &$errors,
-        array &$failures,
-        DatabaseProvider $db,
-        string $failureType,
-        callable $payloadBuilder,
-        callable $batchRunner,
-    ): void {
-        $checksByField = $this->checksByField($checks);
-        $recorded = [];
-
-        foreach (array_chunk($checks, self::BATCH_CHECK_CHUNK_SIZE) as $chunk) {
-            $payload = [];
-
-            foreach ($chunk as $check) {
-                $payloadItem = $payloadBuilder($check);
-                if ($payloadItem === null) {
-                    continue;
-                }
-
-                $payload[] = $payloadItem;
-            }
-
-            $failedFields = $batchRunner($db, $table, $payload);
-            $this->recordBatchFailures(
-                $failedFields,
-                $checksByField,
-                $errors,
-                $failures,
-                $failureType,
-                $recorded,
-            );
-        }
-    }
-
-    /**
-     * @param array<int, BatchItem> $checks
-     * @param array<string, array<int, string>> $errors
-     * @param array<int, Failure> $failures
-     */
-    protected function processExistsChecksForTable(
-        string $table,
-        array $checks,
-        array &$errors,
-        array &$failures,
-        DatabaseProvider $db,
-    ): void {
-        $this->processChecksForTable(
-            $table,
-            $checks,
-            $errors,
-            $failures,
-            $db,
-            'exists',
-            static function (array $check): ?array {
-                if (!$check['rule'] instanceof Exists) {
-                    return null;
-                }
-
-                return [
-                    'column' => $check['rule']->getColumn(),
-                    'value' => $check['value'],
-                    'field' => $check['field'],
-                ];
-            },
-            static fn(DatabaseProvider $provider, string $tableName, array $payload): array
-                => $provider->batchExistsCheck($tableName, $payload),
-        );
-    }
-
-    /**
-     * @param array<int, BatchItem> $checks
-     * @param array<string, array<int, string>> $errors
-     * @param array<int, Failure> $failures
-     */
-    protected function processUniqueChecksForTable(
-        string $table,
-        array $checks,
-        array &$errors,
-        array &$failures,
-        DatabaseProvider $db,
-    ): void {
-        $this->processChecksForTable(
-            $table,
-            $checks,
-            $errors,
-            $failures,
-            $db,
-            'unique',
-            static function (array $check): ?array {
-                if (!$check['rule'] instanceof Unique) {
-                    return null;
-                }
-
-                return [
-                    'column' => $check['rule']->getColumn() ?? $check['field'],
-                    'value' => $check['value'],
-                    'field' => $check['field'],
-                    'ignore_id' => $check['rule']->getIgnoreId(),
-                    'id_column' => $check['rule']->getIdColumn() ?? 'id',
-                    'with_trashed' => $check['rule']->getWithTrashed(),
-                    'soft_delete_column' => $check['rule']->getSoftDeleteColumn(),
-                ];
-            },
-            static fn(DatabaseProvider $provider, string $tableName, array $payload): array
-                => $provider->batchUniqueCheck($tableName, $payload),
-        );
-    }
-
-    /**
-     * @param array<int, int|string> $failedFields
-     * @param array<string, array<int, BatchItem>> $checksByField
-     * @param array<string, array<int, string>> $errors
-     * @param array<int, Failure> $failures
-     * @param array<string, true> $recorded
-     */
-    protected function recordBatchFailures(
-        array $failedFields,
-        array $checksByField,
-        array &$errors,
-        array &$failures,
-        string $defaultRuleName,
-        array &$recorded,
-    ): void {
-        foreach ($failedFields as $failedField) {
-            $field = $this->normalizeFieldIdentifier($failedField);
-
-            if (!isset($checksByField[$field])) {
-                continue;
-            }
-
-            foreach ($checksByField[$field] as $check) {
-                $ruleName = $check['rule_name'] ?? $defaultRuleName;
-                $key = $field . '|' . $ruleName . '|' . $this->makeValueKey($check['value'] ?? null);
-
-                if (isset($recorded[$key])) {
-                    continue;
-                }
-
-                $recorded[$key] = true;
-
-                $message = $this->resolveFailureMessage($check, $check['rule']);
-                $errors[$field][] = $message;
-                $failures[] = [
-                    'field' => $field,
-                    'rule' => $ruleName,
-                    'message' => $message,
-                    'value' => $check['value'],
-                ];
-            }
-        }
-    }
-
-    /** @param BatchItem $check */
-    protected function resolveFailureMessage(array $check, Rule $rule): string
-    {
-        if (isset($check['message'])) {
-            return $check['message'];
-        }
-
-        if (isset($check['message_resolver'])) {
+        if (isset($item['message_resolver'])) {
             try {
-                $resolved = ($check['message_resolver'])();
-
+                $resolved = ($item['message_resolver'])();
                 if ($resolved !== '') {
                     return $resolved;
                 }
             } catch (\Throwable) {
-                // Fall back to rule default message.
             }
         }
 
-        $label = $check['field_label'] ?? $this->normalizeFieldIdentifier($check['field'], 'field');
+        return $rule->message($item['field_label'] ?? $item['field']);
+    }
 
-        return $rule->message($label);
+    /**
+     * @param list<Prepared> $prepared
+     * @return array<int,true>
+     */
+    private function runGroups(array $prepared, DatabaseProvider $db): array
+    {
+        $groups = [];
+        foreach ($prepared as $check) {
+            $key = $check['rule']->operation() . "\0" . $check['rule']->table();
+            $groups[$key][] = $check;
+        }
+
+        $failed = [];
+        foreach ($groups as $checks) {
+            $rule = $checks[0]['rule'];
+            $payload = array_column($checks, 'payload');
+
+            try {
+                $returned = $rule->operation() === 'unique'
+                    ? $db->batchUnique($rule->table(), $payload)
+                    : $db->batchExists($rule->table(), $payload);
+            } catch (\Throwable $exception) {
+                throw new DatabaseValidationException(
+                    "Database validation failed for table '{$rule->table()}'.",
+                    previous: $exception,
+                );
+            }
+
+            $known = array_fill_keys(array_column($checks, 'id'), true);
+            foreach ($returned as $id) {
+                if (!is_int($id) || !isset($known[$id])) {
+                    throw new DatabaseValidationException('Database provider returned an unknown or malformed check ID.');
+                }
+
+                $failed[$id] = true;
+            }
+        }
+
+        return $failed;
     }
 }

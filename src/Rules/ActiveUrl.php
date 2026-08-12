@@ -12,10 +12,12 @@ use Infocyph\ReqShield\Support\LruCache;
  */
 class ActiveUrl extends BaseRule
 {
+    protected const int DNS_CACHE_TTL_SECONDS = 60;
+
     protected const MAX_DNS_CACHE_ENTRIES = 256;
 
     /**
-     * @var array<string,bool>
+     * @var array<string,array{value:bool,expires_at:int}>
      */
     protected static array $dnsCache = [];
 
@@ -50,8 +52,8 @@ class ActiveUrl extends BaseRule
         $host = strtolower($url['host']);
 
         $cached = LruCache::touch(self::$dnsCache, $host);
-        if (is_bool($cached)) {
-            return $cached;
+        if (is_array($cached) && $cached['expires_at'] >= time()) {
+            return $cached['value'];
         }
 
         $isActive = checkdnsrr($host, 'A') || checkdnsrr($host, 'AAAA');
@@ -66,7 +68,7 @@ class ActiveUrl extends BaseRule
             self::$dnsCache,
             self::MAX_DNS_CACHE_ENTRIES,
             $host,
-            $isActive,
+            ['value' => $isActive, 'expires_at' => time() + self::DNS_CACHE_TTL_SECONDS],
         );
     }
 }

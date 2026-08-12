@@ -128,6 +128,8 @@ Compiled Validator Wrapper
 --------------------------
 
 ``Validator::compile()`` returns a reusable validator wrapper.
+It keeps one precompiled validator for repeated payloads, avoiding construction
+and schema compilation on every call.
 
 .. code-block:: php
 
@@ -202,3 +204,7 @@ Supported exports:
 * ``exportSchema('introspection')``
 
 Introspection is also available through ``schemaIntrospection()`` and rule stats through ``getSchemaStats()``.
+JSON Schema export uses ``x-reqshield-*`` extensions for DNS, database,
+cross-field, conditional-presence, and custom date-format semantics that standard
+JSON Schema cannot represent exactly. Conditional fields are not incorrectly
+listed as unconditionally required.

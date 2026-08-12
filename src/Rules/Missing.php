@@ -23,6 +23,6 @@ class Missing extends BaseRule
     {
         $this->consumeRuleContext($value, $field, $data);
 
-        return !array_key_exists($field, $data) || $this->isEmpty($value);
+        return !array_key_exists($field, $data);
     }
 }

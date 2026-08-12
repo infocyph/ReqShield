@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Exceptions;
 
-final class UnsupportedRequestObjectException extends \InvalidArgumentException
+final class UnsupportedRequestObjectException extends UnsupportedRequestException
 {
     public static function missingRequestAccessors(): self
     {

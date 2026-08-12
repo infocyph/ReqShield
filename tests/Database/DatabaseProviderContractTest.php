@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
+use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
 use Infocyph\ReqShield\Validator;
 
 test('database provider contract uses structured batch payloads for all providers', function () {
@@ -11,64 +12,37 @@ test('database provider contract uses structured batch payloads for all provider
         public array $contractCalls = [];
         public array $existsPayloads = [];
         public array $uniquePayloads = [];
-        public int $queryCalls = 0;
 
-        public function batchExistsCheck(string $table, array $checks): array
+        public function batchExists(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
+            $this->contractCalls[] = ['batchExists', $table, $checks];
             $this->existsPayloads[] = ['table' => $table, 'checks' => $checks];
 
             $missing = [];
             foreach ($checks as $check) {
                 if (($check['value'] ?? null) === 9999) {
-                    $missing[] = $check['field'];
+                    $missing[] = $check['id'];
                 }
             }
 
             return $missing;
         }
 
-        public function batchUniqueCheck(string $table, array $checks): array
+        public function batchUnique(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
+            $this->contractCalls[] = ['batchUnique', $table, $checks];
             $this->uniquePayloads[] = ['table' => $table, 'checks' => $checks];
 
             $taken = [];
             foreach ($checks as $check) {
                 if (($check['value'] ?? null) === 'taken@example.com') {
-                    $taken[] = $check['field'];
+                    $taken[] = $check['id'];
                 }
             }
 
             return $taken;
         }
 
-        public function compositeUnique(
-            string $table,
-            array $columns,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
-            return true;
-        }
-
-        public function exists(
-            string $table,
-            string $column,
-            $value,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
-            return true;
-        }
-
-        public function query(string $query, array $params = []): array
-        {
-            $this->contractCalls[] = ['query', $query, $params];
-            $this->queryCalls++;
-
-            return [];
-        }
     };
 
     $validator = Validator::make([
@@ -83,22 +57,23 @@ test('database provider contract uses structured batch payloads for all provider
 
     expect($result->fails())->toBeTrue();
     expect($result->errors())->toHaveKeys(['email', 'team_id']);
-    expect($provider->queryCalls)->toBe(0);
     expect($provider->uniquePayloads)->toHaveCount(1);
     expect($provider->existsPayloads)->toHaveCount(1);
     expect($provider->uniquePayloads[0]['checks'][0])->toHaveKeys([
+        'id',
+        'field',
         'column',
         'value',
-        'field',
-        'ignore_id',
+        'ignore',
         'id_column',
-        'with_trashed',
+        'include_trashed',
         'soft_delete_column',
     ]);
     expect($provider->existsPayloads[0]['checks'][0])->toHaveKeys([
+        'id',
+        'field',
         'column',
         'value',
-        'field',
     ]);
 });
 
@@ -106,46 +81,19 @@ test('batch execution does not fall back to query when provider batch methods th
     $provider = new class implements DatabaseProvider {
         /** @var array<int, array<int, mixed>> */
         public array $contractCalls = [];
-        public int $queryCalls = 0;
 
-        public function batchExistsCheck(string $table, array $checks): array
+        public function batchExists(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchExistsCheck', $table, $checks];
+            $this->contractCalls[] = ['batchExists', $table, $checks];
             throw new RuntimeException('batch exists unavailable');
         }
 
-        public function batchUniqueCheck(string $table, array $checks): array
+        public function batchUnique(string $table, array $checks): array
         {
-            $this->contractCalls[] = ['batchUniqueCheck', $table, $checks];
+            $this->contractCalls[] = ['batchUnique', $table, $checks];
             throw new RuntimeException('batch unique unavailable');
         }
 
-        public function compositeUnique(
-            string $table,
-            array $columns,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['compositeUnique', $table, $columns, $ignoreId];
-            return true;
-        }
-
-        public function exists(
-            string $table,
-            string $column,
-            $value,
-            ?int $ignoreId = null,
-        ): bool {
-            $this->contractCalls[] = ['exists', $table, $column, $value, $ignoreId];
-            return true;
-        }
-
-        public function query(string $query, array $params = []): array
-        {
-            $this->contractCalls[] = ['query', $query, $params];
-            $this->queryCalls++;
-
-            return [];
-        }
     };
 
     $validator = Validator::make([
@@ -154,6 +102,5 @@ test('batch execution does not fall back to query when provider batch methods th
 
     expect(fn () => $validator->validate([
         'email' => 'taken@example.com',
-    ]))->toThrow(RuntimeException::class, 'batch unique unavailable');
-    expect($provider->queryCalls)->toBe(0);
+    ]))->toThrow(DatabaseValidationException::class, "Database validation failed for table 'users'.");
 });

@@ -8,8 +8,6 @@ interface Rule
 {
     public function cost(): int;
 
-    public function isBatchable(): bool;
-
     public function message(string $field): string;
 
     /** @param array<int|string, mixed> $data */

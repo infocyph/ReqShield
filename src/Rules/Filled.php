@@ -23,6 +23,6 @@ class Filled extends BaseRule
     {
         $this->consumeRuleContext($value, $field, $data);
 
-        return !$this->isNullOrBlankString($value);
+        return !$this->isEmpty($value);
     }
 }

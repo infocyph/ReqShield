@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Infocyph\ReqShield\Contracts\DatabaseProvider;
-use Infocyph\ReqShield\Sanitizer;
-use Infocyph\ReqShield\Validator;
+namespace Infocyph\ReqShield;
 
-if (!function_exists('validator')) {
+use Infocyph\ReqShield\Contracts\DatabaseProvider;
+
+if (!function_exists(__NAMESPACE__ . '\\validator')) {
     /**
      * Create a new validator instance.
      *
@@ -21,7 +21,7 @@ if (!function_exists('validator')) {
     }
 }
 
-if (!function_exists('validate')) {
+if (!function_exists(__NAMESPACE__ . '\\validate')) {
     /**
      * Create and immediately validate data.
      *
@@ -47,7 +47,7 @@ if (!function_exists('validate')) {
     }
 }
 
-if (!function_exists('sanitize')) {
+if (!function_exists(__NAMESPACE__ . '\\sanitize')) {
     /**
      * Sanitize a value using specified sanitizers.
      *
@@ -68,7 +68,7 @@ if (!function_exists('sanitize')) {
     }
 }
 
-if (!function_exists('passes')) {
+if (!function_exists(__NAMESPACE__ . '\\passes')) {
     /**
      * Quick validation check - returns true if validation passes.
      *
@@ -89,7 +89,7 @@ if (!function_exists('passes')) {
     }
 }
 
-if (!function_exists('fails')) {
+if (!function_exists(__NAMESPACE__ . '\\fails')) {
     /**
      * Quick validation check - returns true if validation fails.
      *

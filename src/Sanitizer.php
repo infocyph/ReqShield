@@ -19,10 +19,7 @@ class Sanitizer
 
     private const string SLUG_CHARS = self::ALPHANUMERIC . '_-';
 
-    /** @var array<string, string> */
-    private static array $patterns = [];
-
-    /** @var array<string, array<int, callable(mixed): mixed>> */
+    /** @var array<string,list<callable(mixed):mixed>> */
     private static array $pipelineCallables = [];
 
     // ============================================
@@ -78,7 +75,13 @@ class Sanitizer
     {
         $resolved = self::resolvePipelineCallables(array_values($sanitizers));
 
-        foreach ($resolved as $callable) {
+        return self::applyCompiled($value, $resolved);
+    }
+
+    /** @param list<callable(mixed):mixed> $pipeline */
+    public static function applyCompiled(mixed $value, array $pipeline): mixed
+    {
+        foreach ($pipeline as $callable) {
             $value = $callable($value);
         }
 
@@ -183,8 +186,16 @@ class Sanitizer
 
     public static function clearCache(): void
     {
-        self::$patterns = [];
         self::$pipelineCallables = [];
+    }
+
+    /**
+     * @param array<int,mixed> $sanitizers
+     * @return list<callable(mixed):mixed>
+     */
+    public static function compile(array $sanitizers): array
+    {
+        return self::resolvePipelineCallables($sanitizers);
     }
 
     public static function currency(mixed $value, string $format = 'USD'): float
@@ -436,54 +447,6 @@ class Sanitizer
         return str_replace(["\r\n", "\r", "\n"], ' ', $value);
     }
 
-    // ============================================
-    // Input hardening
-    // ============================================
-
-    public static function removeSqlPatterns(mixed $value): string
-    {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        $patterns = [
-            '/(\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bdrop\b|\bunion\b)/i',
-            '/--.*$/',
-            '/\/\*.*?\*\//s',
-        ];
-
-        foreach ($patterns as $pattern) {
-            $value = self::pregReplace($pattern, '', $value);
-        }
-
-        // Trim any trailing whitespace left by comment removal
-        return trim($value);
-    }
-
-    public static function removeXss(mixed $value): string
-    {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        // Remove script tags
-        $value = self::pregReplace(
-            '/<script\b[^>]*>.*?<\/script>/is',
-            '',
-            $value,
-        );
-
-        // Remove event handlers
-        $value = self::pregReplace(
-            '/\s*on\w+\s*=\s*["\']?[^"\']*["\']?/i',
-            '',
-            $value,
-        );
-
-        // Remove javascript: protocol
-        return self::pregReplace('/javascript:/i', '', $value);
-    }
-
     public static function sentenceCase(mixed $value): string
     {
         if (!is_string($value) || $value === '') {
@@ -570,21 +533,6 @@ class Sanitizer
             : $allowedTags;
 
         return strip_tags($value, $allowedTags);
-    }
-
-    public static function stripUnsafeTags(mixed $value): string
-    {
-        $safeTags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li'];
-        $subject = is_string($value) ? $value : '';
-
-        // Fix: First, remove script tags and their content entirely
-        $value = self::pregReplace(
-            '/<script\b[^>]*>.*?<\/script>/is',
-            '',
-            $subject,
-        );
-
-        return self::stripTags($value, $safeTags);
     }
 
     public static function stripWhitespace(mixed $value): string
@@ -688,7 +636,7 @@ class Sanitizer
             $parts[] = $sanitizer;
         }
 
-        return implode('|', $parts);
+        return serialize($parts);
     }
 
     protected static function pregReplace(
@@ -696,23 +644,14 @@ class Sanitizer
         string $replacement,
         string $subject,
     ): string {
-        // Cache compiled patterns for performance
-        if (!isset(self::$patterns[$pattern])) {
-            self::$patterns[$pattern] = $pattern;
-        }
-
-        $result = preg_replace(
-            self::$patterns[$pattern],
-            $replacement,
-            $subject,
-        );
+        $result = preg_replace($pattern, $replacement, $subject);
 
         return $result ?? $subject;
     }
 
     /**
      * @param array<int, mixed> $sanitizers
-     * @return array<int, callable(mixed): mixed>
+     * @return list<callable(mixed):mixed>
      */
     protected static function resolvePipelineCallables(array $sanitizers): array
     {
@@ -725,9 +664,13 @@ class Sanitizer
 
         foreach ($sanitizers as $sanitizer) {
             $callable = self::resolveSanitizerCallable($sanitizer);
-            if ($callable !== null) {
-                $resolved[] = $callable;
+            if ($callable === null) {
+                $name = is_string($sanitizer) ? $sanitizer : get_debug_type($sanitizer);
+
+                throw new \InvalidArgumentException("Unknown sanitizer '{$name}'.");
             }
+
+            $resolved[] = $callable;
         }
 
         if ($cacheKey !== null) {

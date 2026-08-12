@@ -17,6 +17,11 @@ class Different extends BaseRule
         return 2;
     }
 
+    public function getOtherField(): string
+    {
+        return $this->otherField;
+    }
+
     public function message(string $field): string
     {
         return "The {$field} must be different from $this->otherField.";

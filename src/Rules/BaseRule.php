@@ -9,11 +9,6 @@ use Infocyph\ReqShield\Support\ValueStringifier;
 
 abstract class BaseRule implements Rule
 {
-    public function isBatchable(): bool
-    {
-        return false;
-    }
-
     protected function consumeRuleContext(
         mixed $value = null,
         mixed $field = null,

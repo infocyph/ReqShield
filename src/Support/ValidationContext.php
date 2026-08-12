@@ -26,6 +26,12 @@ final class ValidationContext
         }
 
         $this->errors[$field][] = $message;
+        $this->failures[] = [
+            'field' => $field,
+            'rule' => 'after',
+            'message' => $message,
+            'value' => $this->data[$field] ?? null,
+        ];
         unset($this->validated[$field]);
     }
 

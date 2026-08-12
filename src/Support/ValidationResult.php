@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
-class ValidationResult
+final readonly class ValidationResult
 {
-    protected MessageBag $messageBag;
-
     /**
      * @param array<string,array<int,string>> $errors
      * @param array<int|string,mixed> $validated
@@ -20,9 +18,7 @@ class ValidationResult
         protected array $failures = [],
         protected array $typed = [],
         protected ?string $dtoClass = null,
-    ) {
-        $this->messageBag = new MessageBag($errors);
-    }
+    ) {}
 
     public function __get(string $key): mixed
     {
@@ -34,20 +30,30 @@ class ValidationResult
         return $this->has($key);
     }
 
-    public function __set(string $key, mixed $value): void
-    {
-        $this->validated[$key] = $value;
-    }
-
     /** @return array<int,string> */
     public function allErrors(): array
     {
-        return $this->messageBag->flatten();
+        $messages = [];
+        foreach ($this->errors as $fieldErrors) {
+            array_push($messages, ...$fieldErrors);
+        }
+
+        return $messages;
     }
 
     public function errorCount(): int
     {
-        return $this->messageBag->count();
+        return $this->errorMessageCount();
+    }
+
+    public function errorFieldCount(): int
+    {
+        return count($this->errors);
+    }
+
+    public function errorMessageCount(): int
+    {
+        return count($this->allErrors());
     }
 
     /** @return array<string,array<int,string>> */
@@ -93,12 +99,6 @@ class ValidationResult
         ));
     }
 
-    /** @return array<int|string,mixed> */
-    public function filter(callable $callback): array
-    {
-        return array_filter($this->validated, $callback, ARRAY_FILTER_USE_BOTH);
-    }
-
     public function first(string $field): ?string
     {
         $fieldErrors = $this->errors[$field] ?? null;
@@ -113,7 +113,17 @@ class ValidationResult
 
     public function firstError(?string $field = null): ?string
     {
-        return $this->messageBag->first($field);
+        if ($field !== null) {
+            return $this->first($field);
+        }
+
+        foreach ($this->errors as $messages) {
+            if (isset($messages[0])) {
+                return $messages[0];
+            }
+        }
+
+        return null;
     }
 
     public function get(string $key, mixed $default = null): mixed
@@ -128,7 +138,7 @@ class ValidationResult
 
     public function hasError(string $field): bool
     {
-        return $this->messageBag->has($field);
+        return isset($this->errors[$field]) && $this->errors[$field] !== [];
     }
 
     public function input(bool $typed = true): ValidatedInput
@@ -136,26 +146,9 @@ class ValidationResult
         return new ValidatedInput($typed ? $this->typed() : $this->validated());
     }
 
-    /** @return array<int|string,mixed> */
-    public function map(callable $callback): array
-    {
-        return array_map($callback, $this->validated);
-    }
-
-    public function merge(ValidationResult $other): self
-    {
-        $this->errors = array_merge($this->errors, $other->errors());
-        $this->validated = array_merge($this->validated, $other->validated());
-        $this->typed = array_merge($this->typed, $other->typed());
-        $this->failures = array_merge($this->failures, $other->failures());
-        $this->messageBag = new MessageBag($this->errors);
-
-        return $this;
-    }
-
     public function messages(): MessageBag
     {
-        return $this->messageBag;
+        return new MessageBag($this->errors);
     }
 
     /**
@@ -273,7 +266,7 @@ class ValidationResult
 
     public function toJson(): string
     {
-        return $this->messageBag->toJson();
+        return json_encode($this->errors, JSON_THROW_ON_ERROR);
     }
 
     /** @return array{errors:array<int,array<string,mixed>>} */
@@ -352,15 +345,34 @@ class ValidationResult
         try {
             $reflection = new \ReflectionClass($class);
             $instance = $this->instantiateDto($reflection, $payload);
-        } catch (\Throwable) {
-            return (object) $payload;
+        } catch (\Throwable $exception) {
+            throw new \Infocyph\ReqShield\Exceptions\DtoMappingException(
+                "Unable to map validated input to DTO {$class}.",
+                previous: $exception,
+            );
+        }
+
+        $constructorFields = [];
+        foreach ($reflection->getConstructor()?->getParameters() ?? [] as $parameter) {
+            $constructorFields[$parameter->getName()] = true;
         }
 
         foreach ($payload as $key => $value) {
+            if (!is_string($key) || !$reflection->hasProperty($key)) {
+                continue;
+            }
+
+            if (isset($constructorFields[$key])) {
+                continue;
+            }
+
             try {
                 $instance->{$key} = $value;
-            } catch (\Throwable) {
-                continue;
+            } catch (\Throwable $exception) {
+                throw new \Infocyph\ReqShield\Exceptions\DtoMappingException(
+                    "Unable to map property {$key} on DTO {$class}.",
+                    previous: $exception,
+                );
             }
         }
 
@@ -384,7 +396,9 @@ class ValidationResult
         foreach ($ctor->getParameters() as $parameter) {
             $resolved = $this->resolveCtorParameter($parameter, $payload);
             if (!$resolved['resolved']) {
-                return $reflection->newInstanceWithoutConstructor();
+                throw new \InvalidArgumentException(
+                    "Missing required DTO constructor parameter {$parameter->getName()}.",
+                );
             }
 
             $args[] = $resolved['value'];

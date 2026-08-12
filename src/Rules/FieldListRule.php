@@ -19,6 +19,12 @@ abstract class FieldListRule extends BaseRule
         return 2;
     }
 
+    /** @return list<string> */
+    public function getOtherFields(): array
+    {
+        return $this->fields;
+    }
+
     protected function joinedFields(): string
     {
         return implode(', ', $this->fields);

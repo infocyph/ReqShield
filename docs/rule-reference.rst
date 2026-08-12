@@ -320,7 +320,9 @@ The field under validation must have a size matching the given value.
 
 digits
 ~~~~~~
-The field under validation must be numeric and must have an exact length of value.
+The field under validation must contain only ASCII digits and must have the exact
+number of digits. Signs, decimal points, and exponent notation are rejected;
+leading zeroes in strings are retained.
 
 .. code-block:: php
 
@@ -352,7 +354,9 @@ The field under validation must have a maximum number of digits.
 
 decimal
 ~~~~~~~
-The field under validation must be numeric and may contain the specified number of decimal places.
+With one parameter, the field must have exactly that many decimal places. With
+two parameters, it may have any precision in the inclusive range. Precision zero
+accepts integer forms; negative or reversed precision configuration is rejected.
 
 .. code-block:: php
 
@@ -675,8 +679,8 @@ The field under validation must not exist within the given database table.
 .. code-block:: php
 
     'email' => 'unique:users,email'
-    'username' => 'unique:users,username,5'  // Ignore ID 5 (for updates)
-    'email' => 'unique:users,email,,id,false,deleted_at' // exclude soft-deleted rows
+    'username' => Rule::unique('users', 'username')->ignore(5)
+    'email' => Rule::unique('users', 'email')->withoutTrashed()
 
 **Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`database-rules`.
 
@@ -725,9 +729,10 @@ The field under validation must be an image (jpeg, png, bmp, gif, svg, or webp).
 mimes
 ~~~~~
 The file under validation must have a MIME type corresponding to one of the listed extensions.
-ReqShield attempts to detect MIME type from the uploaded file content first (when
-``fileinfo``/``mime_content_type`` is available), then falls back to client-provided
-MIME as a compatibility fallback.
+Strict content/server MIME detection is the default. Client-provided MIME never
+passes a strict check by itself. Object rules may opt into ``compatible()`` mode,
+which uses client MIME only when content detection is unavailable; client MIME is
+untrusted request metadata.
 
 .. code-block:: php
 
@@ -736,7 +741,9 @@ MIME as a compatibility fallback.
 mimetypes
 ~~~~~~~~~
 The file under validation must match one of the given MIME types.
-ReqShield prefers MIME detection from file content when possible.
+Strict content/server MIME detection is the default. Use an object rule's
+``compatible()`` mode only when an explicitly documented client-MIME fallback is
+required.
 
 .. code-block:: php
 
@@ -840,6 +847,8 @@ The field under validation must exist in the values of another field (which must
 distinct
 ~~~~~~~~
 When working with arrays, the field under validation must not have any duplicate values.
+On wildcard fields, values are compared across concrete siblings at that wildcard
+level, including nested and multiple-wildcard paths.
 
 .. code-block:: php
 

@@ -8,7 +8,6 @@ use Infocyph\ReqShield\Exceptions\UnsupportedRequestObjectException;
 use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\ValidationContext;
 use Infocyph\ReqShield\Support\ValidationPlan;
-use Infocyph\ReqShield\Support\WildcardPath;
 
 trait HasValidatorRequestFeatures
 {
@@ -42,22 +41,22 @@ trait HasValidatorRequestFeatures
         $payload = [];
         $hasAccessor = false;
 
-        if (method_exists($request, 'getQueryParams')) {
+        if (is_callable([$request, 'getQueryParams'])) {
             $hasAccessor = true;
             $payload = array_replace($payload, static::normalizeRequestPayload($request->getQueryParams()));
         }
 
-        if (method_exists($request, 'getParsedBody')) {
+        if (is_callable([$request, 'getParsedBody'])) {
             $hasAccessor = true;
             $payload = array_replace($payload, static::normalizeRequestPayload($request->getParsedBody()));
         }
 
-        if (method_exists($request, 'getUploadedFiles')) {
+        if (is_callable([$request, 'getUploadedFiles'])) {
             $hasAccessor = true;
             $payload = array_replace($payload, static::normalizeRequestPayload($request->getUploadedFiles()));
         }
 
-        if (method_exists($request, 'getAttributes')) {
+        if (is_callable([$request, 'getAttributes'])) {
             $hasAccessor = true;
             $payload = array_replace($payload, static::normalizeRequestPayload($request->getAttributes()));
         }
@@ -71,7 +70,12 @@ trait HasValidatorRequestFeatures
 
     /**
      * @param array<int|string,mixed> $data
-     * @param array<string,mixed> $context
+     * @param array{
+     *   errors:array<string,array<int,string>>,
+     *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
+     *   validated:array<string,mixed>,
+     *   expensiveBatch:array<int,mixed>
+     * } $context
      */
     protected function executeAfterValidationCallbacks(
         array $data,
@@ -81,73 +85,32 @@ trait HasValidatorRequestFeatures
             return;
         }
 
-        $errors = $this->normalizeContextErrors($context['errors'] ?? []);
-        $failures = $this->normalizeContextFailures($context['failures'] ?? []);
-        $validated = $this->normalizeContextValidated($context['validated'] ?? []);
+        $errors = &$context['errors'];
+        $failures = &$context['failures'];
+        $validated = &$context['validated'];
+        $validationContext = new ValidationContext(
+            $data,
+            $errors,
+            $failures,
+            $validated,
+        );
 
         foreach ($this->afterCallbacks as $callback) {
-            $validationContext = new ValidationContext(
-                $data,
-                $errors,
-                $failures,
-                $validated,
-            );
             $this->invokeCallbackWithSupportedArity(
                 $callback,
                 [$validationContext, $this, $data],
             );
         }
 
-        $context['errors'] = $errors;
-        $context['failures'] = $failures;
-        $context['validated'] = $validated;
     }
 
-    /**
-     * @param array<int,string> $patterns
-     */
+    /** @param array<int,string> $patterns */
     protected function matchesWildcardPattern(string $field, array $patterns): bool
     {
-        return array_any($patterns, fn(string $pattern): bool => preg_match($pattern, $field) === 1);
-    }
-
-    /** @return array<string,array<int,string>> */
-    protected function normalizeContextErrors(mixed $raw): array
-    {
-        if (!is_array($raw)) {
-            return [];
-        }
-
-        return $this->normalizeErrorMap($raw);
-    }
-
-    /** @return array<int,array{field:string,rule:string,message:string,value:mixed}> */
-    protected function normalizeContextFailures(mixed $raw): array
-    {
-        if (!is_array($raw)) {
-            return [];
-        }
-
-        return $this->normalizeFailurePayload($raw);
-    }
-
-    /** @return array<string,mixed> */
-    protected function normalizeContextValidated(mixed $raw): array
-    {
-        if (!is_array($raw)) {
-            return [];
-        }
-
-        $normalized = [];
-        foreach ($raw as $field => $value) {
-            if (!is_string($field)) {
-                continue;
-            }
-
-            $normalized[$field] = $value;
-        }
-
-        return $normalized;
+        return array_any(
+            $patterns,
+            static fn(string $pattern): bool => preg_match($pattern, $field) === 1,
+        );
     }
 
     /**
@@ -212,9 +175,7 @@ trait HasValidatorRequestFeatures
      */
     protected function unknownFields(array $data, ValidationPlan $plan): array
     {
-        $allowed = array_fill_keys($plan->fields, true);
-        $wildcardPatterns = $this->wildcardRulePatterns();
-        $fields = $this->nestedValidation
+        $fields = $plan->hasNestedRules
             ? array_keys(NestedValidator::flattenData($data))
             : array_keys($data);
         $unknown = [];
@@ -224,7 +185,10 @@ trait HasValidatorRequestFeatures
                 continue;
             }
 
-            if (isset($allowed[$field]) || $this->matchesWildcardPattern($field, $wildcardPatterns)) {
+            if (isset($plan->allowedFieldLookup[$field])
+                || isset($plan->allowedPrefixLookup[$field])
+                || $this->matchesWildcardPattern($field, $plan->wildcardRegexes)
+                || $this->matchesWildcardPattern($field, $plan->wildcardPrefixRegexes)) {
                 continue;
             }
 
@@ -239,26 +203,14 @@ trait HasValidatorRequestFeatures
      */
     protected function unknownFieldValue(array $data, string $field): mixed
     {
-        if ($this->nestedValidation && str_contains($field, '.')) {
+        if (array_key_exists($field, $data)) {
+            return $data[$field];
+        }
+
+        if (str_contains($field, '.')) {
             return NestedValidator::extractValue($data, $field);
         }
 
         return $data[$field] ?? null;
-    }
-
-    /** @return array<int,string> */
-    protected function wildcardRulePatterns(): array
-    {
-        $patterns = [];
-
-        foreach (array_keys($this->rules) as $field) {
-            if (!is_string($field) || !str_contains($field, '*')) {
-                continue;
-            }
-
-            $patterns[] = WildcardPath::toRegex($field);
-        }
-
-        return $patterns;
     }
 }

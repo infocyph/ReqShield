@@ -57,8 +57,7 @@ Checkout Contacts Example (Nested + Wildcards)
         'contacts.*.name' => 'required|string|min:2',
         'contacts.*.email' => 'required|email',
         'contacts.*.phone' => 'nullable|string|min:8',
-    ])->enableNestedValidation(false) // false => flatten only required paths
-      ->setFieldAliases([
+    ])->setFieldAliases([
           'contacts.*.email' => 'Contact Email',
       ]);
 
@@ -92,12 +91,10 @@ Update Flow Example (Conditional + Fragment)
       ->when(
           fn (array $data): bool => ($data['type'] ?? null) === 'business',
           fn (): array => ['billing.company_name' => 'required|string|max:120'],
-      )
-      ->enableNestedValidation();
+      );
 
     $result = $validator->validate($input);
 
     if ($result->passes()) {
         $safeData = $result->validated();
     }
-

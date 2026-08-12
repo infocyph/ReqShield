@@ -26,6 +26,7 @@ use Infocyph\ReqShield\Support\ValueStringifier;
  *   value:mixed,
  *   field:string,
  *   field_label:string,
+ *   field_fail_fast?:bool,
  *   message_resolver:callable(): string
  * }
  * @phpstan-type ValidationContext array<string, mixed>
@@ -270,6 +271,7 @@ trait HasValidatorRuntime
      * @param RulePlaceholderMap $rulePlaceholders
      * @param array<int|string, mixed> $data
      * @param array<int, ExpensiveBatchItem> $batch
+     * @param-out array<int, ExpensiveBatchItem> $batch
      */
     protected function collectExpensiveRules(
         array $rules,
@@ -280,6 +282,7 @@ trait HasValidatorRuntime
         string $fieldLabel,
         array $data,
         array &$batch,
+        bool $fieldFailFast,
     ): void {
         foreach ($rules as $index => $rule) {
             $ruleName = $ruleNames[$index] ?? $this->compiler->getRuleNameForRule($rule);
@@ -291,6 +294,7 @@ trait HasValidatorRuntime
                 'value' => $value,
                 'field' => $field,
                 'field_label' => $fieldLabel,
+                'field_fail_fast' => $fieldFailFast,
                 // Build error messages lazily. Most expensive checks pass, so
                 // this avoids token/template work in the hot path.
                 'message_resolver' => fn(): string => $this->buildRuleFailureMessage(
@@ -369,46 +373,41 @@ trait HasValidatorRuntime
         );
     }
 
-    /** @param array<string, mixed> $context */
+    /**
+     * @param array{
+     *   errors:array<string,array<int,string>>,
+     *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
+     *   validated:array<string,mixed>,
+     *   expensiveBatch:array<int,array{
+     *     rule:Rule,
+     *     rule_name:string,
+     *     value:mixed,
+     *     field:string,
+     *     field_label:string,
+     *     message_resolver:callable():string
+     *   }>
+     * } $context
+     */
     protected function executeBatchedRules(array &$context): void
     {
-        $batchRaw = isset($context['expensiveBatch']) && is_array($context['expensiveBatch'])
-            ? $context['expensiveBatch']
-            : [];
-        $errorsRaw = isset($context['errors']) && is_array($context['errors'])
-            ? $context['errors']
-            : [];
-        $failuresRaw = isset($context['failures']) && is_array($context['failures'])
-            ? $context['failures']
-            : [];
-
-        $batch = $this->normalizeBatchPayload($batchRaw);
-        $errors = $this->normalizeErrorPayload($errorsRaw);
-        $failures = $this->normalizeFailurePayload($failuresRaw);
-
         if (
-            empty($batch)
-            || (!empty($errors) && $this->stopOnFirstError)
+            $context['expensiveBatch'] === []
+            || ($context['errors'] !== [] && $this->stopOnFirstError)
         ) {
             return;
         }
 
         $this->batchExecutor->executeBatch(
-            $batch,
-            $errors,
-            $failures,
+            $context['expensiveBatch'],
+            $context['errors'],
+            $context['failures'],
+            $this->stopOnFirstError,
         );
-        $context['expensiveBatch'] = $batch;
-        $context['errors'] = $errors;
-        $context['failures'] = $failures;
 
-        if (!empty($errors)) {
-            $validated = isset($context['validated']) && is_array($context['validated'])
-                ? $context['validated']
-                : [];
+        if ($context['errors'] !== []) {
             $context['validated'] = array_diff_key(
-                $validated,
-                $errors,
+                $context['validated'],
+                $context['errors'],
             );
         }
     }
@@ -426,15 +425,6 @@ trait HasValidatorRuntime
                 : '',
             fn(string $pattern): ?string => $this->normalizeRegexForJsonSchema($pattern),
         );
-    }
-
-    protected function hasRulePrefix(object $rule, string $prefix): bool
-    {
-        $class = $rule::class;
-        $pos = strrpos($class, '\\');
-        $shortName = $pos === false ? $class : substr($class, $pos + 1);
-
-        return str_starts_with($shortName, $prefix);
     }
 
     /** @param array<int, string> $ruleNames */
@@ -527,117 +517,6 @@ trait HasValidatorRuntime
         foreach ($rulePlaceholders as $token => $tokenValue) {
             $tokens[$token] = $tokenValue;
         }
-    }
-
-    /**
-     * @param array<int|string, mixed> $batchRaw
-     * @return array<int, array{
-     *   rule:Rule,
-     *   value:mixed,
-     *   field:string,
-     *   rule_name?:string,
-     *   field_label?:string,
-     *   message?:string,
-     *   message_resolver?:callable(): string
-     * }>
-     */
-    protected function normalizeBatchPayload(array $batchRaw): array
-    {
-        $batch = [];
-
-        foreach ($batchRaw as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-
-            $rule = $item['rule'] ?? null;
-            $field = $item['field'] ?? null;
-
-            if (!$rule instanceof Rule || !is_string($field) || $field === '') {
-                continue;
-            }
-
-            $normalized = [
-                'rule' => $rule,
-                'value' => $item['value'] ?? null,
-                'field' => $field,
-            ];
-
-            if (isset($item['rule_name']) && is_string($item['rule_name'])) {
-                $normalized['rule_name'] = $item['rule_name'];
-            }
-
-            if (isset($item['field_label']) && is_string($item['field_label'])) {
-                $normalized['field_label'] = $item['field_label'];
-            }
-
-            if (isset($item['message']) && is_string($item['message'])) {
-                $normalized['message'] = $item['message'];
-            }
-
-            if (isset($item['message_resolver']) && is_callable($item['message_resolver'])) {
-                $resolver = $item['message_resolver'];
-                $normalized['message_resolver'] = fn(): string => $this->stringifyTokenValue($resolver());
-            }
-
-            $batch[] = $normalized;
-        }
-
-        return $batch;
-    }
-
-    /**
-     * @param array<int|string, mixed> $errorsRaw
-     * @return array<string, array<int, string>>
-     */
-    protected function normalizeErrorPayload(array $errorsRaw): array
-    {
-        $errors = [];
-
-        foreach ($errorsRaw as $field => $messages) {
-            if (!is_string($field) || !is_array($messages)) {
-                continue;
-            }
-
-            $errors[$field] = array_values(array_filter(
-                $messages,
-                is_string(...),
-            ));
-        }
-
-        return $errors;
-    }
-
-    /**
-     * @param array<int|string, mixed> $failuresRaw
-     * @return array<int, array{field:string,rule:string,message:string,value:mixed}>
-     */
-    protected function normalizeFailurePayload(array $failuresRaw): array
-    {
-        $failures = [];
-
-        foreach ($failuresRaw as $failure) {
-            if (!is_array($failure)) {
-                continue;
-            }
-
-            $field = $failure['field'] ?? null;
-            $rule = $failure['rule'] ?? null;
-            $message = $failure['message'] ?? null;
-
-            if (!is_string($field) || !is_string($rule) || !is_string($message)) {
-                continue;
-            }
-
-            $failures[] = [
-                'field' => $field,
-                'rule' => $rule,
-                'message' => $message,
-                'value' => $failure['value'] ?? null,
-            ];
-        }
-
-        return $failures;
     }
 
     /** @param array<string, mixed> $tokens */
