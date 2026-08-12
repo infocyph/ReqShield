@@ -48,7 +48,7 @@ final readonly class ValidatedInput
             return $default;
         }
 
-        return InputCaster::toBoolean($value);
+        return InputCaster::tryBoolean($value) ?? $default;
     }
 
     public function date(string $field, ?\DateTimeImmutable $default = null): ?\DateTimeImmutable
@@ -115,15 +115,7 @@ final readonly class ValidatedInput
             return $default;
         }
 
-        if (is_int($value) || is_float($value) || is_bool($value) || is_string($value)) {
-            return (float) $value;
-        }
-
-        if (is_object($value) && method_exists($value, '__toString')) {
-            return (float) (string) $value;
-        }
-
-        return $default;
+        return InputCaster::tryFloat($value) ?? $default;
     }
 
     public function get(string $field, mixed $default = null): mixed
@@ -143,15 +135,7 @@ final readonly class ValidatedInput
             return $default;
         }
 
-        if (is_int($value) || is_float($value) || is_bool($value) || is_string($value)) {
-            return (int) $value;
-        }
-
-        if (is_object($value) && method_exists($value, '__toString')) {
-            return (int) (string) $value;
-        }
-
-        return $default;
+        return InputCaster::tryInteger($value) ?? $default;
     }
 
     /**

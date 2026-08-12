@@ -1,135 +1,71 @@
 Database Rules (``unique``, ``exists``)
 =======================================
 
-ReqShield batches expensive DB validation rules across fields for performance.
-To use DB rules, provide a ``DatabaseProvider`` implementation to ``Validator::make($rules, $dbProvider)``.
+Database rules are executed only through a caller-supplied
+``Infocyph\ReqShield\Contracts\DatabaseProvider``. A schema containing a
+database rule throws ``DatabaseProviderRequiredException`` during construction
+when no provider is supplied; a database outage throws
+``DatabaseValidationException`` and is never converted into a validation error.
 
-Batch execution is always native-provider based: ReqShield calls
-``batchExistsCheck()`` and ``batchUniqueCheck()`` on every provider.
-There is no SQL query-builder fallback path.
+Provider Contract
+-----------------
 
-DatabaseProvider Implementation
--------------------------------
-
-Your class must implement ``Infocyph\ReqShield\Contracts\DatabaseProvider``.
+The provider boundary intentionally contains only two operations:
 
 .. code-block:: php
 
-    <?php
-    namespace App\Validation;
-
-    use Infocyph\ReqShield\Contracts\DatabaseProvider;
-    use PDO;
-
-    final class PdoDatabaseProvider implements DatabaseProvider
+    interface DatabaseProvider
     {
-        public function __construct(private PDO $pdo)
-        {
-        }
-
-        public function batchExistsCheck(string $table, array $checks): array
-        {
-            return [];
-        }
-
-        public function batchUniqueCheck(string $table, array $checks): array
-        {
-            return [];
-        }
-
-        public function compositeUnique(
-            string $table,
-            array $columns,
-            ?int $ignoreId = null,
-        ): bool {
-            return true;
-        }
-
-        public function exists(
-            string $table,
-            string $column,
-            $value,
-            ?int $ignoreId = null,
-        ): bool {
-            $sql = "SELECT COUNT(*) FROM `{$table}` WHERE `{$column}` = ?";
-            $params = [$value];
-
-            if ($ignoreId !== null) {
-                $sql .= " AND `id` != ?";
-                $params[] = $ignoreId;
-            }
-
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-
-            return (int)$stmt->fetchColumn() > 0;
-        }
-
-        public function query(string $query, array $params = []): array
-        {
-            // Not used by ReqShield batch DB rules; kept for compatibility.
-            $stmt = $this->pdo->prepare($query);
-            $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        }
+        public function batchExists(string $table, array $checks): array;
+        public function batchUnique(string $table, array $checks): array;
     }
 
-Use the Provider
-----------------
+Each check contains an ``id`` correlation token, ``field``, ``column``, and ``value``.
+Unique checks additionally contain ``ignore``, ``id_column``,
+``include_trashed``, and ``soft_delete_column``. The returned list contains the
+IDs of failed checks. Providers own SQL generation, identifier allowlisting,
+parameter binding, and physical query chunking; ReqShield sends one logical
+batch and never exposes a generic query API. Every check ID is a distinct integer;
+providers must return only IDs from the submitted batch. Unknown or malformed IDs
+throw ``DatabaseValidationException``.
+
+Using Database Rules
+--------------------
 
 .. code-block:: php
 
+    use Infocyph\ReqShield\Rule;
     use Infocyph\ReqShield\Validator;
 
     $validator = Validator::make([
-        'email' => 'required|email|unique:users,email',
-        'category_id' => 'required|integer|exists:categories,id',
-    ], $dbProvider);
-
-    $result = $validator->validate($payload);
-
-Rule Syntax
------------
-
-``exists``:
-
-* ``exists:table,column``
-* Example: ``exists:users,id``
-
-``unique``:
-
-* ``unique:table,column``
-* ``unique:table,column,ignoreId``
-* ``unique:table,column,ignoreId,idColumn,withTrashed,softDeleteColumn``
-
-Examples:
-
-.. code-block:: php
-
-    'email' => 'unique:users,email'
-    'email' => 'unique:users,email,10' // ignore row id=10
-    'email' => 'unique:users,email,,id,false,deleted_at' // ignore soft-deleted rows
-    'email' => 'unique:users,email,,id,true,deleted_at'  // include soft-deleted rows
-
-Object Rule for Full Control
-----------------------------
-
-Use ``Infocyph\ReqShield\Rules\Unique`` directly when you need explicit constructor parameters.
-
-.. code-block:: php
-
-    use Infocyph\ReqShield\Rules\Unique;
-
-    $validator = Validator::make([
+        'team_id' => Rule::exists('teams', 'id'),
         'email' => [
             'required',
-            new Unique(
-                table: 'users',
-                column: 'email',
-                ignoreId: null,
-                idColumn: 'id',
-                withTrashed: false,
-                softDeleteColumn: 'deleted_at',
-            ),
+            'email',
+            Rule::unique('users', 'email')
+                ->ignore($userId)
+                ->withoutTrashed(),
         ],
-    ], $dbProvider);
+    ], $databaseProvider);
+
+Simple string syntax remains available:
+
+.. code-block:: php
+
+    'team_id' => 'required|exists:teams,id'
+    'email' => 'required|email|unique:users,email'
+
+Use object syntax for ignore IDs, custom ID columns, or soft-delete behavior.
+Complex positional ``unique`` options are intentionally not part of the 3.0 API.
+Unique checks include all rows by default and therefore make no assumption that a
+``deleted_at`` column exists. Call ``withoutTrashed()`` (optionally with a custom
+column name) to opt into soft-delete filtering; ``withTrashed()`` restores the
+default.
+
+Testing Providers
+-----------------
+
+The development suite includes a DBLayer 4.0.0 provider and deterministic
+SQLite fixtures. It verifies flat, nested, wildcard, mixed, ignore-ID,
+custom-ID-column, soft-delete, batching, and infrastructure-error behavior.
+DBLayer is a development dependency only; ReqShield stays driver agnostic.

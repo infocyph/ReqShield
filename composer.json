@@ -27,10 +27,13 @@
     ],
     "require": {
         "php": ">=8.4",
-        "ext-hash": "*"
+        "ext-fileinfo": "*",
+        "ext-hash": "*",
+        "ext-mbstring": "*"
     },
     "require-dev": {
-        "infocyph/phpforge": "dev-main"
+        "infocyph/dblayer": "4.0.0",
+        "infocyph/phpforge": "dev-main@dev"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,

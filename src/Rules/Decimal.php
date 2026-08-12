@@ -10,7 +10,20 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Decimal extends BaseRule
 {
-    public function __construct(protected ?int $min = null, protected ?int $max = null) {}
+    public function __construct(protected ?int $min = null, protected ?int $max = null)
+    {
+        if ($this->min !== null && $this->min < 0) {
+            throw new \InvalidArgumentException('Minimum decimal places must be zero or greater.');
+        }
+
+        if ($this->max !== null && ($this->max < 0 || ($this->min !== null && $this->max < $this->min))) {
+            throw new \InvalidArgumentException('Maximum decimal places must not be less than the minimum.');
+        }
+
+        if ($this->min !== null && $this->max === null) {
+            $this->max = $this->min;
+        }
+    }
 
     public function cost(): int
     {
@@ -19,14 +32,11 @@ class Decimal extends BaseRule
 
     public function message(string $field): string
     {
-        if ($this->min && $this->max) {
+        if ($this->min !== null && $this->max !== null && $this->min !== $this->max) {
             return "The {$field} must have between {$this->min} and {$this->max} decimal places.";
         }
-        if ($this->min) {
-            return "The {$field} must have at least {$this->min} decimal places.";
-        }
-        if ($this->max) {
-            return "The {$field} must have at most {$this->max} decimal places.";
+        if ($this->min !== null && $this->max === $this->min) {
+            return "The {$field} must have exactly {$this->min} decimal places.";
         }
 
         return "The {$field} must be a decimal number.";
@@ -41,13 +51,8 @@ class Decimal extends BaseRule
 
         $stringValue = (string) $value;
 
-        // Must have a decimal point
-        if (!str_contains($stringValue, '.')) {
-            return false;
-        }
-
-        $parts = explode('.', $stringValue);
-        $decimals = strlen($parts[1]);
+        $dot = strpos($stringValue, '.');
+        $decimals = $dot === false ? 0 : strlen(substr($stringValue, $dot + 1));
 
         if ($this->min !== null && $decimals < $this->min) {
             return false;

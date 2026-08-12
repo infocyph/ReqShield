@@ -14,6 +14,12 @@ final class RuleExpressionParser
     /** @var array<string,array<int,string>> */
     protected static array $splitCache = [];
 
+    public static function clearCache(): void
+    {
+        self::$parseCache = [];
+        self::$splitCache = [];
+    }
+
     /** @return array{0:string,1:array<int,string>} */
     public static function parse(string $rule): array
     {
@@ -132,7 +138,13 @@ final class RuleExpressionParser
             return null;
         }
 
-        return $delimiter;
+        return match ($delimiter) {
+            '{' => '}',
+            '(' => ')',
+            '[' => ']',
+            '<' => '>',
+            default => $delimiter,
+        };
     }
 
     protected static function isRuleBoundary(string $char, bool $inRegex): bool

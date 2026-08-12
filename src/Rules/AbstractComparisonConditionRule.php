@@ -19,6 +19,11 @@ abstract class AbstractComparisonConditionRule extends BaseRule
         return 2;
     }
 
+    public function getOtherField(): string
+    {
+        return $this->otherField;
+    }
+
     public function passes(mixed $value, string $field, array $data): bool
     {
         $this->consumeRuleContext($value, $field, $data);

@@ -1,66 +1,28 @@
-Helper Functions
-================
+Namespaced Helper Functions
+===========================
 
-ReqShield includes several global helper functions (loaded via ``composer.json``'s ``files`` autoload) to provide convenient shortcuts for common tasks.
-
-.. php:function:: validator(array $rules, ?DatabaseProvider $db = null): Validator
-
-Creates a new ``Validator`` instance. This is a shortcut for ``Validator::make()``.
+ReqShield does not define generic global functions. Import helpers explicitly
+from the package namespace, or use ``Validator::make()`` directly.
 
 .. code-block:: php
+
+    use function Infocyph\ReqShield\fails;
+    use function Infocyph\ReqShield\passes;
+    use function Infocyph\ReqShield\sanitize;
+    use function Infocyph\ReqShield\validate;
+    use function Infocyph\ReqShield\validator;
 
     $validator = validator(['email' => 'required|email']);
-    $result = $validator->validate($data);
+    $result = validate(['email' => 'required|email'], $data);
+    $email = sanitize('  TEST@example.com  ', ['trim', 'lowercase']);
 
-.. php:function:: validate(array $rules, array $data, ?DatabaseProvider $db = null): ValidationResult
-
-Creates a validator and immediately validates the given data.
-
-.. code-block:: php
-
-    $result = validate(['email' => 'required|email'], $_POST);
-
-    if ($result->fails()) {
-        // ...
+    if (passes($rules, $data)) {
+        // Valid input.
     }
 
-.. php:function:: sanitize(mixed $value, string|array $sanitizers): mixed
-
-Sanitizes a value using one or more sanitizers from the ``Sanitizer`` class.
-
-.. code-block:: php
-
-    // Single sanitizer
-    $email = sanitize('  TEST@ex.com  ', 'email');
-
-    // Chain multiple sanitizers
-    $username = sanitize('  <b>John!</b>  ', ['string', 'lowercase', 'alphaDash']);
-    // 1. '  <b>John!</b>  '
-    // 2. 'John!' (string)
-    // 3. 'john!' (lowercase)
-    // 4. 'john' (alphaDash)
-
-    // You can also include callables in sanitizer arrays
-    $custom = sanitize(' 42 ', ['trim', fn ($v) => (int)$v]);
-
-.. php:function:: passes(array $rules, array $data, ?DatabaseProvider $db = null): bool
-
-A quick check to see if validation passes. Returns ``true`` on success, ``false`` on failure.
-
-.. code-block:: php
-
-    if (passes(['email' => 'required|email'], $_POST)) {
-        // All good
-    } else {
-        // Failed
+    if (fails($rules, $data)) {
+        // Invalid input.
     }
 
-.. php:function:: fails(array $rules, array $data, ?DatabaseProvider $db = null): bool
-
-A quick check to see if validation fails. Returns ``true`` on failure, ``false`` on success.
-
-.. code-block:: php
-
-    if (fails(['email' => 'required|email'], $_POST)) {
-        // Handle errors
-    }
+Database-backed schemas accept a ``DatabaseProvider`` as the optional final
+argument to ``validator()``, ``validate()``, ``passes()``, and ``fails()``.

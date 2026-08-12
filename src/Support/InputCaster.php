@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
+use Infocyph\ReqShield\Exceptions\CastException;
+
 final class InputCaster
 {
     public static function toBoolean(mixed $value): bool
@@ -12,8 +14,12 @@ final class InputCaster
             return $value;
         }
 
-        if (is_int($value) || is_float($value)) {
-            return (float) $value !== 0.0;
+        if ($value === 1 || $value === 1.0) {
+            return true;
+        }
+
+        if ($value === 0 || $value === 0.0) {
+            return false;
         }
 
         if (is_string($value)) {
@@ -28,7 +34,16 @@ final class InputCaster
             }
         }
 
-        return (bool) $value;
+        throw new CastException('Value cannot be cast to boolean.');
+    }
+
+    public static function tryBoolean(mixed $value): ?bool
+    {
+        try {
+            return self::toBoolean($value);
+        } catch (CastException) {
+            return null;
+        }
     }
 
     public static function tryDateTimeImmutable(mixed $value): ?\DateTimeImmutable
@@ -50,5 +65,39 @@ final class InputCaster
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    public static function tryFloat(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return is_finite((float) $value) ? (float) $value : null;
+        }
+
+        if (is_string($value) && is_numeric($value)) {
+            $float = (float) $value;
+
+            return is_finite($float) ? $float : null;
+        }
+
+        return null;
+    }
+
+    public static function tryInteger(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return is_finite($value) && floor($value) === $value ? (int) $value : null;
+        }
+
+        if (is_string($value) && preg_match('/^[+-]?\d+$/D', $value) === 1) {
+            $filtered = filter_var($value, FILTER_VALIDATE_INT);
+
+            return $filtered === false ? null : $filtered;
+        }
+
+        return null;
     }
 }

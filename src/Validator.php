@@ -9,14 +9,17 @@ use Infocyph\ReqShield\Concerns\HasValidatorRequestFeatures;
 use Infocyph\ReqShield\Concerns\HasValidatorRuntime;
 use Infocyph\ReqShield\Concerns\HasValidatorSchemaCasting;
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
-use Infocyph\ReqShield\Exceptions\InvalidRuleException;
+use Infocyph\ReqShield\Contracts\Rule as RuleContract;
+use Infocyph\ReqShield\Exceptions\DatabaseProviderRequiredException;
+use Infocyph\ReqShield\Exceptions\InputLimitException;
+use Infocyph\ReqShield\Exceptions\InvalidSchemaException;
 use Infocyph\ReqShield\Exceptions\ValidationException;
 use Infocyph\ReqShield\Executors\BatchExecutor;
 use Infocyph\ReqShield\Services\JsonSchemaExporter;
 use Infocyph\ReqShield\Services\MessageTokenBuilder;
 use Infocyph\ReqShield\Services\SanitizerMapApplier;
 use Infocyph\ReqShield\Support\FieldAlias;
-use Infocyph\ReqShield\Support\RuleExpressionParser;
+use Infocyph\ReqShield\Support\FieldPlan;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 use Infocyph\ReqShield\Support\ValidationPlan;
 use Infocyph\ReqShield\Support\ValidationResult;
@@ -34,10 +37,15 @@ class Validator
 
     protected const MAX_COMPILED_SCHEMA_CACHE = 64;
 
+    protected const MAX_PROCESS_PLAN_CACHE = 64;
+
     protected const MAX_WILDCARD_SCHEMA_CACHE = 64;
 
     /** @var array<int|string,array<int|string,mixed>> */
     protected static array $fragments = [];
+
+    /** @var array<string,ValidationPlan> */
+    protected static array $processPlanCache = [];
 
     /** @var array<int,callable> */
     protected array $afterCallbacks = [];
@@ -46,11 +54,20 @@ class Validator
 
     protected BatchExecutor $batchExecutor;
 
-    /** @var array<string,mixed> */
+    /** @var array<string,list<callable(mixed):mixed>> */
     protected array $casts = [];
+
+    /** @var array<string,string> */
+    protected array $castWildcardRegexes = [];
 
     /** @var array<string,ValidationPlan> */
     protected array $compiledSchemaCache = [];
+
+    /** @var array<string,list<callable(mixed):mixed>> */
+    protected array $compiledSchemaCasts = [];
+
+    /** @var array<string,list<callable(mixed):mixed>> */
+    protected array $compiledSchemaSanitizers = [];
 
     protected SchemaCompiler $compiler;
 
@@ -71,6 +88,9 @@ class Validator
 
     protected ?string $dtoClass = null;
 
+    /** @var array<string,list<callable(mixed):mixed>> */
+    protected array $effectiveSanitizers = [];
+
     protected bool $failFast = true;
 
     /** @var array<string,string> */
@@ -82,16 +102,25 @@ class Validator
 
     protected string $locale = 'en';
 
+    /** @var list<string> */
+    protected array $localeCandidates = ['en'];
+
     protected bool $localeMessagesEnabled = false;
 
     /** @var array<string,array<string,mixed>> */
     protected array $localePacks;
 
+    protected int $maxDepth = 32;
+
+    protected int $maxFlattenedPaths = 10_000;
+
+    protected int $maxInputFields = 10_000;
+
+    protected int $maxWildcardExpansions = 10_000;
+
     protected MessageTokenBuilder $messageTokenBuilder;
 
-    protected string $nestedFlattenMode = 'all';
-
-    protected bool $nestedValidation = false;
+    protected string $nestedFlattenMode = 'targeted';
 
     /** @var array<int|string,mixed> */
     protected array $rules;
@@ -100,8 +129,11 @@ class Validator
 
     protected SanitizerMapApplier $sanitizerMapApplier;
 
-    /** @var array<string,mixed> */
+    /** @var array<string,list<callable(mixed):mixed>> */
     protected array $sanitizers = [];
+
+    /** @var array<string,string> */
+    protected array $sanitizerWildcardRegexes = [];
 
     /** @var array<int|string,mixed> */
     protected array $schema;
@@ -128,11 +160,16 @@ class Validator
 
     /**
      * @param array<int|string,mixed> $rules
+     * @param array<string,class-string<RuleContract>> $customRules
      */
-    public function __construct(array $rules, ?DatabaseProvider $db = null)
-    {
+    public function __construct(
+        array $rules,
+        ?DatabaseProvider $db = null,
+        ?ValidationPlan $compiledPlan = null,
+        array $customRules = [],
+    ) {
         if (empty($rules)) {
-            throw InvalidRuleException::invalidFormat(
+            throw InvalidSchemaException::forField(
                 'rules',
                 'Rules array cannot be empty',
             );
@@ -140,16 +177,16 @@ class Validator
 
         foreach ($rules as $field => $rule) {
             if (!is_string($field)) {
-                throw InvalidRuleException::invalidFormat(
+                throw InvalidSchemaException::forField(
                     (string) $field,
                     'Field names must be strings',
                 );
             }
 
-            if (!is_string($rule) && !is_array($rule)) {
-                throw InvalidRuleException::invalidFormat(
+            if (!is_string($rule) && !is_array($rule) && !$rule instanceof RuleContract) {
+                throw InvalidSchemaException::forField(
                     $field,
-                    'Rules must be string or array',
+                    'Rules must be a rule object, string, or array',
                 );
             }
         }
@@ -158,13 +195,23 @@ class Validator
         $this->rules = $normalizedRules;
         $this->schemaSanitizers = $schemaSanitizers;
         $this->schemaCasts = $schemaCasts;
+        $this->compiledSchemaSanitizers = $this->compileSanitizerMap($schemaSanitizers);
+        $this->compiledSchemaCasts = $this->compileCastMap($schemaCasts);
+        $this->refreshSanitizerExecutionMetadata();
+        $this->refreshCastExecutionMetadata();
         $this->rulesCacheKey = $this->buildRulesCacheKey($normalizedRules);
         $this->localePacks = $this->defaultLocalePacks();
         $this->compiler = new SchemaCompiler();
-        $this->schema = $this->normalizeCompiledSchema(
-            $this->compiler->compile($normalizedRules),
-        );
-        $this->validationPlan = new ValidationPlan($this->schema);
+        foreach ($customRules as $name => $class) {
+            $this->compiler->registerRule($name, $class);
+        }
+        $this->validationPlan = $compiledPlan ?? ($customRules === []
+            ? $this->resolveInitialPlan($normalizedRules)
+            : new ValidationPlan($this->normalizeCompiledSchema(
+                $this->compiler->compile($normalizedRules),
+            )));
+        $this->schema = $this->validationPlan->schema;
+        $this->assertDatabaseProviderAvailable($this->validationPlan, $db !== null);
         $this->fieldAliasResolver = new FieldAlias($this->fieldAliases);
         $this->messageTokenBuilder = new MessageTokenBuilder();
         $this->jsonSchemaExporter = new JsonSchemaExporter();
@@ -172,14 +219,28 @@ class Validator
         $this->batchExecutor = new BatchExecutor($db);
     }
 
+    public static function clearFragments(): void
+    {
+        static::$fragments = [];
+    }
+
+    public static function clearPlanCache(): void
+    {
+        static::$processPlanCache = [];
+    }
+
     /**
      * @param array<int|string,mixed> $rules
+     * @param array<string,class-string<RuleContract>> $customRules
      */
     public static function compile(
         array $rules,
         ?DatabaseProvider $db = null,
+        array $customRules = [],
     ): CompiledValidator {
-        return new CompiledValidator(static::make($rules, $db));
+        $validator = static::make($rules, $db, $customRules);
+
+        return new CompiledValidator($validator);
     }
 
     /**
@@ -201,6 +262,10 @@ class Validator
     /** @param array<int|string,mixed> $rules */
     public static function defineFragment(string $name, array $rules): void
     {
+        if (isset(static::$fragments[$name])) {
+            throw InvalidSchemaException::forField('fragment', "Schema fragment already exists: {$name}");
+        }
+
         static::$fragments[$name] = $rules;
     }
 
@@ -208,7 +273,7 @@ class Validator
     public static function fragment(string $name, string $prefix = ''): array
     {
         if (!isset(static::$fragments[$name])) {
-            throw new InvalidRuleException("Unknown schema fragment: {$name}");
+            throw InvalidSchemaException::forField('fragment', "Unknown schema fragment: {$name}");
         }
 
         if ($prefix === '') {
@@ -291,12 +356,14 @@ class Validator
 
     /**
      * @param array<int|string,mixed> $rules
+     * @param array<string,class-string<RuleContract>> $customRules
      */
     public static function make(
         array $rules,
         ?DatabaseProvider $db = null,
+        array $customRules = [],
     ): self {
-        return new static($rules, $db);
+        return new static($rules, $db, null, $customRules);
     }
 
     /** @param array<string,string> $messages */
@@ -327,8 +394,7 @@ class Validator
 
     public function enableNestedValidation(bool $flattenAll = true): self
     {
-        $this->nestedValidation = true;
-        $this->nestedFlattenMode = $flattenAll ? 'all' : 'required';
+        $this->nestedFlattenMode = $flattenAll ? 'all' : 'targeted';
 
         return $this;
     }
@@ -346,14 +412,8 @@ class Validator
                 'required' => $jsonSchema['required'],
             ],
             'introspection' => $this->schemaIntrospection(),
-            default => throw new InvalidRuleException("Unsupported schema export format: {$format}"),
+            default => throw InvalidSchemaException::forField('export', "Unsupported schema format: {$format}"),
         };
-    }
-
-    /** @return array<int|string,mixed> */
-    public function getSchema(): array
-    {
-        return $this->schema;
     }
 
     /** @return array<int|string,mixed> */
@@ -365,7 +425,7 @@ class Validator
         ];
 
         foreach ($this->schema as $field => $node) {
-            if (!is_string($field) || !$node instanceof \Infocyph\ReqShield\Support\ValidationNode) {
+            if (!is_string($field) || !$node instanceof FieldPlan) {
                 continue;
             }
 
@@ -375,15 +435,20 @@ class Validator
         return $stats;
     }
 
-    public function registerRule(string $name, string $class): self
-    {
-        $this->compiler->registerRule($name, $class);
-        $this->schema = $this->normalizeCompiledSchema(
-            $this->compiler->compile($this->rules),
-        );
-        $this->validationPlan = new ValidationPlan($this->schema);
-        $this->compiledSchemaCache = [];
-        $this->wildcardSchemaCache = [];
+    public function limits(
+        int $maxDepth = 32,
+        int $maxFields = 10_000,
+        int $maxWildcardExpansions = 10_000,
+        int $maxFlattenedPaths = 10_000,
+    ): self {
+        if (min($maxDepth, $maxFields, $maxWildcardExpansions, $maxFlattenedPaths) < 1) {
+            throw new \InvalidArgumentException('Validation limits must be positive integers.');
+        }
+
+        $this->maxDepth = $maxDepth;
+        $this->maxInputFields = $maxFields;
+        $this->maxWildcardExpansions = $maxWildcardExpansions;
+        $this->maxFlattenedPaths = $maxFlattenedPaths;
 
         return $this;
     }
@@ -394,7 +459,7 @@ class Validator
         $meta = [];
 
         foreach ($this->schema as $field => $node) {
-            if (!is_string($field) || !$node instanceof \Infocyph\ReqShield\Support\ValidationNode) {
+            if (!is_string($field) || !$node instanceof FieldPlan) {
                 continue;
             }
 
@@ -413,7 +478,8 @@ class Validator
     /** @param array<string,mixed> $casts */
     public function setCasts(array $casts): self
     {
-        $this->casts = $casts;
+        $this->casts = $this->compileCastMap($casts);
+        $this->refreshCastExecutionMetadata();
 
         return $this;
     }
@@ -451,6 +517,17 @@ class Validator
 
     public function setDtoClass(?string $class): self
     {
+        if ($class !== null) {
+            if (!class_exists($class)) {
+                throw InvalidSchemaException::forField('dto', "DTO class does not exist: {$class}");
+            }
+
+            $reflection = new \ReflectionClass($class);
+            if (!$reflection->isInstantiable()) {
+                throw InvalidSchemaException::forField('dto', "DTO class is not instantiable: {$class}");
+            }
+        }
+
         $this->dtoClass = $class;
 
         return $this;
@@ -475,6 +552,7 @@ class Validator
     public function setLocale(string $locale): self
     {
         $this->locale = $locale;
+        $this->localeCandidates = $this->localeCandidates($locale);
         $this->localeMessagesEnabled = true;
 
         return $this;
@@ -491,10 +569,12 @@ class Validator
 
     public function setNestedFlattenMode(string $mode): self
     {
-        if (!in_array($mode, ['all', 'required'], true)) {
-            throw new InvalidRuleException(
-                "Invalid nested flatten mode: {$mode}",
-            );
+        if ($mode === 'required') {
+            $mode = 'targeted';
+        }
+
+        if (!in_array($mode, ['all', 'targeted'], true)) {
+            throw InvalidSchemaException::forField('nested mode', "Unsupported mode: {$mode}");
         }
 
         $this->nestedFlattenMode = $mode;
@@ -505,7 +585,8 @@ class Validator
     /** @param array<string,string|callable|array<int,string|callable>> $sanitizers */
     public function setSanitizers(array $sanitizers): self
     {
-        $this->sanitizers = $sanitizers;
+        $this->sanitizers = $this->compileSanitizerMap($sanitizers);
+        $this->refreshSanitizerExecutionMetadata();
 
         return $this;
     }
@@ -567,8 +648,20 @@ class Validator
         );
 
         $this->rules = static::composeSchemas($this->rules, $fragmentRules);
-        $this->schemaSanitizers = array_merge($this->schemaSanitizers, $fragmentSanitizers);
+        foreach ($fragmentSanitizers as $field => $pipeline) {
+            $this->schemaSanitizers[$field] = array_merge(
+                static::normalizePipelineDefinition($this->schemaSanitizers[$field] ?? []),
+                static::normalizePipelineDefinition($pipeline),
+            );
+        }
         $this->schemaCasts = array_merge($this->schemaCasts, $fragmentCasts);
+        $this->compiledSchemaSanitizers = $this->compileSanitizerMap($this->schemaSanitizers);
+        $this->compiledSchemaCasts = array_merge(
+            $this->compiledSchemaCasts,
+            $this->compileCastMap($fragmentCasts),
+        );
+        $this->refreshSanitizerExecutionMetadata();
+        $this->refreshCastExecutionMetadata();
         $this->rulesCacheKey = $this->buildRulesCacheKey($this->rules);
         $this->schema = $this->normalizeCompiledSchema(
             $this->compiler->compile($this->rules),
@@ -584,6 +677,7 @@ class Validator
     /** @param array<int|string,mixed> $data */
     public function validate(array $data): ValidationResult
     {
+        $this->assertInputWithinLimits($data);
         $originalData = $data;
         [$data, $plan] = $this->prepareValidationDataAndSchema($data);
         $context = $this->initializeValidationContext();
@@ -591,22 +685,23 @@ class Validator
 
         if (!empty($context['errors']) && $this->stopOnFirstError) {
             $result = $this->buildValidationResult($context);
-            $errors = $this->normalizeErrorMap(
-                $this->normalizeContextErrors($context['errors']),
-            );
-            $this->throwIfValidationShouldFail($result, $errors);
+            $this->throwIfValidationShouldFail($result, $context['errors']);
 
             return $result;
         }
 
-        $this->validateResolvedFields($data, $plan, $context);
+        foreach ($plan->fields as $field) {
+            $fieldPlan = $plan->schema[$field];
+            $value = array_key_exists($field, $data) ? $data[$field] : null;
+            if (!$this->processFieldValidation($field, $value, $fieldPlan, $data, $context)
+                && $this->stopOnFirstError) {
+                break;
+            }
+        }
         $this->executeBatchedRules($context);
         $this->executeAfterValidationCallbacks($data, $context);
         $result = $this->buildValidationResult($context);
-        $errors = $this->normalizeErrorMap(
-            $this->normalizeContextErrors($context['errors'] ?? []),
-        );
-        $this->throwIfValidationShouldFail($result, $errors);
+        $this->throwIfValidationShouldFail($result, $context['errors']);
 
         return $result;
     }
@@ -625,98 +720,101 @@ class Validator
         return $this;
     }
 
-    /**
-     * @param array<int|string,mixed> $composed
-     * @param array<int|string,mixed> $schema
-     *
-     * @return array<int|string,mixed>
-     */
-    protected static function mergeComposedSchema(array $composed, array $schema): array
+    protected function assertDatabaseProviderAvailable(ValidationPlan $plan, bool $available): void
     {
-        foreach ($schema as $field => $rules) {
-            if (!is_string($field)) {
-                continue;
+        if (!$plan->requiresDatabase || $available) {
+            return;
+        }
+
+        foreach ($plan->schema as $fieldPlan) {
+            if ($fieldPlan->batchRuleNames !== []) {
+                throw DatabaseProviderRequiredException::forRule($fieldPlan->batchRuleNames[0]);
+            }
+        }
+    }
+
+    /** @param array<int|string,mixed> $data */
+    protected function assertInputWithinLimits(array $data): void
+    {
+        $fields = 0;
+        /** @var list<array{array<int|string,mixed>,int}> $stack */
+        $stack = [[$data, 1]];
+
+        while ($stack !== []) {
+            [$current, $depth] = array_pop($stack);
+            if ($depth > $this->maxDepth) {
+                throw new InputLimitException("Maximum input depth of {$this->maxDepth} exceeded.");
             }
 
-            $existing = $composed[$field] ?? [];
-            $composed[$field] = array_merge(
-                static::normalizeComposedRuleSet($existing),
-                static::normalizeComposedRuleSet($rules),
-            );
-        }
+            foreach ($current as $value) {
+                ++$fields;
+                if ($fields > $this->maxInputFields) {
+                    throw new InputLimitException("Maximum input field count of {$this->maxInputFields} exceeded.");
+                }
 
-        return $composed;
+                if (is_array($value) && $value !== []) {
+                    $stack[] = [$value, $depth + 1];
+                }
+            }
+        }
     }
 
-    /** @return array<int|string,mixed> */
-    protected static function normalizeComposedRuleSet(mixed $rules): array
-    {
-        if (is_array($rules)) {
-            return array_values($rules);
-        }
-
-        if (is_string($rules)) {
-            return RuleExpressionParser::splitRules($rules);
-        }
-
-        return [];
-    }
-
-    /** @param array<int|string,mixed> $context */
+    /**
+     * @param array{
+     *   errors:array<string,array<int,string>>,
+     *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
+     *   validated:array<string,mixed>,
+     *   expensiveBatch:array<int,mixed>
+     * } $context
+     */
     protected function buildValidationResult(array $context): ValidationResult
     {
-        $errors = isset($context['errors']) && is_array($context['errors'])
-            ? $this->normalizeErrorMap($context['errors'])
-            : [];
-        $validated = isset($context['validated']) && is_array($context['validated']) ? $context['validated'] : [];
-        $failures = isset($context['failures']) && is_array($context['failures']) ? $context['failures'] : [];
-
         return new ValidationResult(
-            $errors,
-            $validated,
-            $failures,
-            $this->applyCasts($validated),
+            $context['errors'],
+            $context['validated'],
+            $context['failures'],
+            $this->applyCasts($context['validated']),
             $this->dtoClass,
         );
     }
 
+    /** @param array<int|string,mixed> $rules */
+    protected function isProcessCacheSafeSchema(array $rules): bool
+    {
+        foreach ($rules as $definition) {
+            if (is_string($definition)) {
+                continue;
+            }
+
+            if (!is_array($definition)) {
+                return false;
+            }
+
+            foreach ($definition as $rule) {
+                if (!is_string($rule)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @param array<int|string,mixed> $schema
      *
-     * @return array<string,\Infocyph\ReqShield\Support\ValidationNode>
+     * @return array<string,FieldPlan>
      */
     protected function normalizeCompiledSchema(array $schema): array
     {
         $normalized = [];
 
         foreach ($schema as $field => $node) {
-            if (!is_string($field) || !$node instanceof \Infocyph\ReqShield\Support\ValidationNode) {
+            if (!is_string($field) || !$node instanceof FieldPlan) {
                 continue;
             }
 
             $normalized[$field] = $node;
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * @param array<int|string,mixed> $errors
-     * @return array<string,array<int,string>>
-     */
-    protected function normalizeErrorMap(array $errors): array
-    {
-        $normalized = [];
-
-        foreach ($errors as $field => $messages) {
-            if (!is_string($field) || !is_array($messages)) {
-                continue;
-            }
-
-            $normalized[$field] = array_values(array_filter(
-                $messages,
-                is_string(...),
-            ));
         }
 
         return $normalized;
@@ -742,7 +840,9 @@ class Validator
             $activeRulesCacheKey,
         );
 
-        if ($this->nestedValidation) {
+        $this->assertDatabaseProviderAvailable($plan, $this->batchExecutor->hasProvider());
+
+        if ($plan->hasNestedRules) {
             [$data, $plan] = $this->prepareNestedData(
                 $data,
                 $plan,
@@ -752,6 +852,34 @@ class Validator
         }
 
         return [$data, $plan];
+    }
+
+    /**
+     * @param array<int|string,mixed> $rules
+     */
+    protected function resolveInitialPlan(array $rules): ValidationPlan
+    {
+        if (!$this->isProcessCacheSafeSchema($rules)) {
+            return new ValidationPlan($this->normalizeCompiledSchema(
+                $this->compiler->compile($rules),
+            ));
+        }
+
+        $key = $this->buildRulesCacheKey($rules);
+        if (isset(static::$processPlanCache[$key])) {
+            return static::$processPlanCache[$key];
+        }
+
+        $plan = new ValidationPlan($this->normalizeCompiledSchema(
+            $this->compiler->compile($rules),
+        ));
+        static::$processPlanCache[$key] = $plan;
+
+        if (count(static::$processPlanCache) > static::MAX_PROCESS_PLAN_CACHE) {
+            array_shift(static::$processPlanCache);
+        }
+
+        return $plan;
     }
 
     /** @param array<string,array<int,string>> $errors */
@@ -768,47 +896,5 @@ class Validator
             $errors,
             422,
         );
-    }
-
-    /**
-     * @param array<int|string,mixed> $data
-     * @param array{
-     *   errors:array<string,array<int,string>>,
-     *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
-     *   validated:array<string,mixed>,
-     *   expensiveBatch:array<int,array{
-     *     rule:\Infocyph\ReqShield\Contracts\Rule,
-     *     rule_name:string,
-     *     value:mixed,
-     *     field:string,
-     *     field_label:string,
-     *     message_resolver:callable(): string
-     *   }>
-     * } $context
-     */
-    protected function validateResolvedFields(
-        array $data,
-        ValidationPlan $plan,
-        array &$context,
-    ): void {
-        foreach ($plan->fields as $field) {
-            $node = $plan->schema[$field];
-            $fieldExists = array_key_exists($field, $data);
-            $value = $fieldExists ? $data[$field] : null;
-
-            if ($this->shouldSkipOptionalField($node, $value, $fieldExists)) {
-                continue;
-            }
-
-            if (!$this->processFieldValidation(
-                $field,
-                $value,
-                $node,
-                $data,
-                $context,
-            ) && $this->stopOnFirstError) {
-                break;
-            }
-        }
     }
 }

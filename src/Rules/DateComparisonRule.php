@@ -50,8 +50,8 @@ abstract class DateComparisonRule extends BaseRule
      */
     protected function resolveReferenceDate(array $data): mixed
     {
-        $this->consumeRuleContext($data);
-
-        return $this->date;
+        return array_key_exists($this->date, $data)
+            ? $data[$this->date]
+            : $this->date;
     }
 }

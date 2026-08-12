@@ -52,7 +52,7 @@ if ($result->passes()) {
 composer require infocyph/reqshield
 ```
 
-**Requirements:** PHP 8.4+ and `ext-hash` with `xxh3` support
+**Requirements:** PHP 8.4+, `ext-hash` with `xxh3` support, `ext-mbstring`, and `ext-fileinfo`
 
 ## Quick Start
 
@@ -117,9 +117,11 @@ $validator = Validator::make([
 ]);
 ```
 
-Or use the helper:
+Or import the namespaced helper:
 
 ```php
+use function Infocyph\ReqShield\sanitize;
+
 $clean = sanitize('  TEST@ex.com  ', 'email');           // 'TEST@ex.com'
 $clean = sanitize('<b>TEXT</b>', ['string', 'lowercase']); // 'text'
 ```
@@ -169,7 +171,7 @@ ReqShield includes 46 built-in sanitizers covering several common scenarios:
 - Text Processing
 - Special Formats
 - Alphanumeric Filters
-- Security & HTML
+- HTML and escaping utilities
 - Encoding
 - Array Operations
 
@@ -255,7 +257,7 @@ $validator = Validator::make([
     'user.name' => 'required|min:3',
     'user.profile.age' => 'required|integer|min:18',
     'user.profile.bio' => 'string|max:500',
-])->enableNestedValidation();
+]);
 
 $data = [
     'user' => [
@@ -271,7 +273,8 @@ $data = [
 $result = $validator->validate($data);
 ```
 
-Use `enableNestedValidation(false)` to flatten only required paths for large nested payloads.
+Nested paths are detected automatically and optimized targeted traversal is the default.
+Use `setNestedFlattenMode('all')` only when full flattening is required.
 
 ### Custom Field Names
 
@@ -427,7 +430,6 @@ class StrongPassword implements Rule
     }
 
     public function cost(): int { return 20; }
-    public function isBatchable(): bool { return false; }
 }
 
 // Usage
@@ -458,10 +460,14 @@ $validator = Validator::make([
 ], $db);
 ```
 
+Database schemas require a provider and throw `DatabaseProviderRequiredException`
+when it is absent. The contract contains only `batchExists()` and `batchUnique()`;
+providers own query construction and physical chunking.
+
 **Benefits:**
 - **Automatic batching** - Multiple checks become one query
-- **Update support** - `unique:users,email,5` ignores ID 5
-- **Soft-delete aware unique** - `unique:users,email,,id,false,deleted_at`
+- **Update support** - `Rule::unique('users', 'email')->ignore(5)` ignores ID 5
+- **Explicit object syntax** - `Rule::unique('users', 'email')->ignore($id)->withoutTrashed()`
 
 ### Schema Export / Introspection
 
@@ -514,19 +520,36 @@ Stops validating a field on first rule failure:
 ### 4. **Zero Overhead for Simple Cases**
 Nested validation only activates if you use dot notation. No performance cost for simple flat arrays.
 
+
 ## Security
 
-Protected by [PHPForge](https://github.com/infocyph/PHPForge) — an automated quality and security gate for PHP projects.
+Do not disclose suspected vulnerabilities in a public issue, discussion or pull request. Follow [SECURITY.md](SECURITY.md) and use [GitHub private vulnerability reporting](https://github.com/infocyph/ReqShield/security/advisories/new).
+
+ReqShield is protected by [PHPForge](https://github.com/infocyph/PHPForge), which provides automated tests, static and taint analysis, dependency auditing, architecture checks and release-readiness gates. Automated controls do not replace responsible disclosure or manual review.
+
 
 ---
 
 <div align="center">
   <sub><strong>Made with ❤️ for the PHP community</strong></sub><br />
   <sub><a href="LICENSE">MIT Licensed</a></sub><br />
-  <a href="https://docs.infocyph.com/projects/ReqShield">Documentation</a> •
+  <a href="https://docs.infocyph.com/projects/ReqShield/">Documentation</a> •
   <a href="SECURITY.md">Security</a> •
   <a href="CODE_OF_CONDUCT.md">Code of Conduct</a> •
-  <a href="CONTRIBUTING.md">Contributing</a> •
-  <a href="https://github.com/infocyph/ReqShield/issues">Report Bug</a> •
-  <a href="https://github.com/infocyph/ReqShield/issues">Request Feature</a>
+  <a href="CONTRIBUTING.md">Contributing</a><br />
+  <span title="Issue templates" aria-label="Issue templates">🗂️</span>
+  <a href="https://github.com/infocyph/ReqShield/issues/new?template=bug_report.yml">Bug</a> •
+  <a href="https://github.com/infocyph/ReqShield/issues/new?template=feature_request.yml">Feature</a> •
+  <a href="https://github.com/infocyph/ReqShield/issues/new?template=docs_improvement.yml">Documentation</a> •
+  <a href="https://github.com/infocyph/ReqShield/issues/new?template=question.yml">Question</a> •
+  <a href="https://github.com/infocyph/ReqShield/issues/new?template=ci_failure.yml">CI failure</a><br />
+  <span title="Pull request templates" aria-label="Pull request templates">🔀</span>
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=PULL_REQUEST_TEMPLATE.md">General</a> •
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=bug_fix.md">Bug fix</a> •
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=feature.md">Feature</a> •
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=refactor.md">Refactor</a> •
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=performance.md">Performance</a> •
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=security_reliability.md">Security &amp; reliability</a> •
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=documentation.md">Documentation</a> •
+  <a href="https://github.com/infocyph/ReqShield/compare/main...HEAD?quick_pull=1&amp;template=maintenance.md">Maintenance</a>
 </div>

@@ -7,7 +7,7 @@ namespace Infocyph\ReqShield\Rules;
 class Uuid extends BaseRule
 {
     /** @var array<int, int> */
-    protected array $allowedVersions = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    protected array $allowedVersions = [1, 2, 3, 4, 5];
 
     protected bool $excludeMode = false;
 
@@ -29,7 +29,7 @@ class Uuid extends BaseRule
         $count = count($this->allowedVersions);
 
         // All versions
-        if ($count === 9) {
+        if ($count === 5) {
             return "The {$field} must be a valid UUID.";
         }
 
@@ -41,7 +41,7 @@ class Uuid extends BaseRule
 
         // Exclude mode
         if ($this->excludeMode) {
-            $excluded = array_values(array_diff(range(1, 9), $this->allowedVersions));
+            $excluded = array_values(array_diff(range(1, 5), $this->allowedVersions));
             $excludedList = implode(', ', array_map(
                 static fn(int $version): string => (string) $version,
                 $excluded,
@@ -89,7 +89,7 @@ class Uuid extends BaseRule
         }
 
         // All versions: use \d
-        if ($count === 9) {
+        if ($count === 5) {
             return '\d';
         }
 
@@ -106,9 +106,9 @@ class Uuid extends BaseRule
         $excludedVersion = (int) substr($version, 1);
 
         // Validate excluded version is in range 1-9
-        if ($excludedVersion >= 1 && $excludedVersion <= 9) {
+        if ($excludedVersion >= 1 && $excludedVersion <= 5) {
             $this->allowedVersions = array_values(array_diff(
-                range(1, 9),
+                range(1, 5),
                 [$excludedVersion],
             ));
         }
@@ -122,7 +122,7 @@ class Uuid extends BaseRule
             $versions = [];
             for ($i = 0; $i < $length; $i++) {
                 $digit = (int) $version[$i];
-                if ($digit >= 1 && $digit <= 9) {
+                if ($digit >= 1 && $digit <= 5) {
                     $versions[] = $digit;
                 }
             }
@@ -131,31 +131,42 @@ class Uuid extends BaseRule
             return;
         }
         $singleVersion = (int) $version;
-        if ($singleVersion >= 1 && $singleVersion <= 9) {
+        if ($singleVersion >= 1 && $singleVersion <= 5) {
             $this->allowedVersions = [$singleVersion];
+
+            return;
         }
+
+        throw new \InvalidArgumentException('UUID version must be between 1 and 5.');
     }
 
     protected function parseRangeVersion(string $version): void
     {
         $parts = explode('-', $version, 2);
-        $start = max(1, min(9, (int) $parts[0]));
-        $end = max(1, min(9, (int) $parts[1]));
+        $start = filter_var($parts[0], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5]]);
+        $end = filter_var($parts[1], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5]]);
+        if ($start === false || $end === false) {
+            throw new \InvalidArgumentException('UUID version range must be between 1 and 5.');
+        }
 
         $this->allowedVersions = range(min($start, $end), max($start, $end));
     }
 
     protected function parseVersionSpec(string|int|null $version): void
     {
-        if ($version !== null && $version !== '') {
-            $version = trim((string) $version);
-            match (true) {
-                $version[0] === '!' => $this->parseExcludeVersion($version),
-                str_contains($version, '-') => $this->parseRangeVersion(
-                    $version,
-                ),
-                default => $this->parseMultipleVersions($version),
-            };
+        if ($version === null || $version === '') {
+            return;
+        }
+
+        $version = trim((string) $version);
+        match (true) {
+            $version[0] === '!' => $this->parseExcludeVersion($version),
+            str_contains($version, '-') => $this->parseRangeVersion($version),
+            default => $this->parseMultipleVersions($version),
+        };
+
+        if ($this->allowedVersions === []) {
+            throw new \InvalidArgumentException('UUID version configuration is invalid.');
         }
     }
 }

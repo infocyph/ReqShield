@@ -24,8 +24,71 @@ class Distinct extends BaseRule
     {
         $this->consumeRuleContext($value, $field, $data);
 
-        return is_array($value) && count($value) === count(
-            array_unique($value, SORT_REGULAR),
-        );
+        if (is_array($value)) {
+            return count($value) === count(array_unique($value, SORT_REGULAR));
+        }
+
+        $segments = explode('.', $field);
+        $wildcardIndexes = $this->wildcardIndexes($segments);
+        if ($wildcardIndexes === []) {
+            return false;
+        }
+
+        $occurrences = 0;
+        foreach ($data as $candidateField => $candidate) {
+            if (!$this->matchesWildcardValue($candidateField, $candidate, $value, $segments, $wildcardIndexes)) {
+                continue;
+            }
+
+            ++$occurrences;
+        }
+
+        return $occurrences === 1;
+    }
+
+    /**
+     * @param list<string> $segments
+     * @param list<int> $wildcardIndexes
+     */
+    private function matchesWildcardValue(
+        int|string $candidateField,
+        mixed $candidate,
+        mixed $value,
+        array $segments,
+        array $wildcardIndexes,
+    ): bool {
+        if (!is_string($candidateField) || $candidate !== $value) {
+            return false;
+        }
+
+        $candidateSegments = explode('.', $candidateField);
+        if (count($candidateSegments) !== count($segments)) {
+            return false;
+        }
+
+        foreach ($segments as $index => $segment) {
+            if (in_array($index, $wildcardIndexes, true)) {
+                if (!ctype_digit($candidateSegments[$index])) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if ($candidateSegments[$index] !== $segment) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $segments
+     * @return list<int>
+     */
+    private function wildcardIndexes(array $segments): array
+    {
+        return array_keys(array_filter($segments, ctype_digit(...)));
     }
 }

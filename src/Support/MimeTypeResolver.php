@@ -12,43 +12,8 @@ namespace Infocyph\ReqShield\Support;
  */
 class MimeTypeResolver
 {
-    /** @var array<string, MimeList> */
-    private static array $cache = [];
-
-    /** @var array<int|string, array<int, string>> */
-    private static array $categoryMap = [
-        'a' => ['audio', 'archive', 'adobe', 'apple'],
-        'b' => ['image', 'archive'],
-        'c' => ['code', 'document', 'archive', 'certificate'],
-        'd' => ['document', 'database', '3d', 'image'],
-        'e' => ['document', 'ebook', 'audio', 'executable'],
-        'f' => ['font', 'video', 'audio', '3d'],
-        'g' => ['image', 'archive', 'code'],
-        'h' => ['web', 'code', 'image'],
-        'i' => ['image', 'text', 'archive'],
-        'j' => ['image', 'code', 'web', 'video'],
-        'k' => ['code', 'document', 'video'],
-        'l' => ['text', 'code', 'archive'],
-        'm' => ['audio', 'video', 'document', 'database', 'text', '3d'],
-        'n' => ['image', 'text'],
-        'o' => ['document', 'audio', 'video', 'font'],
-        'p' => ['document', 'image', 'code', 'certificate', 'video', 'adobe'],
-        'q' => ['video'],
-        'r' => ['image', 'audio', 'text', 'video', 'code', 'document'],
-        's' => ['image', 'audio', 'video', 'code', 'text', 'archive'],
-        't' => ['image', 'video', 'text', 'font', 'code', 'archive'],
-        'u' => ['text', 'video'],
-        'v' => ['video', 'text', 'certificate'],
-        'w' => ['audio', 'video', 'web', 'font', 'document', 'image'],
-        'x' => ['document', 'web', 'archive', 'audio', 'image', '3d'],
-        'y' => ['text', 'code'],
-        'z' => ['archive'],
-        '3' => ['video', '3d'],
-        '7' => ['archive'],
-    ];
-
     /** @var array<string, RawMimeMap> */
-    private static array $categoryMimeData = [
+    private const array MIME_GROUPS = [
         '3d' => [
             'obj' => 'text/plain',
             'stl' => 'application/sla',
@@ -230,46 +195,12 @@ class MimeTypeResolver
         ],
     ];
 
-    /** @var array<string, MimeMap> */
-    private static array $loadedCategories = [];
-
-    public static function clearCache(): void
-    {
-        self::$cache = [];
-        self::$loadedCategories = [];
-    }
-
     /** @return MimeList */
     public static function getMimeTypes(string $extension): array
     {
         $extension = strtolower(trim($extension, '.'));
-        if (isset(self::$cache[$extension])) {
-            return self::$cache[$extension];
-        }
 
-        $firstChar = $extension !== '' ? $extension[0] : '';
-        $categories = self::$categoryMap[$firstChar] ?? ['other'];
-
-        foreach ($categories as $category) {
-            if (!isset(self::$loadedCategories[$category])) {
-                self::loadCategory($category);
-            }
-
-            $categoryData = self::$loadedCategories[$category] ?? [];
-            if (!isset($categoryData[$extension])) {
-                continue;
-            }
-
-            $resolved = $categoryData[$extension];
-            self::$cache[$extension] = $resolved;
-
-            return $resolved;
-        }
-
-        $fallback = ['application/octet-stream'];
-        self::$cache[$extension] = $fallback;
-
-        return $fallback;
+        return self::mimeMap()[$extension] ?? ['application/octet-stream'];
     }
 
     public static function getPrimaryMimeType(string $extension): string
@@ -286,38 +217,28 @@ class MimeTypeResolver
         return $types !== ['application/octet-stream'];
     }
 
-    private static function loadCategory(string $category): void
+    /** @return MimeMap */
+    private static function mimeMap(): array
     {
-        self::$loadedCategories[$category] = self::normalizeMimeMap(
-            self::$categoryMimeData[$category] ?? [],
-        );
-    }
-
-    /**
-     * @param RawMimeMap $map
-     *
-     * @return MimeMap
-     */
-    private static function normalizeMimeMap(array $map): array
-    {
-        $normalized = [];
-
-        foreach ($map as $extension => $mimeValue) {
-            if (is_string($mimeValue)) {
-                $normalized[$extension] = [$mimeValue];
-
-                continue;
-            }
-
-            $mimeList = array_values($mimeValue);
-
-            if ($mimeList === []) {
-                continue;
-            }
-
-            $normalized[$extension] = $mimeList;
+        /** @var MimeMap|null $map */
+        static $map = null;
+        if ($map !== null) {
+            return $map;
         }
 
-        return $normalized;
+        $map = [];
+
+        foreach (self::MIME_GROUPS as $group) {
+            foreach ($group as $extension => $mimeValue) {
+                $types = is_string($mimeValue) ? [$mimeValue] : $mimeValue;
+                if (isset($map[$extension])) {
+                    continue;
+                }
+
+                $map[$extension] = $types;
+            }
+        }
+
+        return $map;
     }
 }

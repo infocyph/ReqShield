@@ -13,11 +13,6 @@ final class SchemaCompilerTestRule implements Rule
         return 1;
     }
 
-    public function isBatchable(): bool
-    {
-        return false;
-    }
-
     public function message(string $field): string
     {
         return "{$field} is invalid.";

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Concerns;
 
+use Infocyph\ReqShield\Exceptions\CastException;
 use Infocyph\ReqShield\Sanitizer;
-use Infocyph\ReqShield\Support\NestedValidator;
 
 /**
  * @phpstan-type JsonNode array<int|string, mixed>
@@ -40,19 +40,16 @@ trait HasValidatorSchemaCasting
         $node['required'][] = $segment;
     }
 
+    /** @param list<callable(mixed):mixed> $castDefinition */
     protected function applyCastDefinition(
         mixed $value,
-        mixed $castDefinition,
+        array $castDefinition,
     ): mixed {
-        if (is_array($castDefinition)) {
-            foreach ($castDefinition as $cast) {
-                $value = $this->applySingleCast($value, $cast);
-            }
-
-            return $value;
+        foreach ($castDefinition as $cast) {
+            $value = $cast($value);
         }
 
-        return $this->applySingleCast($value, $castDefinition);
+        return $value;
     }
 
     /**
@@ -90,7 +87,7 @@ trait HasValidatorSchemaCasting
         );
 
         foreach ($wildcardCasts as $fieldPattern => $castDefinition) {
-            $pattern = $this->wildcardPatternToRegex($fieldPattern);
+            $pattern = $this->castWildcardRegexes[$fieldPattern];
 
             foreach ($typed as $field => $value) {
                 if (preg_match($pattern, (string) $field) !== 1) {
@@ -102,48 +99,6 @@ trait HasValidatorSchemaCasting
         }
 
         return $typed;
-    }
-
-    /**
-     * @param DataMap $data
-     * @param SanitizerMap $sanitizerMap
-     * @return DataMap
-     */
-    protected function applyDirectFieldSanitizers(
-        array $data,
-        array $sanitizerMap,
-    ): array {
-        $this->iterateSanitizerMap(
-            $sanitizerMap,
-            static fn(string $field): bool => !str_contains($field, '*'),
-            function (string $field, array $pipeline) use (&$data): void {
-                $this->applyFieldSanitizer($data, $field, $pipeline);
-            },
-        );
-
-        return $data;
-    }
-
-    /**
-     * @param DataMap $data
-     * @param Pipeline $pipeline
-     */
-    protected function applyFieldSanitizer(
-        array &$data,
-        string $field,
-        array $pipeline,
-    ): void {
-        if (str_contains($field, '.')) {
-            $this->applyNestedFieldSanitizer($data, $field, $pipeline);
-
-            return;
-        }
-
-        if (!array_key_exists($field, $data)) {
-            return;
-        }
-
-        $data[$field] = $this->applySanitizerPipeline($data[$field], $pipeline);
     }
 
     /** @param JsonNode $property */
@@ -325,42 +280,17 @@ trait HasValidatorSchemaCasting
 
     protected function applyNamedSanitizerCast(string $cast, mixed $value): mixed
     {
-        return method_exists(Sanitizer::class, $cast)
-            ? Sanitizer::{$cast}($value)
-            : $value;
-    }
-
-    /**
-     * @param DataMap $data
-     * @param Pipeline $pipeline
-     */
-    protected function applyNestedFieldSanitizer(
-        array &$data,
-        string $field,
-        array $pipeline,
-    ): void {
-        if (array_key_exists($field, $data)) {
-            $data[$field] = $this->applySanitizerPipeline($data[$field], $pipeline);
-
-            return;
+        if (!method_exists(Sanitizer::class, $cast)) {
+            throw new CastException("Unknown cast '{$cast}'.");
         }
 
-        if (!NestedValidator::has($data, $field)) {
-            return;
-        }
-
-        $current = NestedValidator::extractValue($data, $field);
-        NestedValidator::setValue(
-            $data,
-            $field,
-            $this->applySanitizerPipeline($current, $pipeline),
-        );
+        return Sanitizer::{$cast}($value);
     }
 
-    /** @param Pipeline $pipeline */
+    /** @param list<callable(mixed):mixed> $pipeline */
     protected function applySanitizerPipeline(mixed $value, array $pipeline): mixed
     {
-        return Sanitizer::apply($value, $pipeline);
+        return Sanitizer::applyCompiled($value, $pipeline);
     }
 
     /**
@@ -369,106 +299,12 @@ trait HasValidatorSchemaCasting
      */
     protected function applySanitizers(array $data): array
     {
-        $sanitizerMap = $this->mergeSanitizerMaps();
-
         return $this->sanitizerMapApplier->apply(
             $data,
-            $sanitizerMap,
-            fn(mixed $pipeline): array => array_values($this->normalizeSanitizerPipeline($pipeline)),
-            fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, array_values($pipeline)),
-            fn(string $pattern): string => $this->wildcardPatternToRegex($pattern),
+            $this->effectiveSanitizers,
+            fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, $pipeline),
+            fn(string $pattern): string => $this->sanitizerWildcardRegexes[$pattern],
         );
-    }
-
-    protected function applySingleCast(mixed $value, mixed $cast): mixed
-    {
-        if (is_callable($cast)) {
-            return $cast($value);
-        }
-
-        if (!is_string($cast) || $cast === '') {
-            return $value;
-        }
-
-        if (enum_exists($cast)) {
-            return $this->castToEnum($value, $cast);
-        }
-
-        $normalized = strtolower($cast);
-
-        if (in_array($normalized, ['int', 'integer'], true)) {
-            return $this->castToInt($value);
-        }
-
-        if (in_array($normalized, ['float', 'double', 'real'], true)) {
-            return $this->castToFloat($value);
-        }
-
-        if (in_array($normalized, ['bool', 'boolean'], true)) {
-            return $this->castToBoolean($value);
-        }
-
-        return match ($normalized) {
-            'string' => $this->castToString($value),
-            'array' => $this->castToArrayValue($value),
-            'object' => $this->castToObjectValue($value),
-            'json' => is_string($value) ? $this->decodeJsonOrFallback($value, $value) : $value,
-            'date', 'datetime', 'datetimeimmutable' => $this->castToDateTimeImmutable($value),
-            default => $this->applyNamedSanitizerCast($cast, $value),
-        };
-    }
-
-    /**
-     * @param DataMap $data
-     * @param SanitizerMap $sanitizerMap
-     * @return DataMap
-     */
-    protected function applyWildcardFieldSanitizers(
-        array $data,
-        array $sanitizerMap,
-    ): array {
-        if (!$this->hasWildcardSanitizers($sanitizerMap)) {
-            return $data;
-        }
-
-        $flattened = NestedValidator::flattenData($data);
-
-        $this->iterateSanitizerMap(
-            $sanitizerMap,
-            static fn(string $field): bool => str_contains($field, '*'),
-            function (string $field, array $pipeline) use (&$flattened): void {
-                $this->applyWildcardSanitizerToFlattened(
-                    $flattened,
-                    $field,
-                    $pipeline,
-                );
-            },
-        );
-
-        return NestedValidator::unflattenData($flattened);
-    }
-
-    /**
-     * @param DataMap $flattened
-     * @param Pipeline $pipeline
-     */
-    protected function applyWildcardSanitizerToFlattened(
-        array &$flattened,
-        string $fieldPattern,
-        array $pipeline,
-    ): void {
-        $pattern = $this->wildcardPatternToRegex($fieldPattern);
-
-        foreach ($flattened as $path => $value) {
-            if (preg_match($pattern, (string) $path) !== 1) {
-                continue;
-            }
-
-            $flattened[$path] = $this->applySanitizerPipeline(
-                $value,
-                $pipeline,
-            );
-        }
     }
 
     /**
@@ -488,6 +324,29 @@ trait HasValidatorSchemaCasting
         $node['properties'][$segment] = $property;
         if ($required) {
             $this->appendJsonSchemaRequiredProperty($node, $segment);
+        }
+    }
+
+    protected function castDateTime(mixed $value): \DateTimeImmutable
+    {
+        $date = $this->castToDateTimeImmutable($value);
+        if (!$date instanceof \DateTimeImmutable) {
+            throw new CastException('Value cannot be cast to date/time.');
+        }
+
+        return $date;
+    }
+
+    protected function castJson(mixed $value): mixed
+    {
+        if (!is_string($value)) {
+            throw new CastException('JSON cast requires a string.');
+        }
+
+        try {
+            return json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new CastException('Value cannot be cast from JSON.', previous: $exception);
         }
     }
 
@@ -534,7 +393,7 @@ trait HasValidatorSchemaCasting
             return $case instanceof \UnitEnum ? $case : $value;
         }
 
-        return $value;
+        throw new CastException("Value cannot be cast to enum '{$enumClass}'.");
     }
 
     protected function castToFloat(mixed $value): float
@@ -543,32 +402,25 @@ trait HasValidatorSchemaCasting
             return $value;
         }
 
-        if (is_int($value) || is_bool($value) || $value === null || is_string($value)) {
+        if (is_int($value) || (is_string($value) && is_numeric($value))) {
             return (float) $value;
         }
 
-        if (is_object($value) && method_exists($value, '__toString')) {
+        if (is_object($value) && method_exists($value, '__toString') && is_numeric((string) $value)) {
             return (float) (string) $value;
         }
 
-        return 0.0;
+        throw new CastException('Value cannot be cast to float.');
     }
 
     protected function castToInt(mixed $value): int
     {
-        if (is_int($value)) {
-            return $value;
+        $cast = \Infocyph\ReqShield\Support\InputCaster::tryInteger($value);
+        if ($cast !== null) {
+            return $cast;
         }
 
-        if (is_float($value) || is_bool($value) || $value === null || is_string($value)) {
-            return (int) $value;
-        }
-
-        if (is_object($value) && method_exists($value, '__toString')) {
-            return (int) (string) $value;
-        }
-
-        return 0;
+        throw new CastException('Value cannot be cast to integer.');
     }
 
     protected function castToObjectValue(mixed $value): object
@@ -578,6 +430,57 @@ trait HasValidatorSchemaCasting
         }
 
         return (object) (is_array($value) ? $value : ['value' => $value]);
+    }
+
+    /**
+     * @param array<string,mixed> $map
+     * @return array<string,list<callable(mixed):mixed>>
+     */
+    protected function compileCastMap(array $map): array
+    {
+        $compiled = [];
+
+        foreach ($map as $field => $definition) {
+            $pipeline = is_array($definition) ? $definition : [$definition];
+            $compiled[$field] = [];
+            foreach ($pipeline as $cast) {
+                $compiled[$field][] = $this->compileSingleCast($cast);
+            }
+        }
+
+        return $compiled;
+    }
+
+    /** @return callable(mixed):mixed */
+    protected function compileSingleCast(mixed $cast): callable
+    {
+        if (is_callable($cast)) {
+            return static fn(mixed $value): mixed => $cast($value);
+        }
+
+        if (!is_string($cast) || $cast === '') {
+            throw new CastException('Cast definitions must be non-empty strings or callables.');
+        }
+
+        if (enum_exists($cast)) {
+            return fn(mixed $value): mixed => $this->castToEnum($value, $cast);
+        }
+
+        $normalized = strtolower($cast);
+
+        return match ($normalized) {
+            'int', 'integer' => fn(mixed $value): int => $this->castToInt($value),
+            'float', 'double', 'real' => fn(mixed $value): float => $this->castToFloat($value),
+            'bool', 'boolean' => fn(mixed $value): bool => $this->castToBoolean($value),
+            'string' => fn(mixed $value): string => $this->castToString($value),
+            'array' => fn(mixed $value): array => $this->castToArrayValue($value),
+            'object' => fn(mixed $value): object => $this->castToObjectValue($value),
+            'json' => fn(mixed $value): mixed => $this->castJson($value),
+            'date', 'datetime', 'datetimeimmutable' => fn(mixed $value): \DateTimeImmutable => $this->castDateTime($value),
+            default => method_exists(Sanitizer::class, $cast)
+                ? fn(mixed $value): mixed => $this->applyNamedSanitizerCast($cast, $value)
+                : throw new CastException("Unknown cast '{$cast}'."),
+        };
     }
 
     /** @param JsonNode $node */
@@ -611,39 +514,6 @@ trait HasValidatorSchemaCasting
         }
 
         $node['properties'] ??= [];
-    }
-
-    /** @param SanitizerMap $sanitizerMap */
-    protected function hasWildcardSanitizers(array $sanitizerMap): bool
-    {
-        return array_any(
-            array_keys($sanitizerMap),
-            fn(int|string $field): bool => str_contains((string) $field, '*'),
-        );
-    }
-
-    /**
-     * @param SanitizerMap $sanitizerMap
-     * @param callable(string): bool $shouldProcessField
-     * @param callable(string, Pipeline): void $applyField
-     */
-    protected function iterateSanitizerMap(
-        array $sanitizerMap,
-        callable $shouldProcessField,
-        callable $applyField,
-    ): void {
-        foreach ($sanitizerMap as $field => $pipeline) {
-            if (!is_string($field) || !$shouldProcessField($field)) {
-                continue;
-            }
-
-            $normalizedPipeline = $this->normalizeSanitizerPipeline($pipeline);
-            if (empty($normalizedPipeline)) {
-                continue;
-            }
-
-            $applyField($field, $normalizedPipeline);
-        }
     }
 
     protected function jsonSchemaNumericValue(mixed $rawValue): int|float|null

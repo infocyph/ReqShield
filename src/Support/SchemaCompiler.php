@@ -6,10 +6,14 @@ namespace Infocyph\ReqShield\Support;
 
 use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Enums\BuiltinRule;
-use Infocyph\ReqShield\Exceptions\InvalidRuleException;
+use Infocyph\ReqShield\Exceptions\InvalidRuleParameterException;
+use Infocyph\ReqShield\Exceptions\InvalidSchemaException;
+use Infocyph\ReqShield\Exceptions\UnknownRuleException;
 
 class SchemaCompiler
 {
+    protected const int MAX_RESOLVED_RULE_CACHE = 256;
+
     /** @var array<string, class-string<Rule>> */
     protected static array $resolvedBuiltinRuleClassCache = [];
 
@@ -33,7 +37,7 @@ class SchemaCompiler
     /**
      * @param array<int|string,mixed> $rules
      *
-     * @return array<string,ValidationNode>
+     * @return array<string,FieldPlan>
      */
     public function compile(array $rules): array
     {
@@ -54,12 +58,7 @@ class SchemaCompiler
 
             // Always use flat structure - nested fields with dots are just field names
             // The NestedValidator will handle flattening the data to match
-            $schema[$field] = $this->compileField(array_values($ruleSet));
-        }
-
-        // Sort rules by cost in all nodes
-        foreach ($schema as $node) {
-            $node->sortRules();
+            $schema[$field] = $this->compileField($field, array_values($ruleSet));
         }
 
         return $schema;
@@ -311,14 +310,14 @@ class SchemaCompiler
     protected function assertRuleClass(string $ruleName, string $class): void
     {
         if (!class_exists($class)) {
-            throw InvalidRuleException::invalidFormat(
+            throw InvalidSchemaException::forField(
                 $ruleName,
                 "Resolved rule class does not exist: {$class}",
             );
         }
 
         if (!is_subclass_of($class, Rule::class)) {
-            throw InvalidRuleException::invalidFormat(
+            throw InvalidSchemaException::forField(
                 $ruleName,
                 'Resolved rule class must implement ' . Rule::class . ": {$class}",
             );
@@ -378,23 +377,46 @@ class SchemaCompiler
      *
      * @return array<int,mixed>
      */
-    protected function castParameters(array $params): array
+    protected function castParameters(string $ruleName, array $params): array
     {
-        return array_map(fn($param) => match (true) {
-            $param === '' || $param === 'null' => null,
-            $param === 'true' => true,
-            $param === 'false' => false,
-            is_numeric($param) => str_contains((string) $param, '.')
-              ? (float) $param
-              : (int) $param,
-            default => $param,
-        }, $params);
+        $integerRules = ['digits', 'min_digits', 'max_digits', 'digits_between', 'decimal'];
+        if (in_array($ruleName, $integerRules, true)) {
+            return array_map($this->coerceIntegerParameter(...), $params);
+        }
+
+        $numberRules = ['min', 'max', 'size', 'between', 'multiple_of'];
+        if (in_array($ruleName, $numberRules, true)) {
+            return array_map($this->coerceNumberParameter(...), $params);
+        }
+
+        return $params;
+    }
+
+    protected function coerceIntegerParameter(mixed $parameter): int
+    {
+        $value = filter_var($parameter, FILTER_VALIDATE_INT);
+        if ($value === false) {
+            throw new \InvalidArgumentException('Expected an integer parameter.');
+        }
+
+        return $value;
+    }
+
+    protected function coerceNumberParameter(mixed $parameter): int|float
+    {
+        if (!is_numeric($parameter)) {
+            throw new \InvalidArgumentException('Expected a numeric parameter.');
+        }
+
+        return str_contains((string) $parameter, '.')
+            ? (float) $parameter
+            : (int) $parameter;
     }
 
     /** @param array<int,mixed> $ruleSet */
-    protected function compileField(array $ruleSet): ValidationNode
+    protected function compileField(string $field, array $ruleSet): FieldPlan
     {
-        $node = new ValidationNode();
+        $builder = new FieldPlanBuilder();
 
         foreach ($ruleSet as $rule) {
             if (is_string($rule)) {
@@ -402,26 +424,39 @@ class SchemaCompiler
                 $params = array_values($params);
                 $ruleObject = $this->createRuleInstance($ruleName, $params);
                 $placeholders = $this->buildRulePlaceholders($ruleName, $params);
+                $dependencies = $this->dependencyPaths($field, $ruleName, $params, $ruleObject);
             } else {
                 $ruleObject = $this->parseRule($rule);
                 $ruleName = $this->getRuleNameForRule($ruleObject);
                 $placeholders = [];
+                $dependencies = $this->dependencyPaths($field, $ruleName, [], $ruleObject);
             }
 
-            $node->addRule($ruleObject, $ruleName, $placeholders);
+            $builder->add($ruleObject, $ruleName, $placeholders, $dependencies);
         }
 
-        return $node;
+        return $builder->build();
     }
 
     /** @param array<int,mixed> $params */
     protected function createRuleInstance(string $name, array $params): Rule
     {
+        if ($name === 'unique' && count($params) > 2) {
+            throw InvalidRuleParameterException::forRule(
+                $name,
+                'String syntax accepts only table and column; use Rule::unique() for advanced options.',
+            );
+        }
+
         /** @var class-string<Rule> $class */
         $class = $this->resolveRuleClass($name);
 
         // Cast parameters to appropriate types
-        $params = $this->castParameters($params);
+        try {
+            $params = $this->castParameters($name, $params);
+        } catch (\InvalidArgumentException $exception) {
+            throw InvalidRuleParameterException::forRule($name, $exception->getMessage());
+        }
 
         // Handle array rules - they expect all params as a single array
         // Example: 'in:1,2,3' becomes ['1','2','3'], needs to be [['1','2','3']]
@@ -435,15 +470,60 @@ class SchemaCompiler
                 0 => new $class(),
                 default => new $class(...$params),
             };
-        } catch (\ArgumentCountError $e) {
-            throw new InvalidRuleException(
-                "Invalid parameters for rule '{$name}': {$e->getMessage()}",
-            );
-        } catch (\TypeError $e) {
-            throw new InvalidRuleException(
-                "Invalid parameter types for rule '{$name}': {$e->getMessage()}",
-            );
+        } catch (\ArgumentCountError|\TypeError|\InvalidArgumentException $e) {
+            throw InvalidRuleParameterException::forRule($name, $e->getMessage());
         }
+    }
+
+    /**
+     * @param array<int,mixed> $params
+     * @return list<string>
+     */
+    protected function dependencyPaths(string $field, string $name, array $params, Rule $rule): array
+    {
+        if ($name === 'confirmed') {
+            return [$field . '_confirmation'];
+        }
+
+        if (method_exists($rule, 'getOtherFields')) {
+            $fields = $rule->getOtherFields();
+
+            return is_array($fields) ? array_values(array_filter($fields, is_string(...))) : [];
+        }
+
+        if (method_exists($rule, 'getOtherField')) {
+            $other = $rule->getOtherField();
+
+            return is_string($other) && $other !== '' ? [$other] : [];
+        }
+
+        $allParameters = [
+            'exclude_with', 'exclude_without', 'present_with', 'present_with_all',
+            'prohibits', 'required_with', 'required_with_all', 'required_without',
+            'required_without_all',
+        ];
+        if (in_array($name, $allParameters, true)) {
+            return array_values(array_filter($params, is_string(...)));
+        }
+
+        $firstParameter = [
+            'accepted_if', 'after', 'after_or_equal', 'before', 'before_or_equal',
+            'date_equals', 'declined_if', 'different', 'exclude_if', 'exclude_unless',
+            'gt', 'gte', 'in_array', 'lt', 'lte', 'missing_if', 'missing_unless',
+            'present_if', 'present_unless', 'prohibited_if', 'prohibited_unless',
+            'required_if', 'required_if_accepted', 'required_if_declined', 'required_unless', 'same',
+        ];
+        $dependency = $params[0] ?? null;
+        if (!in_array($name, $firstParameter, true) || !is_string($dependency) || $dependency === '') {
+            return [];
+        }
+
+        if (in_array($name, ['after', 'after_or_equal', 'before', 'before_or_equal', 'date_equals'], true)
+            && strtotime($dependency) !== false) {
+            return [];
+        }
+
+        return [$dependency];
     }
 
     /** @param array<int,mixed> $params */
@@ -474,7 +554,12 @@ class SchemaCompiler
     {
         // Already a Rule object
         if ($rule instanceof Rule) {
-            return $rule;
+            $reflection = new \ReflectionObject($rule);
+            if (!$reflection->isCloneable()) {
+                throw InvalidSchemaException::forField('rule', 'Rule objects must be cloneable.');
+            }
+
+            return clone $rule;
         }
 
         // String rule
@@ -482,8 +567,9 @@ class SchemaCompiler
             return $this->parseStringRule($rule);
         }
 
-        throw new InvalidRuleException(
-            'Invalid rule format: ' . gettype($rule),
+        throw InvalidSchemaException::forField(
+            'rule',
+            'Expected a rule object or string, got ' . get_debug_type($rule),
         );
     }
 
@@ -519,11 +605,14 @@ class SchemaCompiler
 
         $class = BuiltinRule::resolve($ruleName);
         if ($class === null) {
-            throw InvalidRuleException::unknownRule($ruleName);
+            throw UnknownRuleException::forName($ruleName);
         }
 
         $this->assertRuleClass($ruleName, $class);
         self::$resolvedBuiltinRuleClassCache[$ruleName] = $class;
+        if (count(self::$resolvedBuiltinRuleClassCache) > self::MAX_RESOLVED_RULE_CACHE) {
+            array_shift(self::$resolvedBuiltinRuleClassCache);
+        }
 
         return $class;
     }

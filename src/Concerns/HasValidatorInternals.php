@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Concerns;
 
 use Infocyph\ReqShield\Contracts\Rule;
-use Infocyph\ReqShield\Exceptions\InvalidRuleException;
+use Infocyph\ReqShield\Exceptions\InvalidSchemaException;
+use Infocyph\ReqShield\Support\FieldPlan;
 use Infocyph\ReqShield\Support\HashAlgorithm;
 use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\RuleExpressionParser;
-use Infocyph\ReqShield\Support\ValidationNode;
 use Infocyph\ReqShield\Support\ValidationPlan;
 use Infocyph\ReqShield\Support\WildcardPath;
 
@@ -18,15 +18,6 @@ use Infocyph\ReqShield\Support\WildcardPath;
  * @phpstan-type RulePlaceholderMap array<int, array<string, mixed>>
  * @phpstan-type ParsedRule array{name:string, params:array<int, mixed>}
  * @phpstan-type ParsedRuleList array<int, ParsedRule>
- * @phpstan-type RulePartitionBucket array{
- *   rules:array<int, Rule>,
- *   ruleNames:array<int, string>,
- *   rulePlaceholders:array<int, array<string, mixed>>
- * }
- * @phpstan-type RulePartition array{
- *   inline:RulePartitionBucket,
- *   batch:RulePartitionBucket
- * }
  * @phpstan-type ValidationFailure array{
  *   field:string,
  *   rule:string,
@@ -39,6 +30,7 @@ use Infocyph\ReqShield\Support\WildcardPath;
  *   value:mixed,
  *   field:string,
  *   field_label:string,
+ *   field_fail_fast?:bool,
  *   message_resolver:callable(): string
  * }
  * @phpstan-type ValidationContext array{
@@ -50,8 +42,107 @@ use Infocyph\ReqShield\Support\WildcardPath;
  */
 trait HasValidatorInternals
 {
+    protected const int MAX_CALLABLE_ARITY_CACHE = 128;
+
     /** @var array<string, int|null> */
     protected static array $callableMaxArityCache = [];
+
+    /** @var array<string, int|null> */
+    protected array $localCallableMaxArityCache = [];
+
+    /** @param array<int|string,mixed> $definition */
+    protected static function isStructuredDefinition(array $definition): bool
+    {
+        return array_key_exists('rules', $definition)
+            || array_key_exists('sanitize', $definition)
+            || array_key_exists('sanitizers', $definition)
+            || array_key_exists('cast', $definition)
+            || array_key_exists('alias', $definition);
+    }
+
+    /** @return array<int|string,mixed> */
+    protected static function mergeComposedField(mixed $existing, mixed $incoming): array
+    {
+        $existingStructured = is_array($existing) && static::isStructuredDefinition($existing);
+        $incomingStructured = is_array($incoming) && static::isStructuredDefinition($incoming);
+
+        if (!$existingStructured && !$incomingStructured) {
+            return array_merge(
+                static::normalizeComposedRuleSet($existing),
+                static::normalizeComposedRuleSet($incoming),
+            );
+        }
+
+        $left = $existingStructured ? $existing : ['rules' => $existing];
+        $right = $incomingStructured ? $incoming : ['rules' => $incoming];
+        $merged = $left;
+        $merged['rules'] = array_merge(
+            static::normalizeComposedRuleSet($left['rules'] ?? []),
+            static::normalizeComposedRuleSet($right['rules'] ?? []),
+        );
+
+        $leftSanitizers = $left['sanitize'] ?? $left['sanitizers'] ?? [];
+        $rightSanitizers = $right['sanitize'] ?? $right['sanitizers'] ?? [];
+        if ($leftSanitizers !== [] || $rightSanitizers !== []) {
+            $merged['sanitize'] = array_merge(
+                static::normalizePipelineDefinition($leftSanitizers),
+                static::normalizePipelineDefinition($rightSanitizers),
+            );
+            unset($merged['sanitizers']);
+        }
+
+        foreach (['cast', 'alias'] as $key) {
+            if (array_key_exists($key, $right)) {
+                $merged[$key] = $right[$key];
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param array<int|string,mixed> $composed
+     * @param array<int|string,mixed> $schema
+     * @return array<int|string,mixed>
+     */
+    protected static function mergeComposedSchema(array $composed, array $schema): array
+    {
+        foreach ($schema as $field => $rules) {
+            if (!is_string($field)) {
+                continue;
+            }
+
+            $composed[$field] = array_key_exists($field, $composed)
+                ? static::mergeComposedField($composed[$field], $rules)
+                : $rules;
+        }
+
+        return $composed;
+    }
+
+    /** @return array<int|string,mixed> */
+    protected static function normalizeComposedRuleSet(mixed $rules): array
+    {
+        if ($rules instanceof Rule) {
+            return [$rules];
+        }
+
+        if (is_array($rules)) {
+            return array_values($rules);
+        }
+
+        return is_string($rules) ? RuleExpressionParser::splitRules($rules) : [];
+    }
+
+    /** @return list<mixed> */
+    protected static function normalizePipelineDefinition(mixed $pipeline): array
+    {
+        if ($pipeline === null || $pipeline === '') {
+            return [];
+        }
+
+        return is_array($pipeline) ? array_values($pipeline) : [$pipeline];
+    }
 
     /** @param array<int|string, mixed> $definition */
     protected function appendSchemaAliasDefinition(
@@ -146,7 +237,7 @@ trait HasValidatorInternals
             }
 
             if (!is_array($result)) {
-                throw InvalidRuleException::invalidFormat(
+                throw InvalidSchemaException::forField(
                     'when',
                     'When callback must return an array of rules or null',
                 );
@@ -172,7 +263,7 @@ trait HasValidatorInternals
             return $definition;
         }
 
-        throw InvalidRuleException::invalidFormat(
+        throw InvalidSchemaException::forField(
             $field,
             'Rules must be string or array',
         );
@@ -184,7 +275,7 @@ trait HasValidatorInternals
             return $field;
         }
 
-        throw InvalidRuleException::invalidFormat(
+        throw InvalidSchemaException::forField(
             get_debug_type($field),
             'Field names must be strings',
         );
@@ -209,10 +300,27 @@ trait HasValidatorInternals
         }
 
         if (is_string($callback)) {
-            return 'string:' . $callback;
+            return 'callable:' . $callback;
         }
 
-        return 'callable:' . spl_object_id(\Closure::fromCallable($callback));
+        throw new \LogicException('Unsupported callable type.');
+    }
+
+    /**
+     * @param array<string,mixed> $map
+     * @return array<string,list<callable(mixed):mixed>>
+     */
+    protected function compileSanitizerMap(array $map): array
+    {
+        $compiled = [];
+
+        foreach ($map as $field => $pipeline) {
+            $compiled[$field] = \Infocyph\ReqShield\Sanitizer::compile(
+                $this->normalizeSanitizerPipeline($pipeline),
+            );
+        }
+
+        return $compiled;
     }
 
     protected function getCachedWildcardPlan(string $cacheKey): ?ValidationPlan
@@ -234,9 +342,9 @@ trait HasValidatorInternals
         array $args,
     ): mixed {
         $maxArity = $this->resolveCallableMaxArity($callback);
-        $invokeArgs = $maxArity === null
+        $invokeArgs = $maxArity === null || $maxArity >= count($args)
             ? $args
-            : array_slice($args, 0, min($maxArity, count($args)));
+            : array_slice($args, 0, $maxArity);
 
         return $callback(...$invokeArgs);
     }
@@ -256,6 +364,13 @@ trait HasValidatorInternals
         );
     }
 
+    protected function isEmptyValidationValue(mixed $value): bool
+    {
+        return $value === null
+            || (is_string($value) && trim($value) === '')
+            || (is_countable($value) && count($value) === 0);
+    }
+
     /** @param array<int|string, mixed> $definition */
     protected function isSchemaRuleDefinition(array $definition): bool
     {
@@ -266,7 +381,7 @@ trait HasValidatorInternals
             || array_key_exists('alias', $definition);
     }
 
-    /** @return array<int, string> */
+    /** @return list<string> */
     protected function localeCandidates(string $locale): array
     {
         $normalized = trim($locale);
@@ -298,10 +413,10 @@ trait HasValidatorInternals
         return preg_match('/^[A-Za-z0-9_.*-]+$/', $value) === 1;
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<string,list<callable(mixed):mixed>> */
     protected function mergeCastMaps(): array
     {
-        return array_merge($this->schemaCasts, $this->casts);
+        return array_merge($this->compiledSchemaCasts, $this->casts);
     }
 
     /**
@@ -314,16 +429,16 @@ trait HasValidatorInternals
         return static::composeSchemas($baseRules, $incomingRules);
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<string,list<callable(mixed):mixed>> */
     protected function mergeSanitizerMaps(): array
     {
-        $merged = $this->schemaSanitizers;
+        $merged = $this->compiledSchemaSanitizers;
 
         foreach ($this->sanitizers as $field => $pipeline) {
             if (isset($merged[$field])) {
                 $merged[$field] = array_merge(
-                    $this->normalizeSanitizerPipeline($merged[$field]),
-                    $this->normalizeSanitizerPipeline($pipeline),
+                    $merged[$field],
+                    $pipeline,
                 );
 
                 continue;
@@ -414,7 +529,7 @@ trait HasValidatorInternals
             return array_values($rules);
         }
 
-        throw InvalidRuleException::invalidFormat(
+        throw InvalidSchemaException::forField(
             $field,
             'Schema "rules" must be string or array',
         );
@@ -423,28 +538,36 @@ trait HasValidatorInternals
     protected function normalizeRulesForCache(mixed $value): string
     {
         if (is_array($value)) {
-            $parts = [];
+            $encoded = 'a' . count($value) . ':';
 
             foreach ($value as $key => $item) {
-                $parts[] = $key . '=' . $this->normalizeRulesForCache($item);
+                $encoded .= $this->normalizeRulesForCache($key);
+                $encoded .= $this->normalizeRulesForCache($item);
             }
 
-            return '[' . implode(',', $parts) . ']';
+            return $encoded;
         }
 
         if (is_object($value)) {
-            return $value::class . '#' . spl_object_id($value);
+            $identity = $value::class . '#' . spl_object_id($value);
+
+            return 'o' . strlen($identity) . ':' . $identity;
         }
 
         if (is_bool($value)) {
-            return $value ? 'true' : 'false';
+            return $value ? 'b1;' : 'b0;';
         }
 
         if ($value === null) {
-            return 'null';
+            return 'n;';
         }
 
-        return is_scalar($value) ? (string) $value : get_debug_type($value);
+        return match (true) {
+            is_int($value) => 'i' . $value . ';',
+            is_float($value) => 'f' . serialize($value),
+            is_string($value) => 's' . strlen($value) . ':' . $value,
+            default => 'x' . strlen(get_debug_type($value)) . ':' . get_debug_type($value),
+        };
     }
 
     /**
@@ -457,7 +580,7 @@ trait HasValidatorInternals
 
         foreach ($rules as $field => $definition) {
             if (!is_string($field)) {
-                throw InvalidRuleException::invalidFormat(
+                throw InvalidSchemaException::forField(
                     get_debug_type($field),
                     'Runtime rule keys must be strings',
                 );
@@ -475,7 +598,7 @@ trait HasValidatorInternals
                 continue;
             }
 
-            throw InvalidRuleException::invalidFormat(
+            throw InvalidSchemaException::forField(
                 $field,
                 'Runtime rule definitions must be strings or arrays',
             );
@@ -548,6 +671,12 @@ trait HasValidatorInternals
             return;
         }
 
+        if ($definition instanceof Rule) {
+            $normalized[$field] = [$definition];
+
+            return;
+        }
+
         $definition = $this->assertRuleDefinitionIsArray($field, $definition);
         if (!$this->isSchemaRuleDefinition($definition)) {
             $normalized[$field] = array_values($definition);
@@ -602,43 +731,6 @@ trait HasValidatorInternals
     }
 
     /**
-     * @param array<int, Rule> $rules
-     * @param array<int, string> $ruleNames
-     * @param RulePlaceholderMap $rulePlaceholders
-     * @return RulePartition
-     */
-    protected function partitionExpensiveRules(
-        array $rules,
-        array $ruleNames,
-        array $rulePlaceholders,
-    ): array {
-        $partitioned = [
-            'inline' => [
-                'rules' => [],
-                'ruleNames' => [],
-                'rulePlaceholders' => [],
-            ],
-            'batch' => [
-                'rules' => [],
-                'ruleNames' => [],
-                'rulePlaceholders' => [],
-            ],
-        ];
-
-        foreach ($rules as $index => $rule) {
-            $bucket = $rule->isBatchable() ? 'batch' : 'inline';
-
-            $partitioned[$bucket]['rules'][] = $rule;
-            $partitioned[$bucket]['ruleNames'][] = $ruleNames[$index]
-                ?? $this->compiler->getRuleNameForRule($rule);
-            $partitioned[$bucket]['rulePlaceholders'][] = $rulePlaceholders[$index]
-                ?? [];
-        }
-
-        return $partitioned;
-    }
-
-    /**
      * @param array<int|string,mixed> $data
      * @param array<int|string,mixed>|null $activeRules
      *
@@ -653,21 +745,11 @@ trait HasValidatorInternals
         $rules = $activeRules ?? $this->rules;
         $rulesCacheKey = $activeRulesCacheKey ?? $this->rulesCacheKey;
 
-        $hasNestedRules = array_any(
-            array_keys($rules),
-            fn($field) => str_contains((string) $field, '.') || str_contains((string) $field, '*'),
-        );
-
-        if (!$hasNestedRules) {
+        if (!$plan->hasNestedRules) {
             return [$data, $plan];
         }
 
-        $hasWildcardRules = array_any(
-            array_keys($rules),
-            fn($field) => str_contains((string) $field, '*'),
-        );
-
-        if ($hasWildcardRules) {
+        if ($plan->hasWildcardRules) {
             $cacheKey = implode(
                 ':',
                 [
@@ -680,7 +762,11 @@ trait HasValidatorInternals
             $cachedPlan = $this->getCachedWildcardPlan($cacheKey);
             if ($cachedPlan === null) {
                 $parsedRules = NestedValidator::parseRules($rules);
-                $expandedRules = NestedValidator::expandWildcards($data, $parsedRules);
+                $expandedRules = NestedValidator::expandWildcards(
+                    $data,
+                    $parsedRules,
+                    $this->maxWildcardExpansions,
+                );
                 $cachedPlan = new ValidationPlan(
                     $this->compiler->compile($this->normalizeRuntimeRules($expandedRules)),
                 );
@@ -690,14 +776,25 @@ trait HasValidatorInternals
             $plan = $cachedPlan;
         }
 
-        if ($this->nestedFlattenMode === 'required') {
-            return [
-                NestedValidator::flattenForPaths($data, array_values($plan->fields)),
-                $plan,
-            ];
+        if ($this->nestedFlattenMode === 'targeted') {
+            $flattened = NestedValidator::flattenForPaths($data, $plan->inputPaths);
+            if (count($flattened) > $this->maxFlattenedPaths) {
+                throw new \Infocyph\ReqShield\Exceptions\InputLimitException(
+                    "Maximum flattened path count of {$this->maxFlattenedPaths} exceeded.",
+                );
+            }
+
+            return [$flattened, $plan];
         }
 
-        return [NestedValidator::flattenData($data), $plan];
+        $flattened = NestedValidator::flattenData($data);
+        if (count($flattened) > $this->maxFlattenedPaths) {
+            throw new \Infocyph\ReqShield\Exceptions\InputLimitException(
+                "Maximum flattened path count of {$this->maxFlattenedPaths} exceeded.",
+            );
+        }
+
+        return [$flattened, $plan];
     }
 
     /**
@@ -738,7 +835,7 @@ trait HasValidatorInternals
      * @param ValidationContext $context
      */
     protected function processExpensivePhases(
-        ValidationNode $node,
+        FieldPlan $node,
         mixed $value,
         string $field,
         string $fieldLabel,
@@ -751,18 +848,12 @@ trait HasValidatorInternals
             return true;
         }
 
-        $partitioned = $this->partitionExpensiveRules(
-            array_values($node->expensiveRules),
-            array_values($node->expensiveRuleNames),
-            $node->expensiveRulePlaceholders,
-        );
-
         if (
-            !empty($partitioned['inline']['rules'])
+            $node->expensiveRules !== []
             && !$this->validatePhase(
-                $partitioned['inline']['rules'],
-                $partitioned['inline']['ruleNames'],
-                $partitioned['inline']['rulePlaceholders'],
+                $node->expensiveRules,
+                $node->expensiveRuleNames,
+                $node->expensiveRulePlaceholders,
                 $value,
                 $field,
                 $fieldLabel,
@@ -777,14 +868,15 @@ trait HasValidatorInternals
 
         if (!$hasError || !$fieldFailFast) {
             $this->collectExpensiveRules(
-                $partitioned['batch']['rules'],
-                $partitioned['batch']['ruleNames'],
-                $partitioned['batch']['rulePlaceholders'],
+                $node->batchRules,
+                $node->batchRuleNames,
+                $node->batchRulePlaceholders,
                 $value,
                 $field,
                 $fieldLabel,
                 $data,
                 $context['expensiveBatch'],
+                $fieldFailFast,
             );
         }
 
@@ -798,7 +890,7 @@ trait HasValidatorInternals
     protected function processFieldValidation(
         string $field,
         mixed $value,
-        ValidationNode $node,
+        FieldPlan $node,
         array $data,
         array &$context,
     ): bool {
@@ -808,6 +900,34 @@ trait HasValidatorInternals
         }
 
         $fieldFailFast = $this->failFast || $node->hasBailRule;
+        $fieldExists = array_key_exists($field, $data);
+        $hasError = $this->validateImplicitPhase(
+            $node,
+            $value,
+            $field,
+            $fieldLabel,
+            $data,
+            $context,
+            $fieldFailFast,
+            $fieldExists,
+        );
+
+        if (!$fieldExists || ($hasError && $fieldFailFast)) {
+            return !$hasError;
+        }
+
+        if ($value === null && $node->nullable) {
+            if (!$hasError) {
+                $context['validated'][$field] = null;
+            }
+
+            return !$hasError;
+        }
+
+        if ($node->isOptional && !$node->hasFilledRule && $this->isEmptyValidationValue($value)) {
+            return !$hasError;
+        }
+
         $hasError = $this->validateCheapAndMediumPhases(
             $node,
             $value,
@@ -816,7 +936,7 @@ trait HasValidatorInternals
             $data,
             $context,
             $fieldFailFast,
-        );
+        ) || $hasError;
         $hasError = $this->processExpensivePhases(
             $node,
             $value,
@@ -833,6 +953,45 @@ trait HasValidatorInternals
         }
 
         return !$hasError;
+    }
+
+    protected function refreshCastExecutionMetadata(): void
+    {
+        $this->castWildcardRegexes = [];
+        foreach ($this->mergeCastMaps() as $field => $pipeline) {
+            if (str_contains($field, '*')) {
+                $this->castWildcardRegexes[$field] = WildcardPath::toRegex($field);
+            }
+        }
+    }
+
+    protected function refreshSanitizerExecutionMetadata(): void
+    {
+        $this->effectiveSanitizers = $this->mergeSanitizerMaps();
+        $this->sanitizerWildcardRegexes = [];
+
+        foreach ($this->effectiveSanitizers as $field => $pipeline) {
+            if (str_contains($field, '*')) {
+                $this->sanitizerWildcardRegexes[$field] = WildcardPath::toRegex($field);
+            }
+        }
+    }
+
+    protected function rememberCallableArity(string $key, ?int $arity, bool $persistent): void
+    {
+        if ($persistent) {
+            self::$callableMaxArityCache[$key] = $arity;
+            if (count(self::$callableMaxArityCache) > self::MAX_CALLABLE_ARITY_CACHE) {
+                array_shift(self::$callableMaxArityCache);
+            }
+
+            return;
+        }
+
+        $this->localCallableMaxArityCache[$key] = $arity;
+        if (count($this->localCallableMaxArityCache) > self::MAX_CALLABLE_ARITY_CACHE) {
+            array_shift($this->localCallableMaxArityCache);
+        }
     }
 
     protected function rememberCompiledSchema(
@@ -869,8 +1028,14 @@ trait HasValidatorInternals
     protected function resolveCallableMaxArity(callable $callback): ?int
     {
         $cacheKey = $this->callableArityCacheKey($callback);
-        if (isset(self::$callableMaxArityCache[$cacheKey])) {
-            return self::$callableMaxArityCache[$cacheKey];
+        $persistent = is_string($callback)
+            || (is_array($callback) && is_string($callback[0]));
+        $cache = $persistent
+            ? self::$callableMaxArityCache
+            : $this->localCallableMaxArityCache;
+
+        if (array_key_exists($cacheKey, $cache)) {
+            return $cache[$cacheKey];
         }
 
         try {
@@ -881,19 +1046,19 @@ trait HasValidatorInternals
                 default => new \ReflectionFunction(\Closure::fromCallable($callback)),
             };
         } catch (\Throwable) {
-            self::$callableMaxArityCache[$cacheKey] = null;
+            $this->rememberCallableArity($cacheKey, null, $persistent);
 
             return null;
         }
 
         if ($reflection->isVariadic()) {
-            self::$callableMaxArityCache[$cacheKey] = null;
+            $this->rememberCallableArity($cacheKey, null, $persistent);
 
             return null;
         }
 
         $maxArity = $reflection->getNumberOfParameters();
-        self::$callableMaxArityCache[$cacheKey] = $maxArity;
+        $this->rememberCallableArity($cacheKey, $maxArity, $persistent);
 
         return $maxArity;
     }
@@ -941,7 +1106,7 @@ trait HasValidatorInternals
 
     protected function resolveLocaleMessage(string $ruleName): ?string
     {
-        foreach ($this->localeCandidates($this->locale) as $candidate) {
+        foreach ($this->localeCandidates as $candidate) {
             $localePack = $this->localePacks[$candidate] ?? null;
             if (!is_array($localePack)) {
                 continue;
@@ -1019,7 +1184,7 @@ trait HasValidatorInternals
 
     /** @param array<int|string, mixed> $data */
     protected function shouldBypassExcludedField(
-        ValidationNode $node,
+        FieldPlan $node,
         string $field,
         mixed $value,
         array $data,
@@ -1029,27 +1194,13 @@ trait HasValidatorInternals
     }
 
     /** @param array<int|string, mixed> $data */
-    protected function shouldExcludeField(
-        ValidationNode $node,
-        string $field,
-        mixed $value,
-        array $data,
-    ): bool {
-        foreach ($node->getAllRules() as $rule) {
-            if (!$this->hasRulePrefix($rule, 'Exclude')) {
-                continue;
-            }
-
-            if (!$rule->passes($value, $field, $data)) {
-                return true;
-            }
-        }
-
-        return false;
+    protected function shouldExcludeField(FieldPlan $node, string $field, mixed $value, array $data): bool
+    {
+        return array_any($node->excludeRules, fn($rule) => !$rule->passes($value, $field, $data));
     }
 
     protected function shouldSkipOptionalField(
-        ValidationNode $node,
+        FieldPlan $node,
         mixed $value,
         bool $fieldExists,
     ): bool {
@@ -1107,7 +1258,7 @@ trait HasValidatorInternals
      * @param ValidationContext $context
      */
     protected function validateCheapAndMediumPhases(
-        ValidationNode $node,
+        FieldPlan $node,
         mixed $value,
         string $field,
         string $fieldLabel,
@@ -1116,8 +1267,8 @@ trait HasValidatorInternals
         bool $fieldFailFast,
     ): bool {
         $hasError = !$this->validatePhase(
-            array_values($node->cheapRules),
-            array_values($node->cheapRuleNames),
+            $node->cheapRules,
+            $node->cheapRuleNames,
             $node->cheapRulePlaceholders,
             $value,
             $field,
@@ -1134,8 +1285,8 @@ trait HasValidatorInternals
 
         if (
             !$this->validatePhase(
-                array_values($node->mediumRules),
-                array_values($node->mediumRuleNames),
+                $node->mediumRules,
+                $node->mediumRuleNames,
                 $node->mediumRulePlaceholders,
                 $value,
                 $field,
@@ -1150,6 +1301,49 @@ trait HasValidatorInternals
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int|string,mixed> $data
+     * @param ValidationContext $context
+     */
+    protected function validateImplicitPhase(
+        FieldPlan $node,
+        mixed $value,
+        string $field,
+        string $fieldLabel,
+        array $data,
+        array &$context,
+        bool $fieldFailFast,
+        bool $fieldExists,
+    ): bool {
+        $rules = [];
+        $names = [];
+        $placeholders = [];
+
+        foreach ($node->implicitRules as $index => $rule) {
+            $name = $node->implicitRuleNames[$index];
+            if (!$fieldExists && $name === 'filled') {
+                continue;
+            }
+
+            $rules[] = $rule;
+            $names[] = $name;
+            $placeholders[] = $node->implicitRulePlaceholders[$index];
+        }
+
+        return $rules !== [] && !$this->validatePhase(
+            $rules,
+            $names,
+            $placeholders,
+            $value,
+            $field,
+            $fieldLabel,
+            $data,
+            $context['errors'],
+            $context['failures'],
+            $fieldFailFast,
+        );
     }
 
     /**
@@ -1180,10 +1374,6 @@ trait HasValidatorInternals
 
         foreach ($rules as $index => $rule) {
             $ruleName = $ruleNames[$index] ?? $this->compiler->getRuleNameForRule($rule);
-
-            if ($this->hasRulePrefix($rule, 'Exclude')) {
-                continue;
-            }
 
             if ($rule->passes($value, $field, $data)) {
                 continue;

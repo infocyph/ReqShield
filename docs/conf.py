@@ -43,7 +43,6 @@ extensions = [
     "myst_parser",
     "sphinx.ext.todo",
     "sphinx.ext.autosectionlabel",
-    "sphinx.ext.intersphinx",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinxcontrib.phpdomain", # Essential for PHP projects
@@ -64,11 +63,6 @@ myst_heading_anchors = 3
 
 # Autodoc/Napoleon are for Python, so they are omitted.
 autosectionlabel_prefix_document = True
-
-# Intersphinx: Link to PHP manual
-intersphinx_mapping = {
-    "php": ("https://www.php.net/manual/en/", None),
-}
 
 # extlinks shortcut for PHP manual
 extlinks = {

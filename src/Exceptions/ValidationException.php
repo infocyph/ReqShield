@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Exceptions;
 
-use Exception;
-
 /**
  * ValidationException
  *
  * Exception thrown when validation fails with throwOnFailure enabled.
  */
-class ValidationException extends Exception
+class ValidationException extends ReqShieldException
 {
     /**
      * Create a new ValidationException instance.

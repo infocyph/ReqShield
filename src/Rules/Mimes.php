@@ -8,11 +8,6 @@ use Infocyph\ReqShield\Support\MimeTypeResolver;
 
 class Mimes extends AbstractMimeTypeListRule
 {
-    public static function clearCache(): void
-    {
-        MimeTypeResolver::clearCache();
-    }
-
     public function cost(): int
     {
         return 25;
@@ -45,8 +40,7 @@ class Mimes extends AbstractMimeTypeListRule
             return false;
         }
 
-        return $this->matchesResolvedMimeType($fileMimeType)
-            || in_array($fileMimeType, $this->types, true);
+        return $this->matchesResolvedMimeType($fileMimeType);
     }
 
     protected function matchesResolvedMimeType(string $fileMimeType): bool

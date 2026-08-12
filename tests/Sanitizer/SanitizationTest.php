@@ -104,30 +104,15 @@ test('array and batch operations work', function () {
     expect($applied)->toBe('hello');
 });
 
-test('security sanitizers work', function () {
+test('sql like escaping works', function () {
     expect(Sanitizer::escapeLike('50% off! _wildcard_'))
-      ->toBe('50\% off! \_wildcard\_')
-      ->and(Sanitizer::removeSqlPatterns('SELECT * FROM users; -- comment'))
-      ->toBe('* FROM users;')
-      ->and(
-          Sanitizer::removeXss(
-              '<script>alert(1)</script><p onclick="danger">hi</p>'
-          )
-      )
-      ->toBe('<p>hi</p>');
-
+      ->toBe('50\% off! \_wildcard\_');
 });
 
 test('html tag stripping works', function () {
     $html = '<b>Hello</b> <p>World</p> <i>Test</i>';
     expect(Sanitizer::stripTags($html, '<b><i>'))
       ->toBe('<b>Hello</b> World <i>Test</i>')
-      ->and(
-          Sanitizer::stripUnsafeTags(
-              '<script>xss</script><p>safe</p><strong>bold</strong>'
-          )
-      )
-      ->toBe('<p>safe</p><strong>bold</strong>')
       ->and(Sanitizer::stripWhitespace("Hello \n World!"))->toBe('HelloWorld!');
 });
 

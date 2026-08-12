@@ -18,7 +18,7 @@ abstract class AbstractDigitCountRule extends BaseRule
     public function passes(mixed $value, string $field, array $data): bool
     {
         $this->consumeRuleContext($value, $field, $data);
-        if (!is_numeric($value)) {
+        if ((!is_string($value) && !is_int($value)) || preg_match('/^[0-9]+$/D', (string) $value) !== 1) {
             return false;
         }
 

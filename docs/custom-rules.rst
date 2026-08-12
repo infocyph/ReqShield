@@ -106,15 +106,19 @@ You can use your new rule class just like the ``Callback`` rule.
 Register a Custom Rule Name
 ---------------------------
 
-If you want to use a custom string token (for example ``even``), register it on the validator instance:
+If you want to use a custom string token (for example ``even``), provide the
+name-to-class map when the validator is constructed. Registration happens before
+schema compilation, so an unknown token can never be hidden by construction order:
 
 .. code-block:: php
 
     use App\Rules\IsEven;
     use Infocyph\ReqShield\Validator;
 
-    $validator = Validator::make([
-        'number' => 'required|even',
-    ])->registerRule('even', IsEven::class);
+    $validator = Validator::make(
+        ['number' => 'required|even'],
+        null,
+        ['even' => IsEven::class],
+    );
 
     $result = $validator->validate(['number' => 8]);
