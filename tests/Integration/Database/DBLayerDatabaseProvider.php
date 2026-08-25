@@ -5,15 +5,34 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Tests\Integration\Database;
 
 use Infocyph\DBLayer\Connection\Connection;
+use Infocyph\DBLayer\Query\QueryBuilder;
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 
 final class DBLayerDatabaseProvider implements DatabaseProvider
 {
-    private const int CHUNK_SIZE = 400;
+    private const int MAX_BATCH_VALUES = 1_000;
+
+    /** @var list<non-negative-int> */
+    public array $bindingCounts = [];
 
     public int $operations = 0;
 
-    public function __construct(private readonly Connection $connection) {}
+    private readonly int $batchSize;
+
+    private readonly int $batchSizeWithIgnore;
+
+    public function __construct(private readonly Connection $connection)
+    {
+        $this->batchSize = $connection->safeBatchSize(
+            parametersPerRow: 1,
+            requested: self::MAX_BATCH_VALUES,
+        );
+        $this->batchSizeWithIgnore = $connection->safeBatchSize(
+            parametersPerRow: 1,
+            fixedBindings: 1,
+            requested: self::MAX_BATCH_VALUES,
+        );
+    }
 
     public function batchExists(string $table, array $checks): array
     {
@@ -38,23 +57,14 @@ final class DBLayerDatabaseProvider implements DatabaseProvider
 
         foreach ($this->groupChecks(
             $checks,
-            ['column', 'id_column', 'include_trashed', 'soft_delete_column'],
+            ['column', 'ignore', 'id_column', 'include_trashed', 'soft_delete_column'],
         ) as $group) {
             $rowsByValue = $this->matchedRows($table, $group, true);
 
             foreach ($group as $check) {
                 $rows = $rowsByValue[$this->valueKey($check['value'] ?? null)] ?? [];
-                foreach ($rows as $row) {
-                    $idColumn = $this->stringValue($check['id_column'] ?? 'id');
-                    if (($check['ignore'] ?? null) !== null
-                        && array_key_exists($idColumn, $row)
-                        && $row[$idColumn] === $check['ignore']) {
-                        continue;
-                    }
-
+                if ($rows !== []) {
                     $failed[] = $this->identifier($check['id'] ?? null);
-
-                    break;
                 }
             }
         }
@@ -83,6 +93,14 @@ final class DBLayerDatabaseProvider implements DatabaseProvider
         return array_values($groups);
     }
 
+    private function excludeIgnoredRow(QueryBuilder $query, string $idColumn, mixed $ignore): void
+    {
+        $query->where(static function (QueryBuilder $nested) use ($idColumn, $ignore): void {
+            $nested->where($idColumn, '!=', $ignore)
+                ->whereNull($idColumn, 'or');
+        });
+    }
+
     private function identifier(mixed $id): int|string
     {
         if (is_int($id) || is_string($id)) {
@@ -105,6 +123,8 @@ final class DBLayerDatabaseProvider implements DatabaseProvider
             ? $first['soft_delete_column']
             : null;
         $includeTrashed = ($first['include_trashed'] ?? false) === true;
+        $ignoreEnabled = $unique && array_key_exists('ignore', $first) && $first['ignore'] !== null;
+        $fixedBindings = $ignoreEnabled ? 1 : 0;
         $values = [];
         $hasNull = false;
 
@@ -120,24 +140,31 @@ final class DBLayerDatabaseProvider implements DatabaseProvider
         }
 
         $rows = [];
-        foreach (array_chunk(array_values($values), self::CHUNK_SIZE) as $chunk) {
-            $select = $unique ? [$column, $idColumn] : [$column];
-            if ($unique && $softDeleteColumn !== null) {
-                $select[] = $softDeleteColumn;
-            }
+        if ($values !== []) {
+            $chunkSize = $ignoreEnabled ? $this->batchSizeWithIgnore : $this->batchSize;
+            foreach (array_chunk(array_values($values), $chunkSize) as $chunk) {
+                $select = $unique ? [$column, $idColumn] : [$column];
+                if ($unique && $softDeleteColumn !== null) {
+                    $select[] = $softDeleteColumn;
+                }
 
-            $query = $this->connection->table($table)
-                ->select($select)
-                ->whereIn($column, $chunk);
+                $query = $this->connection->table($table)
+                    ->select($select)
+                    ->whereIn($column, $chunk);
 
-            if ($unique && !$includeTrashed && $softDeleteColumn !== null) {
-                $query->whereNull($softDeleteColumn);
-            }
+                if ($unique && !$includeTrashed && $softDeleteColumn !== null) {
+                    $query->whereNull($softDeleteColumn);
+                }
+                if ($ignoreEnabled) {
+                    $this->excludeIgnoredRow($query, $idColumn, $first['ignore']);
+                }
 
-            ++$this->operations;
-            foreach ($query->get() as $row) {
-                if (is_array($row)) {
-                    $rows[] = $row;
+                ++$this->operations;
+                $this->bindingCounts[] = count($chunk) + $fixedBindings;
+                foreach ($query->get() as $row) {
+                    if (is_array($row)) {
+                        $rows[] = $row;
+                    }
                 }
             }
         }
@@ -155,8 +182,12 @@ final class DBLayerDatabaseProvider implements DatabaseProvider
             if ($unique && !$includeTrashed && $softDeleteColumn !== null) {
                 $query->whereNull($softDeleteColumn);
             }
+            if ($ignoreEnabled) {
+                $this->excludeIgnoredRow($query, $idColumn, $first['ignore']);
+            }
 
             ++$this->operations;
+            $this->bindingCounts[] = $fixedBindings;
             foreach ($query->get() as $row) {
                 if (is_array($row)) {
                     $rows[] = $row;

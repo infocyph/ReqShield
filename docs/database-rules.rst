@@ -62,10 +62,24 @@ Unique checks include all rows by default and therefore make no assumption that 
 column name) to opt into soft-delete filtering; ``withTrashed()`` restores the
 default.
 
-Testing Providers
------------------
+Reference Integration
+---------------------
 
-The development suite includes a DBLayer 4.0.0 provider and deterministic
-SQLite fixtures. It verifies flat, nested, wildcard, mixed, ignore-ID,
-custom-ID-column, soft-delete, batching, and infrastructure-error behavior.
-DBLayer is a development dependency only; ReqShield stays driver agnostic.
+ReqShield is database-library agnostic. Applications may implement
+``DatabaseProvider`` with PDO, DBLayer, Laravel, Doctrine, or another database
+layer. DBLayer 5 is the development suite's reference integration, not a runtime
+dependency for normal consumers.
+
+ReqShield owns logical validation batching. The reference provider uses DBLayer
+5's driver-aware ``Connection::safeBatchSize()`` for physical query chunks,
+including fixed bindings introduced by unique-ignore predicates and a 1,000-value
+application ceiling. This honors driver and configured ``security.max_params``
+limits without duplicating bind-limit maps in ReqShield.
+
+The deterministic SQLite integration matrix covers flat, nested, wildcard,
+mixed, duplicate and zero-like values, ignore IDs, custom ID and soft-delete
+columns, derived batch boundaries, constrained bind limits, runtime resets, and
+infrastructure failures. It intentionally uses DBLayer's low-level connection
+and query-builder APIs with plain array results; repositories, repository casts,
+collections, relations, query caching, and DBLayer types are not part of
+ReqShield's validation engine or public provider contract.

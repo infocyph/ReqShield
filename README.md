@@ -462,7 +462,11 @@ $validator = Validator::make([
 
 Database schemas require a provider and throw `DatabaseProviderRequiredException`
 when it is absent. The contract contains only `batchExists()` and `batchUnique()`;
-providers own query construction and physical chunking.
+ReqShield owns logical validation batching, while providers own query construction
+and driver-safe physical chunking. ReqShield is database-library agnostic: a
+provider may use PDO, DBLayer, Laravel, Doctrine, or another database layer.
+DBLayer 5 is used only as the development-suite reference integration and is not
+a runtime dependency for normal consumers.
 
 **Benefits:**
 - **Automatic batching** - Multiple checks become one query
