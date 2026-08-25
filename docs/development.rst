@@ -44,3 +44,17 @@ CaptainHook is wired through Composer:
     composer ic:hooks
 
 Hooks are also installed automatically on ``post-autoload-dump``.
+
+Database Reference Tests
+------------------------
+
+DBLayer 5 is installed only as a development dependency and backs the reference
+``DatabaseProvider`` integration tests. Those tests exercise driver-aware
+physical batching, constrained ``security.max_params`` configurations, unique
+ignore bindings, soft deletes, scalar edge cases, wildcard batches, and DBLayer
+runtime reset between tests. ReqShield's production API remains independent of
+DBLayer.
+
+The reusable CI workflow invokes ``benchmark:representative`` as a Composer
+script; it runs the same PHPForge aggregate benchmark task as
+``composer ic:benchmark``.
