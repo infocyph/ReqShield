@@ -75,6 +75,43 @@ Foundation currently owns a production `ReqShieldDatabaseProvider` even though t
 - Foundation must not retain a second implementation of generic ReqShield database batching once the native adapter exists.
 - DB bind-limit maps must not be duplicated in ReqShield or Foundation; DBLayer 5.1 is authoritative.
 
+### Process/runtime security boundary
+
+Foundation is expected to use `pcntl`/`posix` for trusted runtime supervision, and a separate low-level process/runtime-security library may later centralize safe process execution and OS capability controls. That concern must **not** be folded into ReqShield.
+
+ReqShield's responsibility is limited to validating the **shape and policy values** supplied to a privileged operation. It does not determine whether arbitrary PHP, shell text, uploaded content or a process is safe to execute.
+
+Required boundary:
+
+- [ ] Treat strings such as `exec`, `system`, `shell_exec`, `proc_open`, `pcntl_fork`, `pcntl_exec`, `pcntl_signal`, `posix_kill`, `posix_setuid`, etc. as ordinary data unless the application's schema says otherwise.
+- [ ] Do not add a dangerous-function-name blacklist or sanitizer that rejects these substrings globally.
+- [ ] Do not scan uploaded files, PHP source, templates or arbitrary text for dangerous-function names.
+- [ ] Do not add shell quoting, shell escaping, executable selection, process spawning, signal control, UID/GID switching, sandboxing or runtime-profile management to ReqShield.
+- [ ] Do not claim validation can make uploaded/dynamic PHP safe to execute.
+- [ ] Where Foundation exposes a registered operation/capability identifier, validate it structurally with normal ReqShield rules such as required/string/enum/allowlist/bounds.
+- [ ] User input must select a **registered application operation**, not an executable or raw shell command, when Foundation applies this pattern.
+- [ ] Authorization for that operation remains Foundation/application policy; validation is not authorization.
+- [ ] Filesystem/path containment remains Pathwise responsibility.
+- [ ] Process execution, argv construction, environment/cwd policy, signals, privilege changes, sandbox profiles and OS isolation belong to the dedicated process/runtime layer.
+
+Conceptual safe boundary:
+
+```text
+untrusted input
+    ↓
+ReqShield
+    └─ validates: operation = "image.thumbnail", width = 500
+             ↓
+Foundation/application authorization + operation registry
+             ↓
+process/runtime library
+    └─ maps registered operation to known executable + argv + limits
+             ↓
+OS/runtime isolation
+```
+
+Do **not** introduce APIs such as `SafeShellCommand`, `ForbiddenPhpFunction`, `PhpCodeSafe`, or `DangerousFunctionRule` as part of this release. Generic validation primitives are sufficient for ReqShield's part of this boundary.
+
 ---
 
 ## 3. DBLayer 5.1 baseline
@@ -334,6 +371,16 @@ Required matrix:
 - [ ] large wildcard input under configured limits;
 - [ ] bounds failures occur before expensive DB work where applicable.
 
+### 9.4 Process/capability boundary tests
+
+These tests protect ReqShield from drifting into a false sandbox role:
+
+- [ ] ordinary string fields can validly contain text such as `exec`, `system`, `pcntl_fork`, `posix_kill` when the schema permits ordinary strings;
+- [ ] no global sanitizer silently removes or rewrites dangerous-function-like substrings;
+- [ ] a schema-defined allowlist/enum can reject an unregistered operation identifier and accept a registered one;
+- [ ] validation of an operation identifier does not execute, resolve or inspect an executable;
+- [ ] authorization/process execution remains outside ReqShield test fixtures except for framework-neutral mocked application examples.
+
 ---
 
 ## 10. Static analysis and QA
@@ -390,6 +437,8 @@ Update:
 - [ ] `docs/database-rules.rst` with DBLayer 5.1 bridge usage and connection-resolver lifetime guidance;
 - [ ] schema documentation with instance-owned registry/freeze pattern;
 - [ ] persistent-runtime guidance warning against process-global mutable schema registration;
+- [ ] document that validation is not a process/PHP sandbox and dangerous-function-name filtering is intentionally out of scope;
+- [ ] document the recommended registered-operation pattern for applications that validate input for privileged process capabilities;
 - [ ] installation/development docs to identify DBLayer 5.1 as a development/reference integration only;
 - [ ] upgrade/release notes for 3.2.
 
@@ -402,6 +451,8 @@ $provider = DBLayerDatabaseProvider::fromResolver(
 ```
 
 The exact API can differ, but execution-owned resolution semantics must remain clear.
+
+For privileged application operations, examples should validate structured intent rather than raw commands, e.g. an `operation` value such as `image.thumbnail` plus bounded parameters. ReqShield must not provide the executable mapping or execute the operation.
 
 ---
 
@@ -434,7 +485,15 @@ Once ReqShield 3.2 is released/consumable:
 - [ ] validation config source/default/override selection;
 - [ ] `ValidationExceptionMapper` / HTTP response policy;
 - [ ] validation service-provider/DI capability composition;
-- [ ] DB connection/profile selection.
+- [ ] DB connection/profile selection;
+- [ ] authorization and selection of registered privileged operations/capabilities.
+
+### Keep outside ReqShield
+
+- [ ] Pathwise owns path/filesystem containment and upload/storage path safety.
+- [ ] A dedicated low-level process/runtime library owns safe executable/argv handling, process lifecycle, signals, environment/cwd policy, privilege changes and sandbox integration.
+- [ ] Foundation owns which process/runtime profile or registered operation is exposed to application code.
+- [ ] OS/container/runtime configuration remains the final execution-security boundary for untrusted code.
 
 ### Foundation acceptance
 
@@ -461,6 +520,13 @@ Do not add during this pass:
 - generic ORM/repository abstractions;
 - automatic global DBLayer facade registration;
 - driver bind-limit tables duplicated from DBLayer;
+- dangerous PHP function blacklists;
+- source-code/upload scanning for `exec`, `system`, `shell_exec`, `proc_open`, `pcntl_*`, `posix_*` or similar function names;
+- shell command sanitization/escaping APIs;
+- process spawning/execution APIs;
+- process/signal/UID/GID/sandbox policy;
+- executable allowlists or command registries owned by ReqShield;
+- authorization logic;
 - a large `ValidationProfile` abstraction unless implementation evidence shows it materially removes duplicated generic ReqShield mechanics.
 
 Foundation's current setter-based `ValidatorFactory` may remain application adaptation in this pass. A future immutable ReqShield profile object is optional ergonomic follow-up, not a 3.2 completion blocker.
@@ -475,10 +541,11 @@ Foundation's current setter-based `ValidatorFactory` may remain application adap
 4. Port the existing DB integration tests to the production provider and add nullable-ignore/runtime-lifetime regressions.
 5. Add the instance-owned freezeable `SchemaRegistry` and its isolation tests.
 6. Audit validator/compiled-validator persistent-runtime state and close any discovered leaks.
-7. Complete docs and benchmarks.
-8. Run PHP 8.4/8.5 stable + lowest QA/static-analysis gates.
-9. Release ReqShield 3.2.
-10. Return to Foundation 26.7, consume 3.2, remove duplicated bridge/registry mechanics, and run Foundation acceptance/performance gates.
+7. Lock/document the process/runtime-security boundary and add drift-prevention tests showing ReqShield validates structured intent rather than dangerous-function substrings.
+8. Complete docs and benchmarks.
+9. Run PHP 8.4/8.5 stable + lowest QA/static-analysis gates.
+10. Release ReqShield 3.2.
+11. Return to Foundation 26.7, consume 3.2, remove duplicated bridge/registry mechanics, and run Foundation acceptance/performance gates.
 
 ---
 
@@ -495,6 +562,7 @@ ReqShield 3.2 is complete when:
 - an instance-owned freezeable schema registry exists for persistent-runtime-safe topology;
 - non-DB validation remains DB-cold;
 - sequential/Fiber reuse does not leak mutable validation state;
+- ReqShield explicitly remains validation-only for process-related inputs: it validates structured intent/parameters but does not blacklist dangerous function names, authorize capabilities, execute processes or claim to sandbox code;
 - QA/static analysis and representative performance gates are green;
 - Foundation can delete its duplicate DB provider/schema-registry mechanics without moving application policy into ReqShield.
 
