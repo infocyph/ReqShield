@@ -1,0 +1,55 @@
+name: Normalize Consolidated ReqShield Plan
+
+on:
+  push:
+    branches:
+      - reqshield-3.2/foundation-26.7
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: reqshield-3.2/foundation-26.7
+      - name: Normalize canonical plan
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('docs/plans/reqshield-3.2-foundation-26.7-development-plan.md')
+          text = path.read_text()
+
+          text = text.replace('future process-runtime library', 'Runwire')
+          text = text.replace('future low-level process library', 'Runwire')
+          text = text.replace('ProcessGuard', 'Runwire')
+
+          marker = '# Runwire validation/authorization boundary'
+          if marker in text:
+              before, tail = text.split(marker, 1)
+              tail = tail.strip()
+              tail = re.sub(r'(?m)^#\s+(\d+)\.\s+', lambda m: f'### 17.{m.group(1)} ', tail)
+              tail = tail.replace('the parent plan', 'earlier sections of this plan')
+              tail = tail.replace('parent-plan', 'earlier-plan')
+              tail = tail.replace('Completion gate addendum', 'Runwire boundary completion gate')
+              tail = tail.replace('This addendum', 'This section').replace('the addendum', 'this section')
+              tail = tail.replace('All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria from the earlier sections of this plan remain unchanged.', 'All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria above remain unchanged.')
+              tail = tail.replace('All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria from the earlier-plan remain unchanged.', 'All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria above remain unchanged.')
+              text = before.rstrip() + '\n\n---\n\n## 17. Runwire validation/authorization boundary\n\n' + tail + '\n'
+
+          path.write_text(text)
+          Path('.github/workflows/normalize-consolidated-runwire-plan.yml').unlink()
+          PY
+      - name: Commit normalization
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: normalize consolidated ReqShield 3.2 plan"
+          git push origin HEAD:reqshield-3.2/foundation-26.7
