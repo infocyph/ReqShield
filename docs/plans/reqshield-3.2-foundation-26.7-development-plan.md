@@ -570,9 +570,11 @@ After that, Foundation Point 26.7 can close on top of ReqShield 3.2 rather than 
 
 ---
 
-# Runwire validation/authorization boundary
+---
 
-# 1. Final ownership chain
+## 17. Runwire validation/authorization boundary
+
+### 17.1 Final ownership chain
 
 For privileged process operations:
 
@@ -598,7 +600,7 @@ ReqShield never becomes the process executor or security sandbox.
 
 ---
 
-# 2. ReqShield owns data/intent validation only
+### 17.2 ReqShield owns data/intent validation only
 
 ReqShield may validate generic structures such as:
 
@@ -623,7 +625,7 @@ ReqShield does not need to know that `image.thumbnail` ultimately maps to a Runw
 
 ---
 
-# 3. No dangerous-function blacklist
+### 17.3 No dangerous-function blacklist
 
 Do not add built-in validation rules whose purpose is to reject strings because they contain names such as:
 
@@ -655,7 +657,7 @@ Do not weaken general validation merely because Foundation installs `pcntl`/`pos
 
 ---
 
-# 4. No shell escaping/sanitizer API
+### 17.4 No shell escaping/sanitizer API
 
 Do not add a ReqShield rule such as:
 
@@ -674,7 +676,7 @@ ReqShield can validate an argument's domain constraints, for example a bounded b
 
 ---
 
-# 5. Operation allowlisting stays generic
+### 17.5 Operation allowlisting stays generic
 
 If ReqShield has or gains a generic enum/allowlist rule, Foundation may use it for configured operation identifiers.
 
@@ -692,7 +694,7 @@ Foundation remains responsible for ensuring that the validated identifier is aut
 
 ---
 
-# 6. Structured arguments, not command text
+### 17.6 Structured arguments, not command text
 
 Foundation schemas should prefer intent-level fields:
 
@@ -720,7 +722,7 @@ ReqShield should not parse shell grammar or PHP source syntax as part of ordinar
 
 ---
 
-# 7. Path/file inputs
+### 17.7 Path/file inputs
 
 When a privileged operation targets an uploaded/stored file, ReqShield should normally validate an application-level artifact identifier or bounded logical path value rather than trying to establish filesystem trust itself.
 
@@ -737,7 +739,7 @@ Do not duplicate Pathwise traversal/symlink/storage-root mechanics inside ReqShi
 
 ---
 
-# 8. Uploaded PHP/source code
+### 17.8 Uploaded PHP/source code
 
 ReqShield is not a source-code malware scanner.
 
@@ -749,7 +751,7 @@ A forked Runwire child is not made safe by ReqShield content filtering.
 
 ---
 
-# 9. No Runwire dependency
+### 17.9 No Runwire dependency
 
 Do not add Runwire to ReqShield production Composer requirements.
 
@@ -766,7 +768,7 @@ Cross-library integration tests may be added at Foundation level instead of coup
 
 ---
 
-# 10. Database validation remains independent
+### 17.10 Database validation remains independent
 
 The Runwire decision does not alter the ReqShield 3.2 DBLayer 5.1 plan.
 
@@ -783,7 +785,7 @@ Do not use Runwire workers/processes to parallelize validation as part of ReqShi
 
 ---
 
-# 11. Persistent-runtime isolation
+### 17.11 Persistent-runtime isolation
 
 Runwire makes persistent Foundation workers a native deployment mode, so ReqShield's existing isolation requirements become even more important.
 
@@ -800,7 +802,7 @@ These are ReqShield state-lifetime concerns, not Runwire integration APIs.
 
 ---
 
-# 12. Foundation operation-schema example
+### 17.12 Foundation operation-schema example
 
 A Foundation-owned schema may conceptually validate:
 
@@ -830,7 +832,7 @@ Do not place executable paths or raw shell command templates into ReqShield sche
 
 ---
 
-# 13. Boundary tests
+### 17.13 Boundary tests
 
 Retain/add tests proving:
 
@@ -847,7 +849,7 @@ Foundation owns end-to-end tests proving unauthorized/unregistered operations ne
 
 ---
 
-# 14. Documentation wording
+### 17.14 Documentation wording
 
 Normalize final ReqShield 3.2 docs so the concrete ecosystem boundary reads:
 
@@ -859,13 +861,13 @@ Runwire     executes/supervises process/runtime mechanics
 OS          supplies final hostile-code sandbox boundary
 ```
 
-Replace provisional “future process runtime” / `ProcessGuard` wording with **Runwire** where referring to the Infocyph implementation.
+Replace provisional “future process runtime” / `Runwire` wording with **Runwire** where referring to the Infocyph implementation.
 
 Do not describe Runwire as a ReqShield requirement.
 
 ---
 
-# 15. Non-goals clarification
+### 17.15 Non-goals clarification
 
 ReqShield 3.2 specifically does not add:
 
@@ -884,7 +886,7 @@ ReqShield 3.2 specifically does not add:
 
 ---
 
-# 16. Completion gate addendum
+### 17.16 Runwire boundary completion gate
 
 ReqShield 3.2 process/runtime-boundary acceptance additionally requires:
 
@@ -897,4 +899,4 @@ ReqShield 3.2 process/runtime-boundary acceptance additionally requires:
 - [ ] Foundation owns end-to-end authorization before Runwire invocation;
 - [ ] Pathwise remains filesystem trust owner where files are involved.
 
-All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria from the parent plan remain unchanged.
+All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria from earlier sections of this plan remain unchanged.
