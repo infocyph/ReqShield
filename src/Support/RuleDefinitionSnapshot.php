@@ -11,7 +11,7 @@ final class RuleDefinitionSnapshot
 {
     /**
      * @param array<int,array{field:string,rules:string|array<int,mixed>,condition:callable}> $rules
-     * @return array<int,array{field:string,rules:string|array<int,mixed>,condition:callable}>
+     * @return array<int,array{field:string,rules:string|array<int|string,mixed>,condition:callable}>
      */
     public static function conditionalRules(array $rules): array
     {
