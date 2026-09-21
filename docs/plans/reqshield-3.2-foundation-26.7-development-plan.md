@@ -46,8 +46,8 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **complete — PR run #48 green** |
 | 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **complete — PR run #48 green** |
 | 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **complete — PR run #53 green** |
-| 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **next** |
-| 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | open |
+| 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **implementation complete / QA pending** |
+| 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **next** |
 | 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | open |
 | 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
 
@@ -385,13 +385,13 @@ The current `CompiledValidator` is `readonly` only at the wrapper level: it stor
 
 ReqShield 3.2 should preserve mutable builder-style `Validator` APIs for compatibility while making compiled execution explicit and safe:
 
-- [ ] `Validator::compile()` / `Validator::compile(...)` must produce an independent frozen execution snapshot rather than a thin closure over mutable configuration;
-- [ ] do not rely on a shallow clone unless every nested mutable object has been audited;
-- [ ] frozen execution rejects topology/configuration mutation through callbacks or retained references with a dedicated exception;
-- [ ] the same compiled validator instance must be safely reusable sequentially and by interleaved Fibers;
-- [ ] callbacks may observe validation context, but cannot mutate frozen validator topology while an execution is in progress;
-- [ ] caller-owned mutable state captured by a callback remains the caller's responsibility and must be documented separately from ReqShield isolation;
-- [ ] database-provider resolution stays lazy and execution-scoped under compiled reuse.
+- [X] `Validator::compile()` / `Validator::compile(...)` must produce an independent frozen execution snapshot rather than a thin closure over mutable configuration;
+- [X] do not rely on a shallow clone unless every nested mutable object has been audited;
+- [X] frozen execution rejects topology/configuration mutation through callbacks or retained references with a dedicated exception;
+- [X] the same compiled validator instance must be safely reusable sequentially and by interleaved Fibers;
+- [X] callbacks may observe validation context, but cannot mutate frozen validator topology while an execution is in progress;
+- [X] caller-owned mutable state captured by a callback remains the caller's responsibility and must be documented separately from ReqShield isolation;
+- [X] database-provider resolution stays lazy and execution-scoped under compiled reuse.
 
 ### 7.2 Mutable-validator audit
 
@@ -399,24 +399,24 @@ ReqShield validators are configuration-bearing mutable objects before/during set
 
 Audit and test:
 
-- [ ] `when()` / conditional rules;
-- [ ] callbacks and after-validation callbacks;
-- [ ] locale/message/alias changes;
-- [ ] sanitizers/casts;
-- [ ] unknown-field policy;
-- [ ] wildcard schema cache;
-- [ ] validation-plan cache;
-- [ ] database provider attachment;
-- [ ] compiled-validator behavior.
+- [X] `when()` / conditional rules;
+- [X] callbacks and after-validation callbacks;
+- [X] locale/message/alias changes;
+- [X] sanitizers/casts;
+- [X] unknown-field policy;
+- [X] wildcard schema cache;
+- [X] validation-plan cache;
+- [X] database provider attachment;
+- [X] compiled-validator behavior.
 
 Required guarantees:
 
-- [ ] one validation call does not retain input values into the next call;
-- [ ] wildcard/nested expansion caches contain only schema/plan information, never request data;
-- [ ] validation callbacks cannot mutate frozen shared schema topology;
-- [ ] non-DB validation executes with zero DB resolution/I/O;
-- [ ] a lazy DB connection resolver is not invoked unless a DB rule actually reaches batched execution;
-- [ ] interleaved Fiber validations using distinct provider/resolver state do not cross-contaminate.
+- [X] one validation call does not retain input values into the next call;
+- [X] wildcard/nested expansion caches contain only schema/plan information, never request data;
+- [X] validation callbacks cannot mutate frozen shared schema topology;
+- [X] non-DB validation executes with zero DB resolution/I/O;
+- [X] a lazy DB connection resolver is not invoked unless a DB rule actually reaches batched execution;
+- [X] interleaved Fiber validations using distinct provider/resolver state do not cross-contaminate.
 
 ### 7.3 Cache/state classification
 
@@ -429,11 +429,11 @@ Do not remove benign process caches merely because they are static. The audit fo
 
 Requirements:
 
-- [ ] bounded caches must remain bounded under adversarial schema/shape churn;
-- [ ] wildcard cache keys may use request shape but must never retain scalar request values or object payloads;
-- [ ] process caches must not become hidden application schema-registration stores;
-- [ ] static fragment registration remains classified separately as mutable global topology, not as a harmless cache;
-- [ ] cache/LRU mutation during Fiber interleaving must not alter validation correctness.
+- [X] bounded caches must remain bounded under adversarial schema/shape churn;
+- [X] wildcard cache keys may use request shape but must never retain scalar request values or object payloads;
+- [X] process caches must not become hidden application schema-registration stores;
+- [X] static fragment registration remains classified separately as mutable global topology, not as a harmless cache;
+- [X] cache/LRU mutation during Fiber interleaving must not alter validation correctness.
 
 A shared compiled validator is expected to be safely reusable under these constraints; do not hide ownership/state resets in Foundation.
 
@@ -519,9 +519,9 @@ Required matrix:
 
 ### 9.3 Runtime tests
 
-- [ ] repeated validation using the same safe validator/compiled-validator path;
-- [ ] sequential isolation;
-- [ ] interleaved Fiber isolation;
+- [X] repeated validation using the same safe validator/compiled-validator path;
+- [X] sequential isolation;
+- [X] interleaved Fiber isolation;
 - [ ] large wildcard input under configured limits;
 - [ ] bounds failures occur before expensive DB work where applicable.
 
@@ -544,14 +544,17 @@ These tests protect ReqShield from drifting into a false sandbox role:
 
 **Batch 4 status:** COMPLETE — `ValidatorProfile` is sparse and immutable, Foundation-compatible merge/normalization semantics are covered, application remains DB-cold, and PR run #53 is green across QA/analysis/stable/lowest/benchmarks.
 
-- [ ] compiling creates a snapshot independent from later mutation of the source builder;
-- [ ] post-compile mutation of the source `Validator` cannot alter the compiled validator;
-- [ ] mutation attempted through a callback against a frozen compiled execution fails closed;
-- [ ] the **same** compiled validator instance passes sequential reuse tests;
-- [ ] the **same** compiled validator instance passes interleaved Fiber reuse tests;
-- [ ] wildcard/conditional validation under shared compiled reuse retains no prior request values;
-- [ ] bounded cache sizes remain bounded under schema/shape churn;
-- [ ] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping.
+- [X] compiling creates a snapshot independent from later mutation of the source builder;
+- [X] post-compile mutation of the source `Validator` cannot alter the compiled validator;
+- [X] mutation attempted through a callback against a frozen compiled execution fails closed;
+- [X] the **same** compiled validator instance passes sequential reuse tests;
+- [X] the **same** compiled validator instance passes interleaved Fiber reuse tests;
+- [X] wildcard/conditional validation under shared compiled reuse retains no prior request values;
+- [X] bounded cache sizes remain bounded under schema/shape churn;
+
+**Batch 5 implementation status:** complete. Compilation performs one deep topology snapshot, compiled execution is frozen against ReqShield mutators, per-instance plan caches remain bounded, and same-instance sequential/Fiber reuse is covered; PR CI is the batch closure gate.
+
+- [ ] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping;
 
 ---
 
@@ -626,7 +629,7 @@ Update:
 - [ ] `docs/database-rules.rst` with DBLayer 5.1 bridge usage and connection-resolver lifetime guidance;
 - [ ] schema documentation with instance-owned registry/freeze pattern;
 - [X] validation-profile documentation with canonical option meanings, immutable overlay semantics and a framework-neutral example;
-- [ ] compiled-validator documentation that distinguishes mutable configuration/build phase from frozen reusable execution phase;
+- [X] compiled-validator documentation that distinguishes mutable configuration/build phase from frozen reusable execution phase;
 - [ ] persistent-runtime guidance warning against process-global mutable schema registration;
 - [ ] document that validation is not a process/PHP sandbox and dangerous-function-name filtering is intentionally out of scope;
 - [ ] document that ReqShield exceptions are transport-neutral and HTTP status selection belongs to the application/framework;
@@ -638,7 +641,7 @@ Update:
 Example framework-neutral provider usage should resemble:
 
 ```php
-$provider = DBLayerDatabaseProvider::fromResolver(
+$provider = new DBLayerDatabaseProvider(
     static fn(): Connection => $applicationDatabase->connection(),
 );
 ```
@@ -764,8 +767,8 @@ The audit now provides direct implementation evidence that a **small immutable `
 2. **Batch 2 — COMPLETE:** native DBLayer 5.1 bridge and production regression matrix are green in PR run #48.
 3. **Batch 3 — COMPLETE:** instance-owned frozen `SchemaRegistry`, rule snapshot isolation and persistent/Fiber coverage are green in PR run #48.
 4. **Batch 4 — COMPLETE:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are green in PR run #53.
-5. **Batch 5:** rework `CompiledValidator` into a frozen execution snapshot; close same-instance sequential/Fiber reentrancy; classify/audit bounded caches.
-6. **Batch 6:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
+5. **Batch 5 — implementation complete / QA pending:** `CompiledValidator` now snapshots once, freezes topology, blocks callback mutation, resets request-shape caches on snapshot creation, and covers sequential/Fiber/bounded-cache reuse; PR CI is the closure gate.
+6. **Batch 6 — next:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
 7. **Batch 7:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
 8. **Batch 8:** return to Foundation 26.7, consume ReqShield 3.2, remove duplicate DB provider/schema/profile mechanics, run Foundation acceptance/performance gates, and update the Foundation tracker/benchmark naming only after the dependency is consumable.
 

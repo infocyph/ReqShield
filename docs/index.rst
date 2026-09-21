@@ -53,6 +53,7 @@ Table of Contents
    sanitization
    schema-registry
    validator-profiles
+   compiled-validators
    database-rules
    custom-rules
    helper-functions

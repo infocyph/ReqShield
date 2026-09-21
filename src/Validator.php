@@ -11,6 +11,7 @@ use Infocyph\ReqShield\Concerns\HasValidatorSchemaCasting;
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Contracts\Rule as RuleContract;
 use Infocyph\ReqShield\Exceptions\DatabaseProviderRequiredException;
+use Infocyph\ReqShield\Exceptions\FrozenValidatorException;
 use Infocyph\ReqShield\Exceptions\InputLimitException;
 use Infocyph\ReqShield\Exceptions\InvalidSchemaException;
 use Infocyph\ReqShield\Exceptions\ValidationException;
@@ -97,6 +98,8 @@ class Validator
     protected array $fieldAliases = [];
 
     protected FieldAlias $fieldAliasResolver;
+
+    protected bool $frozen = false;
 
     protected JsonSchemaExporter $jsonSchemaExporter;
 
@@ -217,6 +220,31 @@ class Validator
         $this->jsonSchemaExporter = new JsonSchemaExporter();
         $this->sanitizerMapApplier = new SanitizerMapApplier();
         $this->batchExecutor = new BatchExecutor($db);
+    }
+
+    public function __clone(): void
+    {
+        $this->rules = $this->snapshotRuleDefinitions($this->rules);
+        foreach ($this->conditionalRules as &$conditionalRule) {
+            if (is_array($conditionalRule['rules'])) {
+                $conditionalRule['rules'] = $this->snapshotRuleDefinitions($conditionalRule['rules']);
+            }
+        }
+        unset($conditionalRule);
+
+        $this->compiler = clone $this->compiler;
+        $this->validationPlan = new ValidationPlan($this->normalizeCompiledSchema(
+            $this->compiler->compile($this->rules),
+        ));
+        $this->schema = $this->validationPlan->schema;
+        $this->compiledSchemaCache = [];
+        $this->wildcardSchemaCache = [];
+        $this->localCallableMaxArityCache = [];
+        $this->fieldAliasResolver = new FieldAlias($this->fieldAliases);
+        $this->messageTokenBuilder = new MessageTokenBuilder();
+        $this->jsonSchemaExporter = new JsonSchemaExporter();
+        $this->sanitizerMapApplier = new SanitizerMapApplier();
+        $this->batchExecutor = clone $this->batchExecutor;
     }
 
     public static function clearFragments(): void
@@ -369,6 +397,7 @@ class Validator
     /** @param array<string,string> $messages */
     public function addLocalePack(string $locale, array $messages): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->localePacks[$locale] = $messages;
         $this->localeMessagesEnabled = true;
 
@@ -377,6 +406,7 @@ class Validator
 
     public function after(callable $callback): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->afterCallbacks[] = $callback;
 
         return $this;
@@ -384,6 +414,7 @@ class Validator
 
     public function allowUnknown(bool $allow = true): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->allowUnknownFields = $allow;
         if ($allow) {
             $this->stripUnknownFields = false;
@@ -394,6 +425,7 @@ class Validator
 
     public function enableNestedValidation(bool $flattenAll = true): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->nestedFlattenMode = $flattenAll ? 'all' : 'targeted';
 
         return $this;
@@ -416,6 +448,13 @@ class Validator
         };
     }
 
+    final public function freeze(): self
+    {
+        $this->frozen = true;
+
+        return $this;
+    }
+
     /** @return array<int|string,mixed> */
     public function getSchemaStats(): array
     {
@@ -435,12 +474,18 @@ class Validator
         return $stats;
     }
 
+    final public function isFrozen(): bool
+    {
+        return $this->frozen;
+    }
+
     public function limits(
         int $maxDepth = 32,
         int $maxFields = 10_000,
         int $maxWildcardExpansions = 10_000,
         int $maxFlattenedPaths = 10_000,
     ): self {
+        $this->assertMutable(__FUNCTION__);
         if (min($maxDepth, $maxFields, $maxWildcardExpansions, $maxFlattenedPaths) < 1) {
             throw new \InvalidArgumentException('Validation limits must be positive integers.');
         }
@@ -478,6 +523,7 @@ class Validator
     /** @param array<string,mixed> $casts */
     public function setCasts(array $casts): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->casts = $this->compileCastMap($casts);
         $this->refreshCastExecutionMetadata();
 
@@ -487,6 +533,7 @@ class Validator
     /** @param array<int|string,mixed> $messages */
     public function setCustomMessages(array $messages): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->customMessages = [];
         $this->customMessageExact = [];
         $this->customMessageWildcard = [];
@@ -517,6 +564,7 @@ class Validator
 
     public function setDtoClass(?string $class): self
     {
+        $this->assertMutable(__FUNCTION__);
         if ($class !== null) {
             if (!class_exists($class)) {
                 throw InvalidSchemaException::forField('dto', "DTO class does not exist: {$class}");
@@ -535,6 +583,7 @@ class Validator
 
     public function setFailFast(bool $failFast): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->failFast = $failFast;
 
         return $this;
@@ -543,6 +592,7 @@ class Validator
     /** @param array<string,string> $aliases */
     public function setFieldAliases(array $aliases): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->fieldAliases = $aliases;
         $this->fieldAliasResolver->setBatch($aliases, true);
 
@@ -551,6 +601,7 @@ class Validator
 
     public function setLocale(string $locale): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->locale = $locale;
         $this->localeCandidates = $this->localeCandidates($locale);
         $this->localeMessagesEnabled = true;
@@ -561,6 +612,7 @@ class Validator
     /** @param array<string,array<string,mixed>> $packs */
     public function setLocalePacks(array $packs): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->localePacks = $packs;
         $this->localeMessagesEnabled = true;
 
@@ -569,6 +621,7 @@ class Validator
 
     public function setNestedFlattenMode(string $mode): self
     {
+        $this->assertMutable(__FUNCTION__);
         if ($mode === 'required') {
             $mode = 'targeted';
         }
@@ -585,6 +638,7 @@ class Validator
     /** @param array<string,string|callable|array<int,string|callable>> $sanitizers */
     public function setSanitizers(array $sanitizers): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->sanitizers = $this->compileSanitizerMap($sanitizers);
         $this->refreshSanitizerExecutionMetadata();
 
@@ -593,6 +647,7 @@ class Validator
 
     public function setStopOnFirstError(bool $stop): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->stopOnFirstError = $stop;
 
         return $this;
@@ -604,6 +659,7 @@ class Validator
         string|array $rules,
         callable $condition,
     ): self {
+        $this->assertMutable(__FUNCTION__);
         $this->conditionalRules[] = [
             'field' => $field,
             'rules' => $rules,
@@ -615,11 +671,13 @@ class Validator
 
     public function strict(): self
     {
+        $this->assertMutable(__FUNCTION__);
         return $this->allowUnknown(false);
     }
 
     public function stripUnknown(bool $strip = true): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->stripUnknownFields = $strip;
         if ($strip) {
             $this->allowUnknownFields = false;
@@ -630,6 +688,7 @@ class Validator
 
     public function throwOnFailure(bool $throw = true): self
     {
+        $this->assertMutable(__FUNCTION__);
         $this->throwOnFailure = $throw;
 
         return $this;
@@ -637,6 +696,7 @@ class Validator
 
     public function useFragment(string $name, string $prefix = ''): self
     {
+        $this->assertMutable(__FUNCTION__);
         $fragment = array_filter(
             static::fragment($name, $prefix),
             is_string(...),
@@ -711,6 +771,7 @@ class Validator
         callable $callback,
         ?callable $default = null,
     ): self {
+        $this->assertMutable(__FUNCTION__);
         $this->whenCallbacks[] = [
             'condition' => $condition,
             'callback' => $callback,
@@ -756,6 +817,13 @@ class Validator
                     $stack[] = [$value, $depth + 1];
                 }
             }
+        }
+    }
+
+    protected function assertMutable(string $operation): void
+    {
+        if ($this->frozen) {
+            throw FrozenValidatorException::forMutation($operation);
         }
     }
 
@@ -883,6 +951,37 @@ class Validator
     }
 
     /** @param array<string,array<int,string>> $errors */
+    /**
+     * @param array<int|string,mixed> $definitions
+     * @return array<int|string,mixed>
+     */
+    protected function snapshotRuleDefinitions(array $definitions): array
+    {
+        $snapshot = [];
+
+        foreach ($definitions as $key => $definition) {
+            if ($definition instanceof RuleContract) {
+                $reflection = new \ReflectionObject($definition);
+                if (!$reflection->isCloneable()) {
+                    throw InvalidSchemaException::forField(
+                        (string) $key,
+                        'Rule objects must be cloneable.',
+                    );
+                }
+
+                $snapshot[$key] = clone $definition;
+
+                continue;
+            }
+
+            $snapshot[$key] = is_array($definition)
+                ? $this->snapshotRuleDefinitions($definition)
+                : $definition;
+        }
+
+        return $snapshot;
+    }
+
     protected function throwIfValidationShouldFail(
         ValidationResult $result,
         array $errors,
