@@ -47,7 +47,7 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **complete — PR run #48 green** |
 | 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **complete — PR run #53 green** |
 | 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **complete — PR run #59 green** |
-| 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **implementation complete / QA pending** |
+| 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **complete — PR run #61 green** |
 | 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | **next** |
 | 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
 
@@ -556,7 +556,7 @@ These tests protect ReqShield from drifting into a false sandbox role:
 
 - [X] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping;
 
-**Batch 6 implementation status:** complete. ReqShield throwing behavior is transport-neutral, presentation formatters keep backward-compatible defaults with caller-controlled status, and Pathwise 4.1 / Runwire ownership is protected by direct drift tests and documentation; PR CI is the batch closure gate.
+**Batch 6 status:** COMPLETE — ReqShield throwing behavior is transport-neutral, formatter status is caller-controlled with backward-compatible defaults, Pathwise 4.1 / Runwire boundaries are covered, and PR run #61 is green across QA/analysis/stable/lowest/benchmarks.
 
 ---
 
@@ -770,7 +770,7 @@ The audit now provides direct implementation evidence that a **small immutable `
 3. **Batch 3 — COMPLETE:** instance-owned frozen `SchemaRegistry`, rule snapshot isolation and persistent/Fiber coverage are green in PR run #48.
 4. **Batch 4 — COMPLETE:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are green in PR run #53.
 5. **Batch 5 — COMPLETE:** frozen compiled snapshots, callback mutation blocking, bounded cache isolation and same-instance sequential/Fiber reuse are green in PR run #59.
-6. **Batch 6 — implementation complete / QA pending:** transport-neutral exceptions, caller-controlled formatter status, process-operation drift tests and Pathwise 4.1/Runwire boundary documentation are implemented; PR CI is the closure gate.
+6. **Batch 6 — COMPLETE:** transport-neutral exceptions, caller-controlled formatter status, process-operation drift tests and Pathwise 4.1/Runwire boundary documentation are green in PR run #61.
 7. **Batch 7 — next:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
 8. **Batch 8:** return to Foundation 26.7, consume ReqShield 3.2, remove duplicate DB provider/schema/profile mechanics, run Foundation acceptance/performance gates, and update the Foundation tracker/benchmark naming only after the dependency is consumable.
 
