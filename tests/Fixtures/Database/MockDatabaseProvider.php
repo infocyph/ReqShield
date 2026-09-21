@@ -34,7 +34,7 @@ final class MockDatabaseProvider implements DatabaseProvider
                 }
             }
 
-            if (!$found && isset($check['id']) && (is_int($check['id']) || is_string($check['id']))) {
+            if (!$found && isset($check['id']) && is_int($check['id'])) {
                 $failed[] = $check['id'];
             }
         }
@@ -52,7 +52,7 @@ final class MockDatabaseProvider implements DatabaseProvider
                 }
 
                 $id = $check['id'] ?? null;
-                if (is_int($id) || is_string($id)) {
+                if (is_int($id)) {
                     $failed[] = $id;
                 }
                 break;
