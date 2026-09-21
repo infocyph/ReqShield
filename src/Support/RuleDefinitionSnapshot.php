@@ -11,13 +11,13 @@ final class RuleDefinitionSnapshot
 {
     /**
      * @param array<int,array{field:string,rules:string|array<int,mixed>,condition:callable}> $rules
-     * @return array<int,array{field:string,rules:string|array<int|string,mixed>,condition:callable}>
+     * @return array<int,array{field:string,rules:string|array<int,mixed>,condition:callable}>
      */
     public static function conditionalRules(array $rules): array
     {
         foreach ($rules as &$rule) {
             if (is_array($rule['rules'])) {
-                $rule['rules'] = self::map($rule['rules']);
+                $rule['rules'] = array_values(self::map($rule['rules']));
             }
         }
         unset($rule);
