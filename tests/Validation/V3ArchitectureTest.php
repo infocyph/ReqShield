@@ -44,14 +44,13 @@ test('database rules require a provider for flat nested wildcard and mixed schem
 
 test('compiled plans and validation results are immutable', function () {
     $compiled = Validator::compile(['name' => 'required|string']);
-    $compiledProperties = (new ReflectionClass($compiled))->getProperties();
+    $snapshotProperty = new ReflectionProperty(CompiledValidator::class, 'validator');
+    $snapshot = $snapshotProperty->getValue($compiled);
 
     expect($compiled)->toBeInstanceOf(CompiledValidator::class)
         ->and((new ReflectionClass($compiled))->isReadOnly())->toBeTrue()
-        ->and(array_any(
-            $compiledProperties,
-            static fn(ReflectionProperty $property): bool => $property->getType()?->__toString() === Validator::class,
-        ))->toBeFalse()
+        ->and($snapshot)->toBeInstanceOf(Validator::class)
+        ->and($snapshot->isFrozen())->toBeTrue()
         ->and((new ReflectionClass(FieldPlan::class))->isReadOnly())->toBeTrue()
         ->and((new ReflectionClass(ValidationResult::class))->isReadOnly())->toBeTrue()
         ->and(method_exists(ValidationResult::class, 'filter'))->toBeFalse()

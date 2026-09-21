@@ -21,6 +21,7 @@ use Infocyph\ReqShield\Services\MessageTokenBuilder;
 use Infocyph\ReqShield\Services\SanitizerMapApplier;
 use Infocyph\ReqShield\Support\FieldAlias;
 use Infocyph\ReqShield\Support\FieldPlan;
+use Infocyph\ReqShield\Support\RuleDefinitionSnapshot;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 use Infocyph\ReqShield\Support\ValidationPlan;
 use Infocyph\ReqShield\Support\ValidationResult;
@@ -224,13 +225,8 @@ class Validator
 
     public function __clone(): void
     {
-        $this->rules = $this->snapshotRuleDefinitions($this->rules);
-        foreach ($this->conditionalRules as &$conditionalRule) {
-            if (is_array($conditionalRule['rules'])) {
-                $conditionalRule['rules'] = $this->snapshotRuleDefinitions($conditionalRule['rules']);
-            }
-        }
-        unset($conditionalRule);
+        $this->rules = RuleDefinitionSnapshot::map($this->rules);
+        $this->conditionalRules = RuleDefinitionSnapshot::conditionalRules($this->conditionalRules);
 
         $this->compiler = clone $this->compiler;
         $this->validationPlan = new ValidationPlan($this->normalizeCompiledSchema(
@@ -949,37 +945,6 @@ class Validator
         }
 
         return $plan;
-    }
-
-    /**
-     * @param array<int|string,mixed> $definitions
-     * @return array<int|string,mixed>
-     */
-    protected function snapshotRuleDefinitions(array $definitions): array
-    {
-        $snapshot = [];
-
-        foreach ($definitions as $key => $definition) {
-            if ($definition instanceof RuleContract) {
-                $reflection = new \ReflectionObject($definition);
-                if (!$reflection->isCloneable()) {
-                    throw InvalidSchemaException::forField(
-                        (string) $key,
-                        'Rule objects must be cloneable.',
-                    );
-                }
-
-                $snapshot[$key] = clone $definition;
-
-                continue;
-            }
-
-            $snapshot[$key] = is_array($definition)
-                ? $this->snapshotRuleDefinitions($definition)
-                : $definition;
-        }
-
-        return $snapshot;
     }
 
     /** @param array<string,array<int,string>> $errors */
