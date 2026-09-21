@@ -51,6 +51,7 @@ Table of Contents
    advanced-features
    nested-validation
    sanitization
+   schema-registry
    database-rules
    custom-rules
    helper-functions

@@ -44,8 +44,8 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | --- | --- | --- |
 | 1 | Baseline + DBLayer 5.1 floor + integer correlation contract | **complete — PR run #43 green** |
 | 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **implementation complete / QA pending** |
-| 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **next** |
-| 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | open |
+| 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **implementation complete / QA pending** |
+| 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **next** |
 | 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | open |
 | 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | open |
 | 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | open |
@@ -322,24 +322,24 @@ Exact value type may use ReqShield's existing schema representation rather than 
 
 ### 6.2 Runtime requirements
 
-- [ ] Registry state belongs to the registry instance, never static process-global storage.
-- [ ] `freeze()` is idempotent.
-- [ ] Any define/replace/extend/remove operation after freeze throws a dedicated immutable-topology exception.
-- [ ] Reads after freeze remain allocation-light.
-- [ ] Retrieval must not return mutable references capable of mutating frozen registry topology indirectly.
-- [ ] No request/job-specific state may be stored in the registry.
-- [ ] Registry can be created/frozen during application graph/bootstrap construction and safely shared for reads afterward.
+- [X] Registry state belongs to the registry instance, never static process-global storage.
+- [X] `freeze()` is idempotent.
+- [X] Any define/replace/extend/remove operation after freeze throws a dedicated immutable-topology exception.
+- [X] Reads after freeze remain allocation-light.
+- [X] Retrieval must not return mutable references capable of mutating frozen registry topology indirectly.
+- [X] No request/job-specific state may be stored in the registry.
+- [X] Registry can be created/frozen during application graph/bootstrap construction and safely shared for reads afterward.
 
 ### 6.3 Existing static fragments
 
 Do not force a large compatibility rewrite in 3.2.
 
-- [ ] Keep current static fragment helpers where required for compatibility.
-- [ ] Document them as bootstrap/legacy convenience rather than the preferred persistent-runtime topology.
-- [ ] Do not implement the new `SchemaRegistry` internally as another global/static store.
-- [ ] New framework integrations should consume the instance registry.
-- [ ] Mark/document static fragment registration as legacy bootstrap topology; do not use it in persistent Foundation runtime composition.
-- [ ] Consider an `@deprecated` documentation annotation in 3.2, but do not remove the API until a future major.
+- [X] Keep current static fragment helpers where required for compatibility.
+- [X] Document them as bootstrap/legacy convenience rather than the preferred persistent-runtime topology.
+- [X] Do not implement the new `SchemaRegistry` internally as another global/static store.
+- [X] New framework integrations should consume the instance registry.
+- [X] Mark/document static fragment registration as legacy bootstrap topology; do not use it in persistent Foundation runtime composition.
+- [X] Keep the static fragment API source-compatible without an `@deprecated` annotation in 3.2; user documentation now labels it legacy/bootstrap-only so existing consumers are not flooded with deprecation notices before a future major.
 
 ### 6.4 Lightweight immutable `ValidatorProfile`
 
@@ -506,14 +506,16 @@ Required matrix:
 
 ### 9.2 SchemaRegistry tests
 
-- [ ] define/get/has/all;
-- [ ] extend/override semantics;
-- [ ] duplicate-name behavior is explicit;
-- [ ] freeze and post-freeze write rejection;
-- [ ] repeated read stability;
-- [ ] independent registries do not share state;
-- [ ] interleaved Fiber reads remain isolated from other registries;
-- [ ] frozen topology cannot be mutated through returned structures.
+- [X] define/get/has/all;
+- [X] extend/override semantics;
+- [X] duplicate-name behavior is explicit;
+- [X] freeze and post-freeze write rejection;
+- [X] repeated read stability;
+- [X] independent registries do not share state;
+- [X] interleaved Fiber reads remain isolated from other registries;
+- [X] frozen topology cannot be mutated through returned structures.
+
+**Batch 3 implementation status:** complete. The registry snapshots cloneable rule objects on write/read so a frozen registry does not expose mutable rule references; PR CI is the batch closure gate.
 
 ### 9.3 Runtime tests
 
@@ -757,8 +759,8 @@ The audit now provides direct implementation evidence that a **small immutable `
 
 1. **Batch 1 — COMPLETE:** DBLayer `^5.1` floor, integer correlation contract and release-gate cleanup are green in PR run #43.
 2. **Batch 2 — implementation complete / QA pending:** native DBLayer 5.1 bridge, resolver-first ownership, DBLayer-derived chunking and the production regression matrix are implemented; PR CI is the closure gate.
-3. **Batch 3 — next:** add the instance-owned freezeable `SchemaRegistry`; keep static fragments compatibility-only.
-4. **Batch 4:** add the lightweight immutable `ValidatorProfile`, with merge/apply semantics matching current Foundation behavior.
+3. **Batch 3 — implementation complete / QA pending:** instance-owned freezeable `SchemaRegistry`, mutable-rule snapshot isolation, Fiber/read isolation and legacy static-fragment documentation are implemented.
+4. **Batch 4 — next:** add the lightweight immutable `ValidatorProfile`, with merge/apply semantics matching current Foundation behavior.
 5. **Batch 5:** rework `CompiledValidator` into a frozen execution snapshot; close same-instance sequential/Fiber reentrancy; classify/audit bounded caches.
 6. **Batch 6:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
 7. **Batch 7:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
