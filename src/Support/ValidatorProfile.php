@@ -119,6 +119,18 @@ final readonly class ValidatorProfile
     }
 
     /** @return array<string,mixed> */
+    private static function assertKnownOptions(array $options): void
+    {
+        foreach (array_keys($options) as $key) {
+            if (!in_array($key, self::OPTIONS, true)) {
+                throw InvalidValidatorProfileException::forOption(
+                    $key,
+                    'unknown option.',
+                );
+            }
+        }
+    }
+
     private static function associativeArray(mixed $value): array
     {
         if (!is_array($value)) {
@@ -135,19 +147,6 @@ final readonly class ValidatorProfile
         return $normalized;
     }
 
-    /** @param array<string,mixed> $options */
-    private static function assertKnownOptions(array $options): void
-    {
-        foreach (array_keys($options) as $key) {
-            if (!in_array($key, self::OPTIONS, true)) {
-                throw InvalidValidatorProfileException::forOption(
-                    $key,
-                    'unknown option.',
-                );
-            }
-        }
-    }
-
     private static function boolean(mixed $value, bool $default): bool
     {
         return match (true) {
@@ -158,24 +157,6 @@ final readonly class ValidatorProfile
         };
     }
 
-    /** @return array<string,array<string,mixed>> */
-    private static function localePacks(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $packs = [];
-        foreach ($value as $locale => $messages) {
-            if (is_string($locale) && $locale !== '' && is_array($messages)) {
-                $packs[$locale] = self::associativeArray($messages);
-            }
-        }
-
-        return $packs;
-    }
-
-    /** @return Limits */
     private static function limits(mixed $value): array
     {
         $limits = self::associativeArray($value);
@@ -202,6 +183,22 @@ final readonly class ValidatorProfile
         return $normalized;
     }
 
+    private static function localePacks(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $packs = [];
+        foreach ($value as $locale => $messages) {
+            if (is_string($locale) && $locale !== '' && is_array($messages)) {
+                $packs[$locale] = self::associativeArray($messages);
+            }
+        }
+
+        return $packs;
+    }
+
     private static function nestedMode(mixed $value): string
     {
         $mode = is_string($value) && $value !== '' ? $value : 'all';
@@ -216,11 +213,6 @@ final readonly class ValidatorProfile
         }
 
         return $mode;
-    }
-
-    private static function nullableString(mixed $value): ?string
-    {
-        return is_string($value) && $value !== '' ? $value : null;
     }
 
     /**
@@ -301,6 +293,11 @@ final readonly class ValidatorProfile
         return $normalized;
     }
 
+    private static function nullableString(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
     private static function positiveInt(mixed $value, string $name): int
     {
         if (!is_int($value) && !(is_string($value) && preg_match('/^\d+$/D', $value) === 1)) {
@@ -321,7 +318,6 @@ final readonly class ValidatorProfile
         return $resolved;
     }
 
-    /** @return array<string,SanitizerPipeline> */
     private static function sanitizerMap(mixed $value): array
     {
         if (!is_array($value)) {
@@ -354,7 +350,6 @@ final readonly class ValidatorProfile
         return $normalized;
     }
 
-    /** @return array<string,string> */
     private static function stringMap(mixed $value): array
     {
         if (!is_array($value)) {
