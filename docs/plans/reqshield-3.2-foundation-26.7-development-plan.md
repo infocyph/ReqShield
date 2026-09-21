@@ -70,7 +70,7 @@ Current released ReqShield baseline:
 
 - ReqShield: `3.1`
 - PHP: `^8.4`
-- DBLayer development/reference integration: currently `^5.0`
+- DBLayer development/reference integration: `^5.1` on this development branch
 - DBLayer current Foundation baseline: `^5.1`
 
 ReqShield 3.1 already owns:
@@ -292,7 +292,7 @@ ReqShield documentation and `BatchExecutor` already treat logical check IDs as d
 - [X] Add contract tests proving string, unknown, duplicate/malformed correlation IDs cannot be accepted as valid provider results.
 - [X] Update `docs/database-rules.rst` so public contract, static analysis and runtime behavior agree.
 
-This is a contract correction to the behavior ReqShield already enforces, not a new string-ID feature removal.
+The integer-ID narrowing documents behavior ReqShield already enforced for valid provider results. Batch 1 additionally hardens the boundary by generating correlation IDs independently from caller array keys and rejecting duplicate provider IDs.
 
 ---
 
