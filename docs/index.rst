@@ -51,6 +51,10 @@ Table of Contents
    advanced-features
    nested-validation
    sanitization
+   schema-registry
+   validator-profiles
+   compiled-validators
+   security-boundaries
    database-rules
    custom-rules
    helper-functions
@@ -66,4 +70,5 @@ Table of Contents
    :caption: Development
 
    benchmark
+   upgrading-3.2
    development

@@ -457,10 +457,6 @@ class Sanitizer
           . mb_strtolower(mb_substr($value, 1, null, 'UTF-8'), 'UTF-8');
     }
 
-    // ============================================
-    // Slug & Identifiers
-    // ============================================
-
     public static function slug(mixed $value, string $separator = '-'): string
     {
         if (!is_string($value)) {
@@ -471,9 +467,7 @@ class Sanitizer
         $value = mb_strtolower($value, 'UTF-8');
 
         // Transliterate unicode to ASCII
-        $value = function_exists('iconv')
-            ? (iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value) ?: $value)
-            : $value;
+        $value = \Infocyph\ReqShield\Support\SlugTransliterator::convert($value);
 
         // Replace non-alphanumeric with separator
         $value = self::pregReplace('/[^a-z0-9]+/', $separator, $value);
@@ -702,4 +696,9 @@ class Sanitizer
             ? static fn(mixed $input): mixed => $sanitizer($input)
             : null;
     }
+
+    // ============================================
+    // Slug & Identifiers
+    // ============================================
+
 }

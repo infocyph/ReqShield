@@ -48,7 +48,7 @@ Hooks are also installed automatically on ``post-autoload-dump``.
 Database Reference Tests
 ------------------------
 
-DBLayer 5 is installed only as a development dependency and backs the reference
+DBLayer 5.1 is installed only as a development dependency and backs the reference
 ``DatabaseProvider`` integration tests. Those tests exercise driver-aware
 physical batching, constrained ``security.max_params`` configurations, unique
 ignore bindings, soft deletes, scalar edge cases, wildcard batches, and DBLayer

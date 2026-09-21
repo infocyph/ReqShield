@@ -49,3 +49,23 @@ transformations belong in normal PHP after reading ``validated()`` or
 ``typed()``.
 
 Use ``$result->throw()`` to raise ``ValidationException`` for an invalid request.
+
+
+Transport-Neutral Exceptions
+----------------------------
+
+``ValidationException`` carries validation error information, not an HTTP
+status. ``$result->throw()`` and ``throwOnFailure()`` therefore use the
+normal exception code unless the caller explicitly constructs an exception with
+another code.
+
+JSON:API and Problem Details helpers are presentation conveniences:
+
+.. code-block:: php
+
+    $result->toJsonApiErrors();       // compatibility default: status "422"
+    $result->toJsonApiErrors(409);    // caller-selected status
+    $result->toProblemJson(status: 400);
+
+Framework/application exception mapping remains responsible for the actual HTTP
+response status.

@@ -64,4 +64,4 @@ test('strict MIME detection rejects an extension and content mismatch', function
     } finally {
         unlink($path);
     }
-})->skip(!function_exists('finfo_open') && !function_exists('mime_content_type'));
+});

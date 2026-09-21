@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 use Infocyph\ReqShield\Rules\Callback;
 use Infocyph\ReqShield\Support\RuleExpressionParser;
+use Infocyph\ReqShield\Tests\Fixtures\Performance\StressDto;
 use Infocyph\ReqShield\Validator;
-
-final readonly class ReqShieldStressDto
-{
-    public function __construct(public string $value) {}
-}
 
 test('wildcard schema cache stays capped under shape churn', function () {
     $validator = Validator::make([
@@ -108,10 +104,10 @@ test('long-running validator workloads keep process caches bounded', function ()
                 'value' => [new Callback($callback)],
             ])->setLocale('en-US')
                 ->addLocalePack('en-US', ['callback' => 'Invalid value.'])
-                ->setDtoClass(ReqShieldStressDto::class);
+                ->setDtoClass(StressDto::class);
 
             expect($validator->validate(['value' => 'ok'])->toDTO())
-                ->toBeInstanceOf(ReqShieldStressDto::class);
+                ->toBeInstanceOf(StressDto::class);
 
             expect(Validator::make([
                 "field_{$iteration}" => "required|string|max:{$iteration}",

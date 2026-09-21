@@ -8,16 +8,17 @@ use Infocyph\ReqShield\Support\ValidationResult;
 
 final readonly class CompiledValidator
 {
-    private \Closure $validateCallback;
+    private Validator $validator;
 
     public function __construct(Validator $validator)
     {
-        $this->validateCallback = static fn(array $data): ValidationResult => $validator->validate($data);
+        $this->validator = clone $validator;
+        $this->validator->freeze();
     }
 
     /** @param array<int|string,mixed> $data */
     public function validate(array $data): ValidationResult
     {
-        return ($this->validateCallback)($data);
+        return $this->validator->validate($data);
     }
 }

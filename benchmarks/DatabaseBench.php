@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Benchmarks;
 
+use Infocyph\DBLayer\Connection\Connection;
 use Infocyph\DBLayer\DB;
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Rule;
-use Infocyph\ReqShield\Tests\Integration\Database\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Validator;
 use PhpBench\Attributes as Bench;
 
@@ -14,9 +15,15 @@ use PhpBench\Attributes as Bench;
 #[Bench\Iterations(5)]
 final class DatabaseBench
 {
+    private Connection $connection;
+
     private Validator $constrainedValidator;
 
+    private DBLayerDatabaseProvider $directProvider;
+
     private Validator $existsValidator;
+
+    private DBLayerDatabaseProvider $resolverProvider;
 
     private int $safeBatchSize;
 
@@ -26,13 +33,18 @@ final class DatabaseBench
     {
         DB::resetRuntimeState();
         $connection = DB::addConnection(['driver' => 'sqlite', 'database' => ':memory:'], 'benchmark');
+        $this->connection = $connection;
         $connection->statement('CREATE TABLE teams (id INTEGER PRIMARY KEY, code TEXT)');
         $connection->statement('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)');
         $connection->insert('INSERT INTO teams (id, code) VALUES (?, ?)', [1, 'core']);
         $connection->insert('INSERT INTO users (id, email) VALUES (?, ?)', [1, 'existing@example.com']);
-        $this->safeBatchSize = $connection->safeBatchSize(requested: 1_000);
+        $this->safeBatchSize = $connection->safeBatchSize(requested: 128);
 
-        $provider = new DBLayerDatabaseProvider($connection);
+        $provider = DBLayerDatabaseProvider::fromConnection($connection);
+        $this->directProvider = $provider;
+        $this->resolverProvider = new DBLayerDatabaseProvider(
+            fn(): Connection => $this->connection,
+        );
         $this->existsValidator = Validator::make([
             'contacts.*.team_id' => 'required|exists:teams,id',
         ], $provider);
@@ -49,7 +61,7 @@ final class DatabaseBench
         $constrained->insert('INSERT INTO users (id, email) VALUES (?, ?)', [1, 'existing@example.com']);
         $this->constrainedValidator = Validator::make([
             'contacts.*.email' => Rule::unique('users', 'email')->ignore(1),
-        ], new DBLayerDatabaseProvider($constrained));
+        ], DBLayerDatabaseProvider::fromConnection($constrained));
     }
 
     #[Bench\Groups(['database', 'dblayer-sqlite-constrained-bind-limit'])]
@@ -63,7 +75,6 @@ final class DatabaseBench
         }
     }
 
-    #[Bench\Groups(['database', 'dblayer-sqlite-batch'])]
     #[Bench\ParamProviders(['provideBatchSizes'])]
     public function benchDatabaseBatch(array $params): void
     {
@@ -75,7 +86,6 @@ final class DatabaseBench
         }
     }
 
-    #[Bench\Groups(['database', 'dblayer-sqlite-unique-batch'])]
     #[Bench\ParamProviders(['provideBatchSizes'])]
     public function benchDatabaseUniqueBatch(array $params): void
     {
@@ -84,6 +94,54 @@ final class DatabaseBench
         ]);
         if ($result->fails()) {
             throw new \RuntimeException('Unique benchmark produced an invalid result.');
+        }
+    }
+
+    #[Bench\Groups(['database', 'dblayer-direct-baseline'])]
+    public function benchDirectDBLayerExistsBaseline(): void
+    {
+        $rows = $this->connection
+            ->table('teams')
+            ->select(['id'])
+            ->whereIn('id', [1])
+            ->get();
+
+        if ($rows === []) {
+            throw new \RuntimeException('Direct DBLayer benchmark produced no rows.');
+        }
+    }
+
+    #[Bench\Groups(['database', 'dblayer-native-provider-direct'])]
+    public function benchNativeProviderDirectConnection(): void
+    {
+        $failed = $this->directProvider->batchExists('teams', [
+            [
+                'id' => 0,
+                'field' => 'team_id',
+                'column' => 'id',
+                'value' => 1,
+            ],
+        ]);
+
+        if ($failed !== []) {
+            throw new \RuntimeException('Direct provider benchmark produced an invalid result.');
+        }
+    }
+
+    #[Bench\Groups(['database', 'dblayer-native-provider-resolver'])]
+    public function benchNativeProviderResolver(): void
+    {
+        $failed = $this->resolverProvider->batchExists('teams', [
+            [
+                'id' => 0,
+                'field' => 'team_id',
+                'column' => 'id',
+                'value' => 1,
+            ],
+        ]);
+
+        if ($failed !== []) {
+            throw new \RuntimeException('Resolver benchmark produced an invalid result.');
         }
     }
 

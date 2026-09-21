@@ -143,7 +143,12 @@ and schema compilation on every call.
 Schema Fragments and Composition
 --------------------------------
 
-Reuse schema pieces across endpoints.
+Static fragments remain supported for 3.x compatibility, but they are
+process-global bootstrap state. New persistent-runtime integrations should use
+the instance-owned :doc:`schema-registry` and freeze topology before request/job
+execution.
+
+Reuse legacy schema pieces across endpoints when compatibility requires it.
 
 .. code-block:: php
 

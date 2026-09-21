@@ -198,16 +198,9 @@ test('date validation rules pass', function () {
 });
 
 test('format validation rules pass', function () {
-    $dnsAvailable = function_exists('checkdnsrr')
-        && (checkdnsrr('example.com', 'A') || checkdnsrr('example.com', 'AAAA'));
-    if (!$dnsAvailable) {
-        $this->markTestSkipped('DNS resolution is unavailable for active_url assertions.');
-    }
-
     $validator = Validator::make([
       'email' => 'email',
       'url' => 'url',
-      'active_url' => 'active_url',
       'ip_any' => 'ip',
       'ip_v4' => 'ip:v4',
       'ip_v6' => 'ip:v6',
@@ -223,7 +216,6 @@ test('format validation rules pass', function () {
     $data = [
       'email' => 'test@example.com',
       'url' => 'https://www.example.com',
-      'active_url' => 'https://example.com',
       'ip_any' => '192.168.1.1',
       'ip_v4' => '192.168.1.1',
       'ip_v6' => '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
@@ -950,18 +942,14 @@ describe('Format Validation Rules', function () {
           ->toBeTrue();
     });
 
-    test('active_url rule validates DNS records', function () {
+    test('active_url rule follows DNS availability without skipping the suite', function () {
         $dnsAvailable = function_exists('checkdnsrr')
             && (checkdnsrr('example.com', 'A') || checkdnsrr('example.com', 'AAAA'));
-        if (!$dnsAvailable) {
-            $this->markTestSkipped('DNS resolution is unavailable for active_url assertions.');
-        }
-
         $validator = Validator::make(['site' => 'active_url']);
 
         expect(
             $validator->validate(['site' => 'https://example.com'])->passes(),
-        )->toBeTrue();
+        )->toBe($dnsAvailable);
     });
 
     test('active_url rule fails for invalid dns hosts', function () {

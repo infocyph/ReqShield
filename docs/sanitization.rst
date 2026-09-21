@@ -47,3 +47,12 @@ and CSRF protection belong to the application or HTTP framework layer.
 
 ``escapeLike()`` escapes wildcard characters for a LIKE value; it does not make
 an SQL statement safe. Bind its result as a query parameter.
+
+
+Slug Portability
+----------------
+
+``slug()`` uses transliteration-capable iconv implementations when available,
+then falls back to the optional Intl transliterator. Unsupported iconv builds
+(such as musl's) are not called with ``//TRANSLIT``. Without either capability,
+non-ASCII characters are handled by the normal slug separator filter.

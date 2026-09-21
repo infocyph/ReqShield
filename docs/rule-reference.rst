@@ -710,7 +710,9 @@ Supports array-style ``$_FILES`` payloads and PSR-7-like uploaded file objects.
 path
 ~~~~
 The field under validation must be a valid filesystem-style path string.
-You may optionally require an absolute or relative path.
+You may optionally require an absolute or relative path. This is a syntax check,
+not a containment, existence, storage-trust or authorization decision.
+Pathwise 4.1 owns canonical filesystem containment/trust decisions.
 
 .. code-block:: php
 
@@ -772,7 +774,8 @@ safe_filename
 ~~~~~~~~~~~~~
 The field under validation must be a safe client filename.
 It rejects path separators, traversal-like names, control characters, and reserved
-characters often abused in upload attacks.
+characters often abused in upload attacks. Passing this rule does not authorize a
+storage path or establish filesystem containment; Pathwise 4.1 owns that boundary.
 
 .. code-block:: php
 
@@ -792,7 +795,8 @@ upload_meta
 ~~~~~~~~~~~
 The field under validation must contain valid upload metadata
 (``name``, ``size``, ``error`` and related properties) for array-style payloads
-or PSR-7-like uploaded file objects.
+or PSR-7-like uploaded file objects. This validates metadata/shape only; it does
+not establish storage trust, malware safety or filesystem authorization.
 
 Modes:
 
@@ -809,7 +813,8 @@ secure_file
 ~~~~~~~~~~~
 Composite upload rule that combines ``file`` and ``upload_meta`` checks.
 Use this as the default upload rule when you want both file validity and
-metadata hardening in one place.
+metadata hardening in one place. It is not a replacement for Pathwise 4.1
+containment/storage trust or application-owned malware/quarantine policy.
 
 .. code-block:: php
 

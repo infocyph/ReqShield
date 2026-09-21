@@ -33,6 +33,9 @@ if ($result->passes()) {
 -  **108 Built-in Rules** - Basic types, conditional rules, files, database checks, enums, and more
 -  **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
 -  **Intelligent Batching** - Expensive DB checks are batched automatically
+-  **Native DBLayer 5.1 Bridge** - Optional resolver-first `exists` / `unique` integration
+-  **Frozen Compiled Validators** - Reusable snapshots for persistent runtimes and Fiber-interleaved execution
+-  **Schema Registry + Validator Profiles** - Instance-owned frozen schema topology and immutable reusable configuration
 -  **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
 -  **Nested + Wildcard Validation** - Dot notation with wildcard expansion
 -  **Custom Messages + Placeholders** - `:field`, `:rule`, `:min`, and more
@@ -318,7 +321,7 @@ try {
     print_r($e->getErrors());           // All errors
     echo $e->getErrorCount();           // Number of failed fields
     echo $e->getFirstFieldError('email'); // First error for specific field
-    echo $e->getCode();                 // 422
+    echo $e->getCode();                 // 0 by default; transport status belongs to your application
 }
 ```
 
@@ -375,9 +378,9 @@ $typed = $result->typed();
 $dto = $result->toDTO();
 ```
 
-### Compiled Validator Wrapper
+### Frozen Compiled Validator
 
-`Validator::compile()` returns a reusable validator wrapper.
+`Validator::compile()` returns a reusable frozen execution snapshot. Later mutation of the source builder cannot change the compiled validator.
 
 ```php
 $compiled = Validator::compile([
@@ -465,11 +468,26 @@ when it is absent. The contract contains only `batchExists()` and `batchUnique()
 ReqShield owns logical validation batching, while providers own query construction
 and driver-safe physical chunking. ReqShield is database-library agnostic: a
 provider may use PDO, DBLayer, Laravel, Doctrine, or another database layer.
-DBLayer 5 is used only as the development-suite reference integration and is not
-a runtime dependency for normal consumers.
+DBLayer 5.1 is the development/reference integration and remains optional for normal consumers. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
+
+```php
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
+use Infocyph\ReqShield\Validator;
+
+$provider = new DBLayerDatabaseProvider(
+    static fn() => $applicationDatabase->connection(),
+);
+
+$validator = Validator::make([
+    'email' => 'required|email|unique:users,email',
+    'category_id' => 'required|exists:categories,id',
+], $provider);
+```
+
+The resolver is invoked only when database rules execute. ReqShield owns logical validation batching; DBLayer 5.1 owns physical bind-limit sizing and query execution.
 
 **Benefits:**
-- **Automatic batching** - Multiple checks become one query
+- **Automatic batching** - Multiple checks become bounded DB-native match queries; restricted raw-SQL policies use query-builder-only lookups
 - **Update support** - `Rule::unique('users', 'email')->ignore(5)` ignores ID 5
 - **Explicit object syntax** - `Rule::unique('users', 'email')->ignore($id)->withoutTrashed()`
 

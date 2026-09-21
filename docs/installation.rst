@@ -24,6 +24,7 @@ Database Integrations
 
 Database validation does not require a specific database package. Supply an
 implementation of ``Infocyph\ReqShield\Contracts\DatabaseProvider`` using PDO,
-DBLayer, Laravel, Doctrine, or another database layer. DBLayer 5 is a
-development-only reference integration used by ReqShield's own tests; it is not
-installed for normal consumers.
+DBLayer, Laravel, Doctrine, or another database layer. DBLayer 5.1 is ReqShield's development/reference integration and remains
+optional for normal consumers. The native DBLayer bridge is available when
+``infocyph/dblayer:^5.1`` is installed; ReqShield does not require DBLayer for
+non-database validation.
