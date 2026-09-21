@@ -104,3 +104,98 @@ test('batch execution does not fall back to query when provider batch methods th
         'email' => 'taken@example.com',
     ]))->toThrow(DatabaseValidationException::class, "Database validation failed for table 'users'.");
 });
+
+
+test('database provider rejects string correlation IDs', function () {
+    $provider = new class implements DatabaseProvider {
+        public function batchExists(string $table, array $checks): array
+        {
+            unset($table);
+
+            return [(string) $checks[0]['id']];
+        }
+
+        public function batchUnique(string $table, array $checks): array
+        {
+            unset($table, $checks);
+
+            return [];
+        }
+    };
+
+    expect(fn () => Validator::make([
+        'team_id' => 'required|exists:teams,id',
+    ], $provider)->validate([
+        'team_id' => 1,
+    ]))->toThrow(
+        DatabaseValidationException::class,
+        'Database provider returned an unknown or malformed check ID.',
+    );
+});
+
+test('database provider rejects duplicate correlation IDs', function () {
+    $provider = new class implements DatabaseProvider {
+        public function batchExists(string $table, array $checks): array
+        {
+            unset($table);
+            $id = $checks[0]['id'];
+
+            return [$id, $id];
+        }
+
+        public function batchUnique(string $table, array $checks): array
+        {
+            unset($table, $checks);
+
+            return [];
+        }
+    };
+
+    expect(fn () => Validator::make([
+        'team_id' => 'required|exists:teams,id',
+    ], $provider)->validate([
+        'team_id' => 1,
+    ]))->toThrow(
+        DatabaseValidationException::class,
+        'Database provider returned a duplicate check ID.',
+    );
+});
+
+test('database correlation IDs do not inherit caller batch keys', function () {
+    $provider = new class implements DatabaseProvider {
+        /** @var list<int> */
+        public array $ids = [];
+
+        public function batchExists(string $table, array $checks): array
+        {
+            unset($table);
+            $this->ids = array_column($checks, 'id');
+
+            return [];
+        }
+
+        public function batchUnique(string $table, array $checks): array
+        {
+            unset($table, $checks);
+
+            return [];
+        }
+    };
+
+    $executor = new \Infocyph\ReqShield\Executors\BatchExecutor($provider);
+    $errors = [];
+    $executor->executeBatch([
+        10 => [
+            'rule' => new \Infocyph\ReqShield\Rules\Exists('teams', 'id'),
+            'value' => 1,
+            'field' => 'first',
+        ],
+        50 => [
+            'rule' => new \Infocyph\ReqShield\Rules\Exists('teams', 'id'),
+            'value' => 2,
+            'field' => 'second',
+        ],
+    ], $errors);
+
+    expect($provider->ids)->toBe([0, 1]);
+});
