@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Benchmarks;
 
 use Infocyph\DBLayer\DB;
-use Infocyph\ReqShield\Rule;
 use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
+use Infocyph\ReqShield\Rule;
 use Infocyph\ReqShield\Validator;
 use PhpBench\Attributes as Bench;
 
