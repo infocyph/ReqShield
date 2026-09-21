@@ -36,6 +36,36 @@ It also found one lower-layer ownership leak inside ReqShield itself: `Validator
 
 A ReqShield 4.0 should only be considered later if we choose to remove static fragment APIs, remove/rename transport-oriented result helpers, make all validators immutable, or otherwise break the established 3.x public surface.
 
+### 1.2 Batch execution tracker
+
+Implementation proceeds in bounded batches. Update this tracker in the same development pass as the code so the plan remains authoritative.
+
+| Batch | Scope | Status |
+| --- | --- | --- |
+| 1 | Baseline + DBLayer 5.1 floor + integer correlation contract | **implementation complete / QA pending** |
+| 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **next** |
+| 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | open |
+| 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | open |
+| 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | open |
+| 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | open |
+| 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | open |
+| 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
+
+#### Batch 1 — baseline and correlation contract
+
+- [X] Raise `require-dev["infocyph/dblayer"]` from `^5.0` to `^5.1`.
+- [X] Keep DBLayer optional: no production `require` dependency introduced.
+- [X] Make `DatabaseProvider` check correlation IDs and returned IDs explicitly integer in the public/static contract.
+- [X] Generate dense integer correlation IDs inside `BatchExecutor` instead of inheriting caller batch keys.
+- [X] Fail closed on unknown/non-integer provider IDs.
+- [X] Fail closed on duplicate provider IDs.
+- [X] Align mock/reference provider fixtures and direct DBLayer tests with integer correlation IDs.
+- [X] Update database-rule documentation to DBLayer 5.1 reference semantics.
+- [X] Normalize the ecosystem filesystem-trust boundary to **Pathwise 4.1**; ReqShield does not acquire a Pathwise dependency.
+- [ ] Run the full PHPForge/ReqShield stable + lowest matrix. This remains pending because the feature branch is not configured for push CI; do not mark Batch 1 fully closed until the real QA lanes run.
+
+**Batch 1 status:** implementation complete; verification is intentionally carried into the Batch 7 aggregate QA gate unless a PR/main-targeted CI run is executed earlier.
+
 Current released ReqShield baseline:
 
 - ReqShield: `3.1`
@@ -121,7 +151,7 @@ Required boundary:
 - [ ] Where Foundation exposes a registered operation/capability identifier, validate it structurally with normal ReqShield rules such as required/string/enum/allowlist/bounds.
 - [ ] User input must select a **registered application operation**, not an executable or raw shell command, when Foundation applies this pattern.
 - [ ] Authorization for that operation remains Foundation/application policy; validation is not authorization.
-- [ ] Filesystem/path containment remains Pathwise responsibility.
+- [ ] Filesystem/path containment remains Pathwise 4.1 responsibility.
 - [ ] Process execution, argv construction, environment/cwd policy, signals, privilege changes, sandbox profiles and OS isolation belong to the dedicated process/runtime layer.
 
 Conceptual safe boundary:
@@ -148,8 +178,8 @@ Do **not** introduce APIs such as `SafeShellCommand`, `ForbiddenPhpFunction`, `P
 
 ### 3.1 Raise the reference-integration floor
 
-- [ ] Raise `infocyph/dblayer` in `require-dev` from `^5.0` to `^5.1`.
-- [ ] Keep DBLayer out of normal `require`; ReqShield remains database-library agnostic.
+- [X] Raise `infocyph/dblayer` in `require-dev` from `^5.0` to `^5.1`.
+- [X] Keep DBLayer out of normal `require`; ReqShield remains database-library agnostic.
 - [ ] Add/update Composer `suggest` text for consumers that want the native DBLayer database-rule provider.
 - [ ] Run the DB integration suite specifically against DBLayer 5.1 stable behavior.
 
@@ -255,12 +285,12 @@ ReqShield documentation and `BatchExecutor` already treat logical check IDs as d
 
 ### Changes
 
-- [ ] Make provider input check IDs explicitly integer correlation IDs.
-- [ ] Change provider return PHPDoc from `list<int|string>` to `list<int>`.
-- [ ] Align `DatabaseBatchRule` payload PHPDoc/types with integer correlation IDs.
-- [ ] Keep `BatchExecutor` fail-closed behavior for unknown/malformed returned IDs.
-- [ ] Add contract tests proving string, unknown, duplicate/malformed correlation IDs cannot be accepted as valid provider results.
-- [ ] Update `docs/database-rules.rst` so public contract, static analysis and runtime behavior agree.
+- [X] Make provider input check IDs explicitly integer correlation IDs.
+- [X] Change provider return PHPDoc from `list<int|string>` to `list<int>`.
+- [X] Align `DatabaseBatchRule` payload documentation with BatchExecutor-owned integer correlation IDs.
+- [X] Keep `BatchExecutor` fail-closed behavior for unknown/malformed returned IDs and reject duplicate returned IDs.
+- [X] Add contract tests proving string, unknown, duplicate/malformed correlation IDs cannot be accepted as valid provider results.
+- [X] Update `docs/database-rules.rst` so public contract, static analysis and runtime behavior agree.
 
 This is a contract correction to the behavior ReqShield already enforces, not a new string-ID feature removal.
 
@@ -593,7 +623,7 @@ Update:
 - [ ] persistent-runtime guidance warning against process-global mutable schema registration;
 - [ ] document that validation is not a process/PHP sandbox and dangerous-function-name filtering is intentionally out of scope;
 - [ ] document that ReqShield exceptions are transport-neutral and HTTP status selection belongs to the application/framework;
-- [ ] clarify that `Path`, `SafeFilename`, `SecureFile` and `UploadMeta` validate syntax/metadata only; Pathwise owns canonical path containment, storage trust, malware/storage policy and filesystem authorization;
+- [ ] clarify that `Path`, `SafeFilename`, `SecureFile` and `UploadMeta` validate syntax/metadata only; Pathwise 4.1 owns canonical path containment, storage trust, malware/storage policy and filesystem authorization;
 - [ ] document the recommended registered-operation pattern for applications that validate input for privileged process capabilities;
 - [ ] installation/development docs to identify DBLayer 5.1 as a development/reference integration only;
 - [ ] upgrade/release notes for 3.2.
@@ -673,11 +703,11 @@ These classes combine application topology, lower-library capability selection a
 
 ### Keep outside ReqShield
 
-- [ ] Pathwise owns path/filesystem containment and upload/storage path safety.
+- [ ] Pathwise 4.1 owns path/filesystem containment and upload/storage path safety.
 - [ ] A dedicated low-level process/runtime library owns safe executable/argv handling, process lifecycle, signals, environment/cwd policy, privilege changes and sandbox integration.
 - [ ] Foundation owns which process/runtime profile or registered operation is exposed to application code.
 - [ ] OS/container/runtime configuration remains the final execution-security boundary for untrusted code.
-- [ ] ReqShield rules named `Path`, `SafeFilename`, `SecureFile`, `UploadId` and `UploadMeta` remain syntactic/metadata validation; their success is never a Pathwise containment/trust decision.
+- [ ] ReqShield rules named `Path`, `SafeFilename`, `SecureFile`, `UploadId` and `UploadMeta` remain syntactic/metadata validation; their success is never a Pathwise 4.1 containment/trust decision.
 
 ### Foundation acceptance
 
@@ -723,21 +753,14 @@ The audit now provides direct implementation evidence that a **small immutable `
 
 ## 15. Implementation order
 
-1. Capture baseline QA/API behavior and raise the DBLayer development/reference floor to `^5.1`.
-2. Correct the integer correlation-ID public/static contract and update direct provider tests.
-3. Promote/refactor the DBLayer reference provider into production source with resolver-first connection ownership; do not blindly carry the test-only `MAX_BATCH_VALUES = 1000` ceiling without benchmark/security justification.
-4. Port/expand DB integration coverage against the production provider, including nullable-ignore, identifier rejection and execution-connection lifetime regressions.
-5. Add the instance-owned freezeable `SchemaRegistry`; keep static fragments compatibility-only.
-6. Add the lightweight immutable `ValidatorProfile`, with merge/apply semantics matching current Foundation behavior.
-7. Rework `CompiledValidator` into a frozen execution snapshot and close same-instance sequential/Fiber reentrancy.
-8. Classify/audit all ReqShield caches; retain bounded metadata caches, prohibit request-value/global-topology leakage.
-9. Remove ReqShield's automatic HTTP-422 exception-code ownership while preserving 3.x API compatibility.
-10. Lock/document the Pathwise and Runwire trust boundaries and add drift-prevention tests.
-11. Complete docs and benchmarks, including profile/compiled reuse measurements.
-12. Run PHP 8.4/8.5 stable + lowest QA/static-analysis gates.
-13. Release ReqShield 3.2.
-14. Return to Foundation 26.7: consume 3.2; remove duplicate DB provider, package-local schema mechanics and generic profile setter translation; run Foundation acceptance/performance gates.
-15. Update Foundation's 26.7 tracker/benchmark naming only after the 3.2 dependency is actually consumable; do not make the Foundation branch claim a released floor prematurely.
+1. **Batch 1 — implemented, QA pending:** raise the DBLayer development/reference floor to `^5.1`, correct the integer correlation-ID public/static contract, harden duplicate/malformed provider results, and update direct provider tests/docs.
+2. **Batch 2 — next:** promote/refactor the DBLayer reference provider into production source with resolver-first connection ownership; port/expand the DB regression matrix, including nullable-ignore, identifier rejection and execution-connection lifetime coverage; do not blindly carry the test-only `MAX_BATCH_VALUES = 1000` ceiling without benchmark/security justification.
+3. **Batch 3:** add the instance-owned freezeable `SchemaRegistry`; keep static fragments compatibility-only.
+4. **Batch 4:** add the lightweight immutable `ValidatorProfile`, with merge/apply semantics matching current Foundation behavior.
+5. **Batch 5:** rework `CompiledValidator` into a frozen execution snapshot; close same-instance sequential/Fiber reentrancy; classify/audit bounded caches.
+6. **Batch 6:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
+7. **Batch 7:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
+8. **Batch 8:** return to Foundation 26.7, consume ReqShield 3.2, remove duplicate DB provider/schema/profile mechanics, run Foundation acceptance/performance gates, and update the Foundation tracker/benchmark naming only after the dependency is consumable.
 
 ---
 
@@ -783,7 +806,7 @@ validates operation ID + structured arguments
 Foundation/application
 checks authorization/capability and selects trusted operation
         ↓
-Pathwise, where an artifact/path is involved
+Pathwise 4.1, where an artifact/path is involved
 resolves data under intended filesystem/storage boundary
         ↓
 Runwire
@@ -926,12 +949,12 @@ Correct ownership:
 
 ```text
 ReqShield: shape/domain of file_id/path parameter
-Pathwise: canonical filesystem/storage containment
+Pathwise 4.1: canonical filesystem/storage containment
 Foundation: authorization to use that artifact for this operation
 Runwire: process invocation
 ```
 
-Do not duplicate Pathwise traversal/symlink/storage-root mechanics inside ReqShield process-operation schemas.
+Do not duplicate Pathwise 4.1 traversal/symlink/storage-root mechanics inside ReqShield process-operation schemas.
 
 ---
 
@@ -941,7 +964,7 @@ ReqShield is not a source-code malware scanner.
 
 Do not scan upload/body contents for occurrences of dangerous PHP APIs and call that a sandbox.
 
-If an application accepts source code as data, ReqShield may validate metadata and generic size/shape constraints. Pathwise handles storage safety. Execution, if ever allowed, must go through Foundation authorization and a separately isolated Runwire/OS execution profile.
+If an application accepts source code as data, ReqShield may validate metadata and generic size/shape constraints. Pathwise 4.1 handles storage safety. Execution, if ever allowed, must go through Foundation authorization and a separately isolated Runwire/OS execution profile.
 
 A forked Runwire child is not made safe by ReqShield content filtering.
 
@@ -1019,7 +1042,7 @@ ReqShield result
     ↓
 Foundation authorization
     ↓
-Pathwise artifact lookup
+Pathwise 4.1 artifact lookup
     ↓
 Foundation registered-operation mapping
     ↓
@@ -1054,7 +1077,7 @@ Normalize final ReqShield 3.2 docs so the concrete ecosystem boundary reads:
 ```text
 ReqShield   validates structured data/intent
 Foundation  authorizes capability/operation
-Pathwise    resolves filesystem/storage artifact where needed
+Pathwise 4.1    resolves filesystem/storage artifact where needed
 Runwire     executes/supervises process/runtime mechanics
 OS          supplies final hostile-code sandbox boundary
 ```
@@ -1095,7 +1118,7 @@ ReqShield 3.2 process/runtime-boundary acceptance additionally requires:
 - [ ] generic enum/allowlist/structured validation is sufficient for Foundation operation schemas;
 - [ ] persistent Runwire worker deployment does not cause schema/result/DB-provider state leakage;
 - [ ] Foundation owns end-to-end authorization before Runwire invocation;
-- [ ] Pathwise remains filesystem trust owner where files are involved;
+- [ ] Pathwise 4.1 remains filesystem trust owner where files are involved;
 - [ ] ReqShield's path/upload rules are documented as syntax/metadata checks, not containment, malware, storage-trust or filesystem-authorization guarantees.
 
 All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria from earlier sections of this plan remain unchanged.
