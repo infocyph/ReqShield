@@ -270,11 +270,12 @@ final readonly class ValidationResult
     }
 
     /** @return array{errors:array<int,array<string,mixed>>} */
-    public function toJsonApiErrors(): array
+    public function toJsonApiErrors(int|string $status = 422): array
     {
+        $status = (string) $status;
         $errors = array_map(
             fn(array $failure): array => [
-                'status' => '422',
+                'status' => $status,
                 'source' => ['pointer' => '/data/attributes/' . $failure['field']],
                 'title' => 'Validation Error',
                 'detail' => $failure['message'],

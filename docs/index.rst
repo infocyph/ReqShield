@@ -54,6 +54,7 @@ Table of Contents
    schema-registry
    validator-profiles
    compiled-validators
+   security-boundaries
    database-rules
    custom-rules
    helper-functions

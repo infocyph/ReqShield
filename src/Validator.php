@@ -959,7 +959,6 @@ class Validator
         throw new ValidationException(
             'Validation failed',
             $errors,
-            422,
         );
     }
 }

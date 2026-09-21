@@ -47,8 +47,8 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **complete — PR run #48 green** |
 | 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **complete — PR run #53 green** |
 | 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **complete — PR run #59 green** |
-| 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **next** |
-| 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | open |
+| 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **implementation complete / QA pending** |
+| 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | **next** |
 | 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
 
 #### Batch 1 — baseline and correlation contract
@@ -463,13 +463,13 @@ inside validator execution.
 
 Correct it in 3.2:
 
-- [ ] thrown validation exceptions from normal ReqShield execution use transport-neutral exception code semantics; do not automatically assign HTTP `422`;
-- [ ] preserve the existing `ValidationException` constructor signature for compatibility;
-- [ ] keep `ValidationResult::throw()` transport-neutral;
-- [ ] optional JSON:API / Problem Details projection helpers may remain, but caller-controlled status/type must be possible and docs must describe them as presentation helpers, not runtime HTTP policy;
-- [ ] where practical, make `toJsonApiErrors()` accept an optional caller status while preserving the existing no-argument call;
-- [ ] Foundation `ValidationExceptionMapper` remains the place that chooses HTTP 422 for Foundation web requests;
-- [ ] add a regression test that ReqShield throwing behavior itself does not imply Foundation/Webrick HTTP policy.
+- [X] thrown validation exceptions from normal ReqShield execution use transport-neutral exception code semantics; do not automatically assign HTTP `422`;
+- [X] preserve the existing `ValidationException` constructor signature for compatibility;
+- [X] keep `ValidationResult::throw()` transport-neutral;
+- [X] optional JSON:API / Problem Details projection helpers may remain, but caller-controlled status/type must be possible and docs must describe them as presentation helpers, not runtime HTTP policy;
+- [X] where practical, make `toJsonApiErrors()` accept an optional caller status while preserving the existing no-argument call;
+- [X] Foundation `ValidationExceptionMapper` remains the place that chooses HTTP 422 for Foundation web requests;
+- [X] add a regression test that ReqShield throwing behavior itself does not imply Foundation/Webrick HTTP policy.
 
 ---
 
@@ -529,11 +529,11 @@ Required matrix:
 
 These tests protect ReqShield from drifting into a false sandbox role:
 
-- [ ] ordinary string fields can validly contain text such as `exec`, `system`, `pcntl_fork`, `posix_kill` when the schema permits ordinary strings;
-- [ ] no global sanitizer silently removes or rewrites dangerous-function-like substrings;
-- [ ] a schema-defined allowlist/enum can reject an unregistered operation identifier and accept a registered one;
-- [ ] validation of an operation identifier does not execute, resolve or inspect an executable;
-- [ ] authorization/process execution remains outside ReqShield test fixtures except for framework-neutral mocked application examples.
+- [X] ordinary string fields can validly contain text such as `exec`, `system`, `pcntl_fork`, `posix_kill` when the schema permits ordinary strings;
+- [X] no global sanitizer silently removes or rewrites dangerous-function-like substrings;
+- [X] a schema-defined allowlist/enum can reject an unregistered operation identifier and accept a registered one;
+- [X] validation of an operation identifier does not execute, resolve or inspect an executable;
+- [X] authorization/process execution remains outside ReqShield test fixtures except for framework-neutral mocked application examples.
 
 ### 9.5 ValidatorProfile / compiled-runtime tests
 
@@ -554,7 +554,9 @@ These tests protect ReqShield from drifting into a false sandbox role:
 
 **Batch 5 status:** COMPLETE — compilation performs one deep topology snapshot, compiled execution is frozen against ReqShield mutators, bounded caches and sequential/Fiber reuse are covered, and PR run #59 is green across QA/analysis/stable/lowest/benchmarks.
 
-- [ ] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping;
+- [X] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping;
+
+**Batch 6 implementation status:** complete. ReqShield throwing behavior is transport-neutral, presentation formatters keep backward-compatible defaults with caller-controlled status, and Pathwise 4.1 / Runwire ownership is protected by direct drift tests and documentation; PR CI is the batch closure gate.
 
 ---
 
@@ -630,11 +632,11 @@ Update:
 - [ ] schema documentation with instance-owned registry/freeze pattern;
 - [X] validation-profile documentation with canonical option meanings, immutable overlay semantics and a framework-neutral example;
 - [X] compiled-validator documentation that distinguishes mutable configuration/build phase from frozen reusable execution phase;
-- [ ] persistent-runtime guidance warning against process-global mutable schema registration;
-- [ ] document that validation is not a process/PHP sandbox and dangerous-function-name filtering is intentionally out of scope;
-- [ ] document that ReqShield exceptions are transport-neutral and HTTP status selection belongs to the application/framework;
-- [ ] clarify that `Path`, `SafeFilename`, `SecureFile` and `UploadMeta` validate syntax/metadata only; Pathwise 4.1 owns canonical path containment, storage trust, malware/storage policy and filesystem authorization;
-- [ ] document the recommended registered-operation pattern for applications that validate input for privileged process capabilities;
+- [X] persistent-runtime guidance warning against process-global mutable schema registration;
+- [X] document that validation is not a process/PHP sandbox and dangerous-function-name filtering is intentionally out of scope;
+- [X] document that ReqShield exceptions are transport-neutral and HTTP status selection belongs to the application/framework;
+- [X] clarify that `Path`, `SafeFilename`, `SecureFile` and `UploadMeta` validate syntax/metadata only; Pathwise 4.1 owns canonical path containment, storage trust, malware/storage policy and filesystem authorization;
+- [X] document the recommended registered-operation pattern for applications that validate input for privileged process capabilities;
 - [ ] installation/development docs to identify DBLayer 5.1 as a development/reference integration only;
 - [ ] upgrade/release notes for 3.2.
 
@@ -768,8 +770,8 @@ The audit now provides direct implementation evidence that a **small immutable `
 3. **Batch 3 — COMPLETE:** instance-owned frozen `SchemaRegistry`, rule snapshot isolation and persistent/Fiber coverage are green in PR run #48.
 4. **Batch 4 — COMPLETE:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are green in PR run #53.
 5. **Batch 5 — COMPLETE:** frozen compiled snapshots, callback mutation blocking, bounded cache isolation and same-instance sequential/Fiber reuse are green in PR run #59.
-6. **Batch 6 — next:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
-7. **Batch 7:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
+6. **Batch 6 — implementation complete / QA pending:** transport-neutral exceptions, caller-controlled formatter status, process-operation drift tests and Pathwise 4.1/Runwire boundary documentation are implemented; PR CI is the closure gate.
+7. **Batch 7 — next:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
 8. **Batch 8:** return to Foundation 26.7, consume ReqShield 3.2, remove duplicate DB provider/schema/profile mechanics, run Foundation acceptance/performance gates, and update the Foundation tracker/benchmark naming only after the dependency is consumable.
 
 ---
@@ -1121,14 +1123,14 @@ ReqShield 3.2 specifically does not add:
 
 ReqShield 3.2 process/runtime-boundary acceptance additionally requires:
 
-- [ ] Runwire is named as the process/runtime owner in ecosystem integration documentation;
-- [ ] ReqShield has no production dependency on Runwire;
-- [ ] ordinary strings are not rejected because they contain process/PHP function names;
-- [ ] no shell/process sanitizer is marketed as a sandbox;
-- [ ] generic enum/allowlist/structured validation is sufficient for Foundation operation schemas;
-- [ ] persistent Runwire worker deployment does not cause schema/result/DB-provider state leakage;
-- [ ] Foundation owns end-to-end authorization before Runwire invocation;
-- [ ] Pathwise 4.1 remains filesystem trust owner where files are involved;
-- [ ] ReqShield's path/upload rules are documented as syntax/metadata checks, not containment, malware, storage-trust or filesystem-authorization guarantees.
+- [X] Runwire is named as the process/runtime owner in ecosystem integration documentation;
+- [X] ReqShield has no production dependency on Runwire;
+- [X] ordinary strings are not rejected because they contain process/PHP function names;
+- [X] no shell/process sanitizer is marketed as a sandbox;
+- [X] generic enum/allowlist/structured validation is sufficient for Foundation operation schemas;
+- [X] persistent Runwire worker deployment does not cause schema/result/DB-provider state leakage;
+- [X] Foundation owns end-to-end authorization before Runwire invocation;
+- [X] Pathwise 4.1 remains filesystem trust owner where files are involved;
+- [X] ReqShield's path/upload rules are documented as syntax/metadata checks, not containment, malware, storage-trust or filesystem-authorization guarantees.
 
 All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria from earlier sections of this plan remain unchanged.
