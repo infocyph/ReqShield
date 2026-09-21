@@ -24,7 +24,7 @@ test('case conversion sanitizers work', function () {
       ->and(Sanitizer::snakeCase('Hello World'))->toBe('hello_world')
       ->and(Sanitizer::kebabCase('Hello World'))->toBe('hello-world')
       ->and(Sanitizer::sentenceCase('hello world. new sentence.'))->toBe(
-          'Hello world. new sentence.'
+          'Hello world. new sentence.',
       )
       ->and(Sanitizer::titleCase('hello world'))->toBe('Hello World');
 });
@@ -37,7 +37,7 @@ test('text processing sanitizers work', function () {
       ->and(Sanitizer::truncateWords('Hello world, this is a test.', 3, '...'))
       ->toBe('Hello world, this...')
       ->and(Sanitizer::normalizeWhitespace("hello \n world \t test"))->toBe(
-          'hello world test'
+          'hello world test',
       )
       ->and(Sanitizer::removeLineBreaks("hello\r\nworld"))->toBe('hello world');
 });
@@ -52,10 +52,10 @@ test('special format sanitizers work', function () {
       ->and(Sanitizer::currency(1234.56))->toBe(1234.56)
       ->and(Sanitizer::filename('../../../etc/passwd'))->toBe('passwd')
       ->and(Sanitizer::domain('https://www.example.com/path'))->toBe(
-          'www.example.com'
+          'www.example.com',
       )
       ->and(Sanitizer::htmlEncode('<script>xss</script>'))->toBe(
-          '&lt;script&gt;xss&lt;/script&gt;'
+          '&lt;script&gt;xss&lt;/script&gt;',
       );
 
 });
@@ -121,4 +121,13 @@ test('utility sanitizers work', function () {
       ->toBe('https://example.com/testpath')
       ->and(Sanitizer::formatCurrency(1234.56, 'USD'))->toBe('$1,234.56')
       ->and(Sanitizer::formatCurrency(1234.56, 'EUR'))->toBe('€1.234,56');
+});
+
+test('slug sanitization supports optional transliteration without assuming glibc iconv', function () {
+    $canTransliterate = function_exists('transliterator_transliterate')
+        || (function_exists('iconv') && defined('ICONV_IMPL') && in_array(ICONV_IMPL, ['glibc', 'libiconv'], true));
+
+    expect(Sanitizer::slug('Café déjà vu'))->toBe($canTransliterate ? 'cafe-deja-vu' : 'caf-d-j-vu')
+        ->and(Sanitizer::slug('Hello World!', '_'))->toBe('hello_world')
+        ->and(Sanitizer::slug(''))->toBe('');
 });

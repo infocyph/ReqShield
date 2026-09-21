@@ -112,7 +112,6 @@ test('compiled validator wildcard reuse does not retain prior request values', f
         ->and($second->validated())->toHaveKey('contacts.0.email');
 });
 
-
 test('compiled validator keeps conditional and wildcard plan caches bounded', function () {
     $conditional = new CompiledValidator(
         Validator::make([
@@ -149,4 +148,11 @@ test('compiled validator keeps conditional and wildcard plan caches bounded', fu
 
     expect($compiledCache->getValue($conditionalValidator))->toHaveCount(64)
         ->and($wildcardCache->getValue($wildcardValidator))->toHaveCount(64);
+});
+
+test('compiled construction rejects shallow custom rule snapshots', function () {
+    $rule = new \Infocyph\ReqShield\Tests\Fixtures\Validation\NestedStateRule(detach: false);
+
+    expect(fn() => Validator::compile(['value' => [$rule]]))
+        ->toThrow(\Infocyph\ReqShield\Exceptions\InvalidSchemaException::class);
 });

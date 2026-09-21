@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use Infocyph\DBLayer\DB;
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
 use Infocyph\ReqShield\Rule;
-use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Validator;
 
 beforeEach(function () {
@@ -183,7 +183,7 @@ test('DBLayer SQLite provider keeps logical batches intact at representative siz
 })->with([1, 2, 10, 100, 1000]);
 
 test('DBLayer SQLite provider uses connection-derived sizing across representative unique batches', function () {
-    $safeSize = $this->connection->safeBatchSize(requested: 1_000);
+    $safeSize = $this->connection->safeBatchSize(requested: 128);
     $sizes = array_unique([1, 2, 10, $safeSize - 1, $safeSize, $safeSize + 1, 100, 1_000]);
 
     foreach ($sizes as $size) {
@@ -205,7 +205,7 @@ test('DBLayer SQLite provider uses connection-derived sizing across representati
 });
 
 test('DBLayer SQLite provider uses connection-derived sizing across representative exists batches', function () {
-    $safeSize = $this->connection->safeBatchSize(requested: 1_000);
+    $safeSize = $this->connection->safeBatchSize(requested: 128);
     $sizes = array_unique([1, 2, 10, $safeSize - 1, $safeSize, $safeSize + 1, 100, 1_000]);
 
     foreach ($sizes as $size) {
@@ -222,7 +222,7 @@ test('DBLayer SQLite provider uses connection-derived sizing across representati
     }
 });
 
-test('DBLayer SQLite provider honors constrained bind limits and fixed ignore bindings', function () {
+test('DBLayer SQLite provider honors constrained bind limits including per-candidate ignore bindings', function () {
     $connection = DB::addConnection([
         'driver' => 'sqlite',
         'database' => ':memory:',
@@ -241,12 +241,12 @@ test('DBLayer SQLite provider honors constrained bind limits and fixed ignore bi
     $result = Validator::make([
         'contacts.*.email' => Rule::unique('users', 'email')->ignore('1'),
     ], $provider)->validate(['contacts' => $contacts]);
-    $safeSize = $connection->safeBatchSize(fixedBindings: 1, requested: 100);
+    $safeSize = $connection->safeBatchSize(parametersPerRow: 2, requested: 100);
 
     expect($result->passes())->toBeTrue()
-        ->and($safeSize)->toBe(31)
+        ->and($safeSize)->toBe(16)
         ->and($connection->getStats()['queries'])->toBe((int) ceil(100 / $safeSize))
-        ->and($safeSize + 1)->toBeLessThanOrEqual($connection->effectiveMaxBindParameters());
+        ->and($safeSize * 2)->toBeLessThanOrEqual($connection->effectiveMaxBindParameters());
 });
 
 test('DBLayer SQLite provider groups duplicate values and separate columns correctly', function () {
@@ -331,7 +331,6 @@ test('DBLayer infrastructure failures remain distinct from validation misses', f
     expect($exception)->toBeInstanceOf(DatabaseValidationException::class)
         ->and($exception?->getPrevious())->not->toBeNull();
 });
-
 
 test('DBLayer provider resolves the current execution connection for each operation', function () {
     $second = DB::addConnection([
@@ -430,12 +429,12 @@ test('DBLayer provider rejects unsafe identifiers before query execution', funct
         ]]))->toThrow(InvalidArgumentException::class);
 });
 
-
 test('non-database validation does not resolve the DBLayer connection', function () {
     $resolutions = 0;
     $provider = new DBLayerDatabaseProvider(
         static function () use (&$resolutions) {
             ++$resolutions;
+
             throw new RuntimeException('resolver must stay cold');
         },
     );
@@ -449,3 +448,98 @@ test('non-database validation does not resolve the DBLayer connection', function
     expect($result->passes())->toBeTrue()
         ->and($resolutions)->toBe(0);
 });
+
+test('DBLayer provider correlates database collation and numeric comparisons without PHP equality', function () {
+    $this->connection->statement('CREATE TABLE comparison_values (id INTEGER PRIMARY KEY, token TEXT COLLATE NOCASE)');
+    $this->connection->insert('INSERT INTO comparison_values (id, token) VALUES (?, ?)', [1, 'Alice@example.com']);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection, maxBatchValues: 2);
+    $checks = [
+        ['id' => 0, 'column' => 'token', 'value' => 'alice@example.com'],
+        ['id' => 1, 'column' => 'token', 'value' => 'ALICE@example.com'],
+        ['id' => 2, 'column' => 'token', 'value' => 'missing@example.com'],
+        ['id' => 3, 'column' => 'token', 'value' => 'alice@example.com'],
+        ['id' => 4, 'column' => 'id', 'value' => '01'],
+        ['id' => 5, 'column' => 'id', 'value' => '1.0'],
+    ];
+
+    expect($provider->batchExists('comparison_values', $checks))->toBe([2])
+        ->and($provider->batchUnique('comparison_values', $checks))->toBe([0, 1, 3, 4, 5]);
+
+    $ignored = array_map(static fn(array $check): array => $check + ['ignore' => 1], $checks);
+    expect($provider->batchUnique('comparison_values', $ignored))->toBe([]);
+});
+
+test('DBLayer provider accepts qualified columns with null ignore and soft delete predicates', function () {
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+    $checks = [
+        ['id' => 0, 'column' => 'edge_values.token', 'value' => 'alpha'],
+        ['id' => 1, 'column' => 'edge_values.token', 'value' => null],
+        ['id' => 2, 'column' => 'edge_values.token', 'value' => 'missing'],
+    ];
+    $unique = array_map(static fn(array $check): array => $check + [
+        'id_column' => 'edge_values.id',
+        'soft_delete_column' => 'edge_values.deleted_at',
+        'include_trashed' => false,
+        'ignore' => 3,
+    ], $checks);
+
+    expect($provider->batchExists('edge_values', $checks))->toBe([2])
+        ->and($provider->batchUnique('edge_values', $unique))->toBe([1]);
+});
+
+test('DBLayer provider preserves binding types and treats hostile candidate text as data', function () {
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+    $checks = [];
+    foreach ([0, '0', false, 0.0, '00', "alpha' OR 1=1 --", 'alpha'] as $id => $value) {
+        $checks[] = ['id' => $id, 'column' => 'token', 'value' => $value];
+    }
+
+    $missing = [];
+    $existing = [];
+    foreach ($checks as $check) {
+        $matched = $this->connection->table('edge_values')->where('token', '=', $check['value'])->exists();
+        if ($matched) {
+            $existing[] = $check['id'];
+        } else {
+            $missing[] = $check['id'];
+        }
+    }
+
+    expect($provider->batchExists('edge_values', $checks))->toBe($missing)
+        ->and($provider->batchUnique('edge_values', $checks))->toBe($existing);
+});
+
+test('DBLayer provider query width is configurable and duplicate candidates stay deduplicated', function () {
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection, maxBatchValues: 2);
+    $checks = [];
+    foreach (['a', 'b', 'c', 'a', 'b'] as $id => $value) {
+        $checks[] = ['id' => $id, 'column' => 'token', 'value' => $value];
+    }
+    $this->connection->resetStats();
+
+    expect($provider->batchExists('edge_values', $checks))->toBe([0, 1, 2, 3, 4])
+        ->and($this->connection->getStats()['queries'])->toBe(2)
+        ->and(fn() => DBLayerDatabaseProvider::fromConnection($this->connection, maxBatchValues: 0))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+test('DBLayer provider honors restricted raw SQL policies without changing comparison semantics', function (array $security) {
+    $connection = DB::addConnection([
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'security' => $security,
+    ], 'reqshield-restricted-raw');
+    $connection->statement('CREATE TABLE tokens (id INTEGER PRIMARY KEY, token TEXT COLLATE NOCASE)');
+    $connection->insert('INSERT INTO tokens (id, token) VALUES (?, ?)', [1, 'ALPHA']);
+    $provider = DBLayerDatabaseProvider::fromConnection($connection);
+    $checks = [
+        ['id' => 0, 'column' => 'tokens.token', 'value' => 'alpha'],
+        ['id' => 1, 'column' => 'tokens.token', 'value' => 'missing'],
+    ];
+
+    expect($provider->batchExists('tokens', $checks))->toBe([1])
+        ->and($provider->batchUnique('tokens', $checks))->toBe([0]);
+})->with([
+    [['raw_sql_policy' => 'deny']],
+    [['raw_sql_policy' => 'allowlist', 'raw_sql_allowlist' => ['/^COUNT/']]],
+]);

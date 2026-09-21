@@ -1,6 +1,10 @@
+---
+orphan: true
+---
+
 # ReqShield 3.2 — Foundation 26.7 Extraction, DBLayer 5.1 & Persistent-Runtime Development Plan
 
-**Status:** implementation plan  
+**Status:** release candidate — post-audit remediation and verification
 **Target:** ReqShield 3.2  
 **Branch:** `reqshield-3.2/foundation-26.7`  
 **Foundation consumer:** `infocyph/Foundation` Point 26.7  
@@ -86,6 +90,36 @@ ReqShield 3.1 already owns:
 - a mature DBLayer reference provider in the test suite.
 
 Foundation currently owns a production `ReqShieldDatabaseProvider` even though the mechanism is generic ReqShield↔DBLayer integration. That duplication should be removed.
+
+---
+
+### 1.3 Post-audit release remediation (2026-09-21)
+
+The release review reproduced three gaps despite the earlier green suites. This
+pass closes them and supersedes the old `WHERE IN`/PHP-value correlation design:
+
+- [X] SQL now determines each candidate's match flag, preserving collation and
+  numeric comparison semantics (`Alice`/`alice`, integer `1`/string `01`).
+- [X] Qualified columns no longer depend on result-set column labels.
+- [X] Candidate deduplication preserves binding types; identifiers remain
+  DBLayer-constructed and values remain bound parameters.
+- [X] Batched match projections use DBLayer-derived bind sizing, including
+  repeated ignore bindings. A configurable default width of 128 bounds SQL and
+  result-column allocation without duplicating driver bind-limit maps.
+- [X] Single candidates use a direct lookup. Restricted raw-SQL policies use
+  query-builder-only lookups while retaining one resolver call per operation.
+- [X] Registry and compiled rule snapshots reject nested mutable objects shared
+  with their source. Custom `__clone()` implementations must detach that state;
+  reference cells, resources and opaque internal containers fail closed.
+- [X] Ordinary mutable validator construction keeps its existing clone behavior.
+  Caller-owned closure state remains an explicit exception, and custom rules
+  shared across executions must be stateless during validation.
+- [X] Regression coverage includes SQL comparison/correlation, qualified NULL
+  and ignore/soft-delete predicates, raw-SQL policies, query-width bounds, nested
+  object aliases, reference cells and unsafe cycles.
+
+Release verification results are recorded in sections 10 and 11. Batch 8 remains
+a downstream Foundation task after ReqShield 3.2 becomes consumable.
 
 ---
 
@@ -246,7 +280,7 @@ Carry forward the already-proven reference-provider semantics:
 
 - [X] `exists` batching grouped by column.
 - [X] `unique` batching grouped by column + ignore + ID column + soft-delete policy.
-- [X] deduplicate repeated candidate values before generating `WHERE IN` bindings;
+- [X] deduplicate repeated candidate values by type and value before generating SQL match projections;
 - [X] preserve per-check correlation after deduplication;
 - [X] query `NULL` separately where required by SQL semantics;
 - [X] preserve zero-like values (`0`, `'0'`, `false`) without accidental truthiness filtering;
@@ -256,7 +290,7 @@ Carry forward the already-proven reference-provider semantics:
 - [X] validate/quote identifiers using DBLayer-supported query construction rather than interpolating user-controlled identifiers;
 - [X] physical chunk size must come from `Connection::safeBatchSize()`;
 - [X] do not copy the test reference provider's hard-coded `MAX_BATCH_VALUES = 1_000` into production by default; if a provider-level ceiling is retained, make it explicit/configurable and justify it with validation bounds + benchmark evidence;
-- [X] account for fixed ignore bindings when calculating unique-query chunk size;
+- [X] account for the ignore binding repeated in each candidate subquery when calculating unique-query chunk size;
 - [X] keep an application/request ceiling for unusually large validation batches if needed, but never exceed DBLayer's effective bind ceiling.
 
 ### 4.4 Correct nullable ignore-column semantics
@@ -381,7 +415,7 @@ Foundation still owns where its configuration comes from, merge/source order, an
 
 ### 7.1 `CompiledValidator` must become a real frozen execution boundary
 
-The current `CompiledValidator` is `readonly` only at the wrapper level: it stores a closure that directly calls a mutable `Validator`. That is not a sufficient persistent-runtime contract, especially because validation callbacks receive the validator instance and validation mutates bounded plan/LRU caches.
+At the pre-3.2 audit baseline, `CompiledValidator` was `readonly` only at the wrapper level: it stored a closure that directly called a mutable `Validator`. That is not a sufficient persistent-runtime contract, especially because validation callbacks receive the validator instance and validation mutates bounded plan/LRU caches.
 
 ReqShield 3.2 should preserve mutable builder-style `Validator` APIs for compatibility while making compiled execution explicit and safe:
 
@@ -493,7 +527,7 @@ Required matrix:
 - [X] nullable custom ID column + ignore regression;
 - [X] default and custom soft-delete columns;
 - [X] DBLayer 5.1 derived safe batch boundaries;
-- [X] fixed-binding-aware batch sizing;
+- [X] ignore-binding-aware batch sizing;
 - [X] constrained `security.max_params`;
 - [X] more than one physical chunk;
 - [X] resolver invoked once per provider operation;
@@ -552,7 +586,7 @@ These tests protect ReqShield from drifting into a false sandbox role:
 - [X] wildcard/conditional validation under shared compiled reuse retains no prior request values;
 - [X] bounded cache sizes remain bounded under schema/shape churn;
 
-**Batch 5 status:** COMPLETE — compilation performs one deep topology snapshot, compiled execution is frozen against ReqShield mutators, bounded caches and sequential/Fiber reuse are covered, and PR run #59 is green across QA/analysis/stable/lowest/benchmarks.
+**Batch 5 status:** COMPLETE — compilation performs one topology snapshot with checked rule-object isolation, compiled execution is frozen against ReqShield mutators, bounded caches and sequential/Fiber reuse are covered, and PR run #59 is green across QA/analysis/stable/lowest/benchmarks.
 
 - [X] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping;
 
@@ -574,6 +608,20 @@ Run the normal PHPForge/ReqShield gates on PHP 8.4 and 8.5 where configured:
 - [X] stable dependency lane.
 
 No suppression should be added merely to hide a provider/schema ownership issue.
+
+**Post-audit local verification (2026-09-21):** PHP 8.5.4 passes all 13
+PHPForge QA checks, including PHPStan/Psalm, Rector, style and reference
+integrity. Composer strict validation and the Sphinx HTML build with warnings
+as errors pass. A clean production-only Composer consumer validates registry,
+profile and compiled APIs without DBLayer or development dependencies.
+
+PHP 8.4.16 current/lowest dependency checks exercised the database and snapshot
+fixes successfully. Alpine exposed a pre-existing iconv transliteration warning;
+that portability fix is included and passes local QA. The final PHP 8.4/lowest
+rerun after extracting the transliteration helper was blocked by the execution
+approval service's usage limit. **Before tagging, run the configured PHP 8.4/8.5
+stable/lowest CI matrix on these final changes.** Earlier PR #65 is historical
+evidence, not evidence for this uncommitted revision.
 
 **Batch 7 QA evidence:** PR run #65 passed clean install, PHP 8.4/8.5 stable and lowest QA lanes, PHPStan/Psalm analysis, Pest, Pint, PHPCS, Rector, reference integrity, Composer validation and both benchmark jobs.
 
@@ -623,6 +671,18 @@ Acceptance:
 - [X] caches remain bounded and allocation-light.
 
 Performance fixes must preserve correctness and isolation first.
+
+**Post-audit performance:** The aggregate benchmark suite completed, followed
+by a focused rerun after reducing repeated SQL construction and adding the
+single-candidate fast path. The final DB run measured approximately 65.49 µs
+for a direct provider and 9.17 ms for the constrained 1,000-candidate batch.
+The default 128-candidate query-width bound limits SQL/result allocation;
+DBLayer bind ceilings can reduce it further. SQL-native comparisons require
+more work than the previous incorrect PHP correlation. The constrained batch
+is slower than the historical 8.38 ms CI figure; these runs are not controlled
+cross-version comparisons. Rebaseline on CI and do not claim a performance
+improvement. Restricted raw-SQL policies deliberately trade batching for
+query-builder-only lookups.
 
 **Batch 7 performance evidence (PR run #65, PHP 8.5 representative benchmark):**
 

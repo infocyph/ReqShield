@@ -139,7 +139,6 @@ test('schema registry rejects empty names and invalid field keys', function () {
         ]))->toThrow(InvalidSchemaException::class);
 });
 
-
 test('schema registry snapshots mutable rule objects on write and read', function () {
     $rule = new class implements \Infocyph\ReqShield\Contracts\Rule {
         public bool $passes = true;
@@ -177,4 +176,27 @@ test('schema registry snapshots mutable rule objects on write and read', functio
     $freshRule = $second['value'][0];
 
     expect($freshRule->passes(null, 'value', []))->toBeTrue();
+});
+
+test('schema registry rejects rules whose clone shares nested mutable state', function () {
+    $rule = new \Infocyph\ReqShield\Tests\Fixtures\Validation\NestedStateRule(detach: false);
+
+    expect(fn() => new SchemaRegistry(['shared' => ['value' => [$rule]]]))
+        ->toThrow(InvalidSchemaException::class, 'Rule __clone() must detach all nested mutable objects.');
+});
+
+test('frozen registry and compiled snapshots isolate custom cloned nested rule state', function () {
+    $rule = new \Infocyph\ReqShield\Tests\Fixtures\Validation\NestedStateRule();
+    $registry = (new SchemaRegistry(['isolated' => ['value' => [$rule]]]))->freeze();
+    $compiled = \Infocyph\ReqShield\Validator::compile($registry->get('isolated'));
+    $rule->config->allow = false;
+
+    foreach ([$registry->get('isolated'), $registry->schema('isolated'), $registry->all()['isolated']] as $schema) {
+        expect($schema['value'][0]->config->allow)->toBeTrue();
+        $schema['value'][0]->config->allow = false;
+    }
+
+    expect($registry->get('isolated')['value'][0]->config->allow)->toBeTrue()
+        ->and($compiled->validate(['value' => 'first'])->passes())->toBeTrue()
+        ->and($compiled->validate(['value' => 'second'])->passes())->toBeTrue();
 });

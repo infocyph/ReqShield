@@ -93,17 +93,34 @@ The resolver is invoked exactly once at the beginning of each
 used for every physical chunk in that operation and is not stored on the
 provider afterwards.
 
-ReqShield owns logical validation batching. The native bridge delegates physical
-query sizing to the exact DBLayer connection through
-``Connection::safeBatchSize()``, including fixed bindings introduced by
-unique-ignore predicates. It does not duplicate DBLayer driver bind-limit maps
-or impose the old reference provider's fixed 1,000-value ceiling. ReqShield's
-normal input/wildcard limits remain the higher-level validation abuse controls.
+ReqShield owns logical validation batching. The native bridge returns SQL
+``EXISTS`` match flags for each distinct candidate, so correlation preserves the
+database's collation and numeric comparison rules. It never re-matches returned
+column values using PHP string equality. Qualified column names work without
+relying on the driver's returned column labels.
+
+Physical query sizing uses the exact DBLayer connection's
+``Connection::safeBatchSize()``. Each non-NULL candidate consumes one binding,
+or two when a unique-ignore predicate is present. DBLayer remains authoritative
+for bind limits. Repeated candidates are deduplicated by both type and value.
+
+The bridge also bounds query width to 128 candidates by default. This limits
+SQL construction and result-column allocation independently of the driver's
+bind ceiling. Applications may configure a positive ``maxBatchValues`` on the
+constructor or ``fromConnection()``; larger values must fit the deployment's
+SQL/result-column limits. ReqShield's normal input/wildcard limits remain the
+higher-level validation abuse controls.
 
 Unique-ignore handling preserves SQL NULL semantics with the logical predicate
 ``(id_column != :ignore OR id_column IS NULL)``. Candidate NULL values are
-queried separately, repeated values are deduplicated before ``WHERE IN``
-generation, and zero-like scalar values retain database-comparison semantics.
+queried separately. Candidate values and ignore IDs are always bound parameters;
+DBLayer constructs and quotes all table/column identifiers.
+
+When DBLayer's ``raw_sql_policy`` is ``deny`` or ``allowlist``, the bridge uses
+one query-builder-only lookup per distinct candidate instead of the batched
+``CASE WHEN EXISTS`` projection. This preserves the connection's security policy
+and SQL comparison behavior at the cost of additional round trips. It still
+resolves the connection only once per provider operation.
 
 The deterministic SQLite integration matrix covers flat, nested, wildcard,
 mixed, duplicate and zero-like values, NULLs, ignore IDs, nullable/custom ID

@@ -122,3 +122,38 @@ schema compilation, so an unknown token can never be hidden by construction orde
     );
 
     $result = $validator->validate(['number' => 8]);
+
+
+Rule Snapshots in Registries and Compiled Validators
+----------------------------------------------------
+
+``SchemaRegistry`` and ``CompiledValidator`` require independent rule snapshots.
+A custom rule containing nested mutable objects must implement ``__clone()``
+to detach every mutable descendant. For example, when ``$config`` is a simple
+object with scalar properties, the rule can define:
+
+.. code-block:: php
+
+    public function __clone(): void
+    {
+        $this->config = clone $this->config;
+    }
+
+If that configuration contains further mutable objects, clone those too.
+ReqShield verifies that the resulting graph shares no mutable objects with the
+source rule. A shallow clone that retains such objects throws
+``InvalidSchemaException`` during registration, retrieval or compilation.
+Private/inherited properties and nested arrays are included in this check.
+
+Rule state containing PHP reference cells, resources, opaque internal containers
+(such as ``SplObjectStorage``), or nesting deeper than 64 levels is rejected.
+Use ordinary inspectable value/configuration objects for snapshot topology.
+Enum cases and plain ``DateTimeImmutable`` values may be shared. Closures retain
+the existing caller-owned-state contract: captured objects and references are
+not frozen or copied by ReqShield.
+
+This stricter snapshot check applies to registries and compiled validators.
+Ordinary mutable ``Validator`` construction retains its existing clone behavior.
+A custom rule used in a shared compiled validator must keep ``passes()`` and
+``message()`` free of request-specific mutable state; freezing topology does not
+make arbitrary application rule code reentrant.

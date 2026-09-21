@@ -56,6 +56,12 @@ Compiled Validators
 to the source builder after compilation do not change the compiled instance,
 and ReqShield mutators reached through callbacks fail closed after freeze.
 
+Custom rules placed in a registry or compiled validator must detach nested
+mutable objects in ``__clone()``. Unsafe shared state now throws
+``InvalidSchemaException``; ordinary mutable validator construction keeps its
+existing cloning behavior. See :doc:`custom-rules` for supported snapshot state
+and shared-runtime rule requirements.
+
 Transport-Neutral Exceptions
 ----------------------------
 

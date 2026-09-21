@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Schema;
 
-use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Exceptions\FrozenSchemaRegistryException;
 use Infocyph\ReqShield\Exceptions\InvalidSchemaException;
+use Infocyph\ReqShield\Support\RuleDefinitionSnapshot;
 use Infocyph\ReqShield\Validator;
 
 final class SchemaRegistry
@@ -202,38 +202,6 @@ final class SchemaRegistry
      */
     private function snapshotSchema(array $schema): array
     {
-        $snapshot = [];
-
-        foreach ($schema as $field => $definition) {
-            $snapshot[$field] = $this->snapshotValue($definition);
-        }
-
-        return $snapshot;
-    }
-
-    private function snapshotValue(mixed $value): mixed
-    {
-        if ($value instanceof Rule) {
-            $reflection = new \ReflectionObject($value);
-            if (!$reflection->isCloneable()) {
-                throw InvalidSchemaException::forField(
-                    'rule',
-                    'Rule objects stored in a schema registry must be cloneable.',
-                );
-            }
-
-            return clone $value;
-        }
-
-        if (!is_array($value)) {
-            return $value;
-        }
-
-        $snapshot = [];
-        foreach ($value as $key => $item) {
-            $snapshot[$key] = $this->snapshotValue($item);
-        }
-
-        return $snapshot;
+        return RuleDefinitionSnapshot::map($schema);
     }
 }

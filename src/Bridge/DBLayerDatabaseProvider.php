@@ -23,11 +23,16 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
 final readonly class DBLayerDatabaseProvider implements DatabaseProvider
 {
     /** @param Closure():Connection $connection */
-    public function __construct(private Closure $connection) {}
-
-    public static function fromConnection(Connection $connection): self
+    public function __construct(private Closure $connection, private int $maxBatchValues = 128)
     {
-        return new self(static fn(): Connection => $connection);
+        if ($maxBatchValues < 1) {
+            throw new \InvalidArgumentException('Maximum database batch values must be positive.');
+        }
+    }
+
+    public static function fromConnection(Connection $connection, int $maxBatchValues = 128): self
+    {
+        return new self(static fn(): Connection => $connection, $maxBatchValues);
     }
 
     public function batchExists(string $table, array $checks): array
@@ -37,7 +42,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         $failed = [];
 
         foreach ($this->groupChecks($checks, ['column']) as $group) {
-            $found = $this->matchedExists($connection, $table, $group);
+            $found = $this->matchedValues($connection, $table, $group, false);
 
             foreach ($group as $check) {
                 if (!isset($found[$this->valueKey($check['value'])])) {
@@ -59,7 +64,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             $checks,
             ['column', 'ignore', 'id_column', 'include_trashed', 'soft_delete_column'],
         ) as $group) {
-            $found = $this->matchedUnique($connection, $table, $group);
+            $found = $this->matchedValues($connection, $table, $group, true);
 
             foreach ($group as $check) {
                 if (isset($found[$this->valueKey($check['value'])])) {
@@ -88,12 +93,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         bool $ignoreEnabled,
         mixed $ignore,
     ): QueryBuilder {
-        $select = $unique ? [$column, $idColumn] : [$column];
-        if ($unique && $softDeleteColumn !== null) {
-            $select[] = $softDeleteColumn;
-        }
-
-        $query = $connection->table($table)->select($select);
+        $query = $connection->table($table)->select($column);
 
         if ($unique && !$includeTrashed && $softDeleteColumn !== null) {
             $query->whereNull($softDeleteColumn);
@@ -103,6 +103,34 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         }
 
         return $query;
+    }
+
+    /**
+     * @param non-empty-string $table
+     * @param GroupConfig $config
+     */
+    private function candidateQuery(
+        Connection $connection,
+        string $table,
+        array $config,
+        bool $unique,
+        mixed $value,
+    ): QueryBuilder {
+        $query = $this->baseQuery(
+            $connection,
+            $table,
+            $config['column'],
+            $unique,
+            $config['id_column'],
+            $config['soft_delete_column'],
+            $config['include_trashed'],
+            $config['ignore_enabled'],
+            $config['ignore'],
+        );
+
+        return $value === null
+            ? $query->whereNull($config['column'])
+            : $query->where($config['column'], '=', $value);
     }
 
     /**
@@ -138,73 +166,6 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
     }
 
     /**
-     * @param non-empty-string $table
-     * @param list<mixed> $values
-     * @param GroupConfig $config
-     * @return list<array<string,mixed>>
-     */
-    private function fetchNonNullRows(
-        Connection $connection,
-        string $table,
-        array $values,
-        array $config,
-        bool $unique,
-    ): array {
-        if ($values === []) {
-            return [];
-        }
-
-        $chunkSize = $connection->safeBatchSize(
-            parametersPerRow: 1,
-            fixedBindings: $config['ignore_enabled'] ? 1 : 0,
-            requested: count($values),
-        );
-        $rows = [];
-
-        foreach (array_chunk($values, $chunkSize) as $chunk) {
-            $query = $this->baseQuery(
-                $connection,
-                $table,
-                $config['column'],
-                $unique,
-                $config['id_column'],
-                $config['soft_delete_column'],
-                $config['include_trashed'],
-                $config['ignore_enabled'],
-                $config['ignore'],
-            )->whereIn($config['column'], $chunk);
-
-            array_push($rows, ...$query->get());
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @param non-empty-string $table
-     * @param GroupConfig $config
-     * @return list<array<string,mixed>>
-     */
-    private function fetchNullRows(
-        Connection $connection,
-        string $table,
-        array $config,
-        bool $unique,
-    ): array {
-        return $this->baseQuery(
-            $connection,
-            $table,
-            $config['column'],
-            $unique,
-            $config['id_column'],
-            $config['soft_delete_column'],
-            $config['include_trashed'],
-            $config['ignore_enabled'],
-            $config['ignore'],
-        )->whereNull($config['column'])->get();
-    }
-
-    /**
      * @param list<Check> $checks
      * @param list<string> $keys
      * @return list<non-empty-list<Check>>
@@ -219,7 +180,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
                 $parts[] = $this->valueKey($check[$key] ?? null);
             }
 
-            $groups[implode('|', $parts)][] = $check;
+            $groups[serialize($parts)][] = $check;
         }
 
         return array_values($groups);
@@ -249,37 +210,44 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
     }
 
     /**
-     * @param list<array<string,mixed>> $rows
-     * @param non-empty-string $column
+     * @param non-empty-string $table
+     * @param list<mixed> $values
+     * @param GroupConfig $config
      * @return array<string,true>
      */
-    private function indexExistsRows(array $rows, string $column): array
-    {
-        $indexed = [];
-
-        foreach ($rows as $row) {
-            $indexed[$this->valueKey($row[$column] ?? null)] = true;
+    private function matchCandidates(
+        Connection $connection,
+        string $table,
+        array $values,
+        array $config,
+        bool $unique,
+    ): array {
+        if ($values === []) {
+            return [];
         }
 
-        return $indexed;
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows
-     * @param non-empty-string $column
-     * @return array<string,list<array<string,mixed>>>
-     */
-    private function indexUniqueRows(array $rows, string $column): array
-    {
-        $indexed = [];
-
-        foreach ($rows as $row) {
-            $key = $this->valueKey($row[$column] ?? null);
-            $indexed[$key] ??= [];
-            $indexed[$key][] = $row;
+        if (count($values) === 1 || ($connection->getConfig()->securityConfig()['raw_sql_policy'] ?? 'allow') !== 'allow') {
+            return $this->matchRestrictedCandidates($connection, $table, $values, $config, $unique);
         }
 
-        return $indexed;
+        $chunkSize = $connection->safeBatchSize(
+            parametersPerRow: $config['ignore_enabled'] ? 2 : 1,
+            requested: min(count($values), $this->maxBatchValues),
+        );
+        $candidate = $this->candidateQuery($connection, $table, $config, $unique, $values[0]);
+        $sql = $candidate->toSql();
+        $prefixBindings = array_slice($candidate->getBindings(), 0, -1);
+        $found = [];
+        foreach (array_chunk($values, $chunkSize) as $chunk) {
+            $row = $this->matchProjection($connection, $sql, $prefixBindings, $chunk);
+            foreach ($chunk as $index => $value) {
+                if (in_array($row['match_' . $index], [1, '1'], true)) {
+                    $found[$this->valueKey($value)] = true;
+                }
+            }
+        }
+
+        return $found;
     }
 
     /**
@@ -287,35 +255,58 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
      * @param non-empty-list<Check> $checks
      * @return array<string,true>
      */
-    private function matchedExists(Connection $connection, string $table, array $checks): array
+    private function matchedValues(Connection $connection, string $table, array $checks, bool $unique): array
     {
-        $config = $this->groupConfig($checks, false);
+        $config = $this->groupConfig($checks, $unique);
         [$values, $hasNull] = $this->candidateValues($checks);
-        $rows = $this->fetchNonNullRows($connection, $table, $values, $config, false);
+        $found = $this->matchCandidates($connection, $table, $values, $config, $unique);
 
-        if ($hasNull) {
-            array_push($rows, ...$this->fetchNullRows($connection, $table, $config, false));
+        if ($hasNull && $this->candidateQuery($connection, $table, $config, $unique, null)->limit(1)->get() !== []) {
+            $found[$this->valueKey(null)] = true;
         }
 
-        return $this->indexExistsRows($rows, $config['column']);
+        return $found;
+    }
+
+    /**
+     * @param list<mixed> $prefixBindings
+     * @param list<mixed> $values
+     * @return array<string,mixed>
+     */
+    private function matchProjection(Connection $connection, string $sql, array $prefixBindings, array $values): array
+    {
+        $columns = [];
+        $bindings = [];
+        foreach ($values as $index => $value) {
+            $columns[] = 'CASE WHEN EXISTS (' . $sql . ') THEN 1 ELSE 0 END AS match_' . $index;
+            array_push($bindings, ...$prefixBindings);
+            $bindings[] = $value;
+        }
+
+        return $connection->query()->selectRaw(implode(', ', $columns), $bindings)->get()[0];
     }
 
     /**
      * @param non-empty-string $table
-     * @param non-empty-list<Check> $checks
-     * @return array<string,list<array<string,mixed>>>
+     * @param list<mixed> $values
+     * @param GroupConfig $config
+     * @return array<string,true>
      */
-    private function matchedUnique(Connection $connection, string $table, array $checks): array
-    {
-        $config = $this->groupConfig($checks, true);
-        [$values, $hasNull] = $this->candidateValues($checks);
-        $rows = $this->fetchNonNullRows($connection, $table, $values, $config, true);
-
-        if ($hasNull) {
-            array_push($rows, ...$this->fetchNullRows($connection, $table, $config, true));
+    private function matchRestrictedCandidates(
+        Connection $connection,
+        string $table,
+        array $values,
+        array $config,
+        bool $unique,
+    ): array {
+        $found = [];
+        foreach ($values as $value) {
+            if ($this->candidateQuery($connection, $table, $config, $unique, $value)->limit(1)->get() !== []) {
+                $found[$this->valueKey($value)] = true;
+            }
         }
 
-        return $this->indexUniqueRows($rows, $config['column']);
+        return $found;
     }
 
     private function resolveConnection(): Connection
@@ -358,14 +349,6 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
     {
         if ($value === null) {
             return 'null';
-        }
-
-        if (is_bool($value)) {
-            $value = (int) $value;
-        }
-
-        if (is_scalar($value)) {
-            return 'scalar:' . $value;
         }
 
         return get_debug_type($value) . ':' . serialize($value);

@@ -51,7 +51,11 @@ interleaved Fiber execution. Per-validation errors, validated values and
 expensive-rule batches are method-local. Wildcard/conditional plan caches are
 bounded and keyed by reusable schema/shape metadata.
 
-ReqShield does not freeze caller-owned state captured by sanitizer, condition
+Custom rules must be stateless during validation to support shared sequential
+and Fiber execution. Compilation checks rule snapshots as described in
+:doc:`custom-rules`; a shallow clone that shares nested mutable state is rejected.
+
+ReqShield does not freeze caller-owned state captured by rule, sanitizer, condition
 or after-validation callables. Mutating external state inside those callables
 remains the caller's responsibility.
 

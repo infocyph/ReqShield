@@ -45,6 +45,9 @@ Mutation Semantics
   ``Validator::composeSchemas()`` semantics and may create a missing schema.
 * Returned PHP arrays are values; mutating a returned array does not mutate the
   registry's stored topology.
+* Rule objects are cloned on registration and retrieval. Nested mutable state
+  must be detached by the rule's ``__clone()`` method; unsafe snapshots throw
+  ``InvalidSchemaException``. See :doc:`custom-rules`.
 
 Persistent Runtime Boundary
 ---------------------------

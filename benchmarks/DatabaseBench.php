@@ -38,7 +38,7 @@ final class DatabaseBench
         $connection->statement('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)');
         $connection->insert('INSERT INTO teams (id, code) VALUES (?, ?)', [1, 'core']);
         $connection->insert('INSERT INTO users (id, email) VALUES (?, ?)', [1, 'existing@example.com']);
-        $this->safeBatchSize = $connection->safeBatchSize(requested: 1_000);
+        $this->safeBatchSize = $connection->safeBatchSize(requested: 128);
 
         $provider = DBLayerDatabaseProvider::fromConnection($connection);
         $this->directProvider = $provider;
