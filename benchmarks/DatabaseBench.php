@@ -19,7 +19,11 @@ final class DatabaseBench
 
     private Validator $constrainedValidator;
 
+    private DBLayerDatabaseProvider $directProvider;
+
     private Validator $existsValidator;
+
+    private DBLayerDatabaseProvider $resolverProvider;
 
     private int $safeBatchSize;
 
@@ -37,6 +41,10 @@ final class DatabaseBench
         $this->safeBatchSize = $connection->safeBatchSize(requested: 1_000);
 
         $provider = DBLayerDatabaseProvider::fromConnection($connection);
+        $this->directProvider = $provider;
+        $this->resolverProvider = new DBLayerDatabaseProvider(
+            fn(): Connection => $this->connection,
+        );
         $this->existsValidator = Validator::make([
             'contacts.*.team_id' => 'required|exists:teams,id',
         ], $provider);
@@ -103,14 +111,27 @@ final class DatabaseBench
         }
     }
 
+    #[Bench\Groups(['database', 'dblayer-native-provider-direct'])]
+    public function benchNativeProviderDirectConnection(): void
+    {
+        $failed = $this->directProvider->batchExists('teams', [
+            [
+                'id' => 0,
+                'field' => 'team_id',
+                'column' => 'id',
+                'value' => 1,
+            ],
+        ]);
+
+        if ($failed !== []) {
+            throw new \RuntimeException('Direct provider benchmark produced an invalid result.');
+        }
+    }
+
     #[Bench\Groups(['database', 'dblayer-native-provider-resolver'])]
     public function benchNativeProviderResolver(): void
     {
-        $provider = new DBLayerDatabaseProvider(
-            fn(): Connection => $this->connection,
-        );
-
-        $failed = $provider->batchExists('teams', [
+        $failed = $this->resolverProvider->batchExists('teams', [
             [
                 'id' => 0,
                 'field' => 'team_id',
