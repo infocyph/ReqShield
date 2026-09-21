@@ -101,13 +101,13 @@ final class DBLayerDatabaseProvider implements DatabaseProvider
         });
     }
 
-    private function identifier(mixed $id): int|string
+    private function identifier(mixed $id): int
     {
-        if (is_int($id) || is_string($id)) {
+        if (is_int($id)) {
             return $id;
         }
 
-        throw new \InvalidArgumentException('Database check identifiers must be integers or strings.');
+        throw new \InvalidArgumentException('Database check identifiers must be integers.');
     }
 
     /**
