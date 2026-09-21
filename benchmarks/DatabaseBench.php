@@ -56,6 +56,39 @@ final class DatabaseBench
         ], DBLayerDatabaseProvider::fromConnection($constrained));
     }
 
+    #[Bench\Groups(['database', 'dblayer-sqlite-constrained-bind-limit'])]
+    public function benchConstrainedDatabaseBatch(): void
+    {
+        $result = $this->constrainedValidator->validate([
+            'contacts' => $this->uniqueContacts(1_000),
+        ]);
+        if ($result->fails()) {
+            throw new \RuntimeException('Constrained benchmark produced an invalid result.');
+        }
+    }
+
+    #[Bench\ParamProviders(['provideBatchSizes'])]
+    public function benchDatabaseBatch(array $params): void
+    {
+        $result = $this->existsValidator->validate([
+            'contacts' => array_fill(0, $params['size'], ['team_id' => 1]),
+        ]);
+        if ($result->fails()) {
+            throw new \RuntimeException('Exists benchmark produced an invalid result.');
+        }
+    }
+
+    #[Bench\ParamProviders(['provideBatchSizes'])]
+    public function benchDatabaseUniqueBatch(array $params): void
+    {
+        $result = $this->uniqueValidator->validate([
+            'contacts' => $this->uniqueContacts($params['size']),
+        ]);
+        if ($result->fails()) {
+            throw new \RuntimeException('Unique benchmark produced an invalid result.');
+        }
+    }
+
     #[Bench\Groups(['database', 'dblayer-direct-baseline'])]
     public function benchDirectDBLayerExistsBaseline(): void
     {
@@ -88,41 +121,6 @@ final class DatabaseBench
 
         if ($failed !== []) {
             throw new \RuntimeException('Resolver benchmark produced an invalid result.');
-        }
-    }
-
-    #[Bench\Groups(['database', 'dblayer-sqlite-constrained-bind-limit'])]
-    public function benchConstrainedDatabaseBatch(): void
-    {
-        $result = $this->constrainedValidator->validate([
-            'contacts' => $this->uniqueContacts(1_000),
-        ]);
-        if ($result->fails()) {
-            throw new \RuntimeException('Constrained benchmark produced an invalid result.');
-        }
-    }
-
-    #[Bench\Groups(['database', 'dblayer-sqlite-batch'])]
-    #[Bench\ParamProviders(['provideBatchSizes'])]
-    public function benchDatabaseBatch(array $params): void
-    {
-        $result = $this->existsValidator->validate([
-            'contacts' => array_fill(0, $params['size'], ['team_id' => 1]),
-        ]);
-        if ($result->fails()) {
-            throw new \RuntimeException('Exists benchmark produced an invalid result.');
-        }
-    }
-
-    #[Bench\Groups(['database', 'dblayer-sqlite-unique-batch'])]
-    #[Bench\ParamProviders(['provideBatchSizes'])]
-    public function benchDatabaseUniqueBatch(array $params): void
-    {
-        $result = $this->uniqueValidator->validate([
-            'contacts' => $this->uniqueContacts($params['size']),
-        ]);
-        if ($result->fails()) {
-            throw new \RuntimeException('Unique benchmark produced an invalid result.');
         }
     }
 
