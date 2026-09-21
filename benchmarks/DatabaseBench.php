@@ -6,7 +6,7 @@ namespace Infocyph\ReqShield\Benchmarks;
 
 use Infocyph\DBLayer\DB;
 use Infocyph\ReqShield\Rule;
-use Infocyph\ReqShield\Tests\Integration\Database\DBLayerDatabaseProvider;
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Validator;
 use PhpBench\Attributes as Bench;
 
@@ -32,7 +32,7 @@ final class DatabaseBench
         $connection->insert('INSERT INTO users (id, email) VALUES (?, ?)', [1, 'existing@example.com']);
         $this->safeBatchSize = $connection->safeBatchSize(requested: 1_000);
 
-        $provider = new DBLayerDatabaseProvider($connection);
+        $provider = DBLayerDatabaseProvider::fromConnection($connection);
         $this->existsValidator = Validator::make([
             'contacts.*.team_id' => 'required|exists:teams,id',
         ], $provider);
@@ -49,7 +49,7 @@ final class DatabaseBench
         $constrained->insert('INSERT INTO users (id, email) VALUES (?, ?)', [1, 'existing@example.com']);
         $this->constrainedValidator = Validator::make([
             'contacts.*.email' => Rule::unique('users', 'email')->ignore(1),
-        ], new DBLayerDatabaseProvider($constrained));
+        ], DBLayerDatabaseProvider::fromConnection($constrained));
     }
 
     #[Bench\Groups(['database', 'dblayer-sqlite-constrained-bind-limit'])]
