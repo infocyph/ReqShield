@@ -11,10 +11,10 @@ use Infocyph\ReqShield\Validator;
 
 final class SchemaRegistry
 {
+    private bool $frozen = false;
+
     /** @var array<string,array<string,mixed>> */
     private array $schemas = [];
-
-    private bool $frozen = false;
 
     /** @param array<array-key,mixed> $schemas */
     public function __construct(array $schemas = [])
@@ -68,9 +68,11 @@ final class SchemaRegistry
         $name = $this->name($name);
         $incoming = $this->normalizeSchema($schema);
 
-        $this->schemas[$name] = $this->snapshotSchema(Validator::composeSchemas(
-            $this->schemas[$name] ?? [],
-            $incoming,
+        $this->schemas[$name] = $this->snapshotSchema($this->normalizeSchema(
+            Validator::composeSchemas(
+                $this->schemas[$name] ?? [],
+                $incoming,
+            ),
         ));
 
         return $this;

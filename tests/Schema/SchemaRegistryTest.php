@@ -156,6 +156,8 @@ test('schema registry snapshots mutable rule objects on write and read', functio
 
         public function passes(mixed $value, string $field, array $data): bool
         {
+            unset($value, $field, $data);
+
             return $this->passes;
         }
     };
