@@ -65,7 +65,9 @@ final readonly class ValidatorProfile
     ];
 
     /** @param ProfileOptions $options */
-    private function __construct(private array $options) {}
+    private function __construct(
+        private array $options,
+    ) {}
 
     /** @param array<string,mixed> $options */
     public static function fromArray(array $options = []): self
@@ -222,6 +224,35 @@ final readonly class ValidatorProfile
     }
 
     /**
+     * @param array<string,mixed> $normalized
+     * @param array<string,mixed> $options
+     */
+    private static function normalizeBooleanOption(
+        array &$normalized,
+        array $options,
+        string $key,
+        bool $default,
+    ): void {
+        if (array_key_exists($key, $options)) {
+            $normalized[$key] = self::boolean($options[$key], $default);
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $normalized
+     * @param array<string,mixed> $options
+     */
+    private static function normalizeNullableStringOption(
+        array &$normalized,
+        array $options,
+        string $key,
+    ): void {
+        if (array_key_exists($key, $options)) {
+            $normalized[$key] = self::nullableString($options[$key]);
+        }
+    }
+
+    /**
      * @param array<string,mixed> $options
      * @return ProfileOptions
      */
@@ -268,35 +299,6 @@ final readonly class ValidatorProfile
 
         /** @var ProfileOptions $normalized */
         return $normalized;
-    }
-
-    /**
-     * @param array<string,mixed> $normalized
-     * @param array<string,mixed> $options
-     */
-    private static function normalizeBooleanOption(
-        array &$normalized,
-        array $options,
-        string $key,
-        bool $default,
-    ): void {
-        if (array_key_exists($key, $options)) {
-            $normalized[$key] = self::boolean($options[$key], $default);
-        }
-    }
-
-    /**
-     * @param array<string,mixed> $normalized
-     * @param array<string,mixed> $options
-     */
-    private static function normalizeNullableStringOption(
-        array &$normalized,
-        array $options,
-        string $key,
-    ): void {
-        if (array_key_exists($key, $options)) {
-            $normalized[$key] = self::nullableString($options[$key]);
-        }
     }
 
     private static function positiveInt(mixed $value, string $name): int
