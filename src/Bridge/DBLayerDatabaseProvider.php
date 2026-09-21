@@ -156,7 +156,40 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         return [array_values($values), $hasNull];
     }
 
-    /** @param non-empty-string $idColumn */
+    /**
+     * @param non-empty-string $table
+     * @param GroupConfig $config
+     * @return array{0:string,1:list<mixed>}
+     */
+    private function correlatedCandidateSql(
+        Connection $connection,
+        string $table,
+        array $config,
+        bool $unique,
+        mixed $sampleValue,
+    ): array {
+        $candidate = $this->candidateQuery(
+            $connection,
+            $table,
+            $config,
+            $unique,
+            $sampleValue,
+        );
+        $sql = $candidate->toSql();
+        $position = strrpos($sql, '?');
+        if ($position === false) {
+            throw new \LogicException('Database candidate query must contain a value binding.');
+        }
+
+        $bindings = $candidate->getBindings();
+        array_pop($bindings);
+
+        return [
+            substr_replace($sql, 'c.candidate_value', $position, 1),
+            $bindings,
+        ];
+    }
+
     private function excludeIgnoredRow(QueryBuilder $query, string $idColumn, mixed $ignore): void
     {
         $query->where(static function (QueryBuilder $nested) use ($idColumn, $ignore): void {
@@ -254,57 +287,6 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
     }
 
     /**
-     * @param non-empty-string $table
-     * @param non-empty-list<Check> $checks
-     * @return array<string,true>
-     */
-    private function matchedValues(Connection $connection, string $table, array $checks, bool $unique): array
-    {
-        $config = $this->groupConfig($checks, $unique);
-        [$values, $hasNull] = $this->candidateValues($checks);
-        $found = $this->matchCandidates($connection, $table, $values, $config, $unique);
-
-        if ($hasNull && $this->candidateQuery($connection, $table, $config, $unique, null)->limit(1)->get() !== []) {
-            $found[$this->valueKey(null)] = true;
-        }
-
-        return $found;
-    }
-
-    /**
-     * @param GroupConfig $config
-     * @return array{0:string,1:list<mixed>}
-     */
-    private function correlatedCandidateSql(
-        Connection $connection,
-        string $table,
-        array $config,
-        bool $unique,
-        mixed $sampleValue,
-    ): array {
-        $candidate = $this->candidateQuery(
-            $connection,
-            $table,
-            $config,
-            $unique,
-            $sampleValue,
-        );
-        $sql = $candidate->toSql();
-        $position = strrpos($sql, '?');
-        if ($position === false) {
-            throw new \LogicException('Database candidate query must contain a value binding.');
-        }
-
-        $bindings = $candidate->getBindings();
-        array_pop($bindings);
-
-        return [
-            substr_replace($sql, 'c.candidate_value', $position, 1),
-            $bindings,
-        ];
-    }
-
-    /**
      * @param list<mixed> $fixedBindings
      * @param non-empty-list<mixed> $values
      * @return list<int>
@@ -332,12 +314,30 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         $matched = [];
         foreach ($rows as $row) {
             $index = $row['candidate_key'] ?? null;
-            if (is_int($index) || (is_string($index) && ctype_digit($index))) {
+            if (is_int($index) || (is_string($index) && preg_match('/^\d+$/D', $index) === 1)) {
                 $matched[] = (int) $index;
             }
         }
 
         return $matched;
+    }
+
+    /**
+     * @param non-empty-string $table
+     * @param non-empty-list<Check> $checks
+     * @return array<string,true>
+     */
+    private function matchedValues(Connection $connection, string $table, array $checks, bool $unique): array
+    {
+        $config = $this->groupConfig($checks, $unique);
+        [$values, $hasNull] = $this->candidateValues($checks);
+        $found = $this->matchCandidates($connection, $table, $values, $config, $unique);
+
+        if ($hasNull && $this->candidateQuery($connection, $table, $config, $unique, null)->limit(1)->get() !== []) {
+            $found[$this->valueKey(null)] = true;
+        }
+
+        return $found;
     }
 
     /**
@@ -368,7 +368,6 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         return $this->validatedConnection(($this->connection)());
     }
 
-    /** @return non-empty-string */
     private function sqlIdentifier(string $identifier, string $type): string
     {
         $identifier = trim($identifier);
