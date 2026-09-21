@@ -46,7 +46,7 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **complete — PR run #48 green** |
 | 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **complete — PR run #48 green** |
 | 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **complete — PR run #53 green** |
-| 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **implementation complete / QA pending** |
+| 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **complete — PR run #59 green** |
 | 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **next** |
 | 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | open |
 | 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
@@ -552,7 +552,7 @@ These tests protect ReqShield from drifting into a false sandbox role:
 - [X] wildcard/conditional validation under shared compiled reuse retains no prior request values;
 - [X] bounded cache sizes remain bounded under schema/shape churn;
 
-**Batch 5 implementation status:** complete. Compilation performs one deep topology snapshot, compiled execution is frozen against ReqShield mutators, per-instance plan caches remain bounded, and same-instance sequential/Fiber reuse is covered; PR CI is the batch closure gate.
+**Batch 5 status:** COMPLETE — compilation performs one deep topology snapshot, compiled execution is frozen against ReqShield mutators, bounded caches and sequential/Fiber reuse are covered, and PR run #59 is green across QA/analysis/stable/lowest/benchmarks.
 
 - [ ] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping;
 
@@ -767,7 +767,7 @@ The audit now provides direct implementation evidence that a **small immutable `
 2. **Batch 2 — COMPLETE:** native DBLayer 5.1 bridge and production regression matrix are green in PR run #48.
 3. **Batch 3 — COMPLETE:** instance-owned frozen `SchemaRegistry`, rule snapshot isolation and persistent/Fiber coverage are green in PR run #48.
 4. **Batch 4 — COMPLETE:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are green in PR run #53.
-5. **Batch 5 — implementation complete / QA pending:** `CompiledValidator` now snapshots once, freezes topology, blocks callback mutation, resets request-shape caches on snapshot creation, and covers sequential/Fiber/bounded-cache reuse; PR CI is the closure gate.
+5. **Batch 5 — COMPLETE:** frozen compiled snapshots, callback mutation blocking, bounded cache isolation and same-instance sequential/Fiber reuse are green in PR run #59.
 6. **Batch 6 — next:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
 7. **Batch 7:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
 8. **Batch 8:** return to Foundation 26.7, consume ReqShield 3.2, remove duplicate DB provider/schema/profile mechanics, run Foundation acceptance/performance gates, and update the Foundation tracker/benchmark naming only after the dependency is consumable.
