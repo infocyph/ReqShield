@@ -487,7 +487,7 @@ $validator = Validator::make([
 The resolver is invoked only when database rules execute. ReqShield owns logical validation batching; DBLayer 5.1 owns physical bind-limit sizing and query execution.
 
 **Benefits:**
-- **Automatic batching** - Multiple checks become one query
+- **Automatic batching** - Multiple checks become bounded DB-native match queries; restricted raw-SQL policies use query-builder-only lookups
 - **Update support** - `Rule::unique('users', 'email')->ignore(5)` ignores ID 5
 - **Explicit object syntax** - `Rule::unique('users', 'email')->ignore($id)->withoutTrashed()`
 

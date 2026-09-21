@@ -24,7 +24,7 @@ The suite covers:
 * DBLayer 5.1 direct-query baseline, native provider resolver overhead, and
   SQLite exists/unique checks around connection-derived safe batch
   boundaries through 1,000 wildcard values;
-* DBLayer 5 unique-ignore validation under a constrained 32-parameter ceiling;
+* DBLayer 5.1 unique-ignore validation under a constrained 32-parameter ceiling;
 * built-in rule resolution.
 
 PhpBench reports timing variance and peak memory. Compare results only on a

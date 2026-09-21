@@ -100,9 +100,11 @@ column values using PHP string equality. Qualified column names work without
 relying on the driver's returned column labels.
 
 Physical query sizing uses the exact DBLayer connection's
-``Connection::safeBatchSize()``. Each non-NULL candidate consumes one binding,
-or two when a unique-ignore predicate is present. DBLayer remains authoritative
-for bind limits. Repeated candidates are deduplicated by both type and value.
+``Connection::safeBatchSize()``. Each non-NULL candidate consumes one binding.
+A unique-ignore predicate contributes one fixed binding for the whole correlated
+candidate projection rather than repeating that binding per candidate. DBLayer
+remains authoritative for bind limits. Repeated candidates are deduplicated by
+both type and value.
 
 The bridge also bounds query width to 128 candidates by default. This limits
 SQL construction and result-column allocation independently of the driver's

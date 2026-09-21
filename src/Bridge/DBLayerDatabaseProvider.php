@@ -230,20 +230,23 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             return $this->matchRestrictedCandidates($connection, $table, $values, $config, $unique);
         }
 
+        [$sql, $fixedBindings] = $this->correlatedCandidateSql(
+            $connection,
+            $table,
+            $config,
+            $unique,
+            $values[0],
+        );
         $chunkSize = $connection->safeBatchSize(
-            parametersPerRow: $config['ignore_enabled'] ? 2 : 1,
+            parametersPerRow: 1,
+            fixedBindings: count($fixedBindings),
             requested: min(count($values), $this->maxBatchValues),
         );
-        $candidate = $this->candidateQuery($connection, $table, $config, $unique, $values[0]);
-        $sql = $candidate->toSql();
-        $prefixBindings = array_slice($candidate->getBindings(), 0, -1);
         $found = [];
+
         foreach (array_chunk($values, $chunkSize) as $chunk) {
-            $row = $this->matchProjection($connection, $sql, $prefixBindings, $chunk);
-            foreach ($chunk as $index => $value) {
-                if (in_array($row['match_' . $index], [1, '1'], true)) {
-                    $found[$this->valueKey($value)] = true;
-                }
+            foreach ($this->matchedCandidateIndexes($connection, $sql, $fixedBindings, $chunk) as $index) {
+                $found[$this->valueKey($chunk[$index])] = true;
             }
         }
 
@@ -269,21 +272,72 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
     }
 
     /**
-     * @param list<mixed> $prefixBindings
-     * @param list<mixed> $values
-     * @return array<string,mixed>
+     * @param GroupConfig $config
+     * @return array{0:string,1:list<mixed>}
      */
-    private function matchProjection(Connection $connection, string $sql, array $prefixBindings, array $values): array
-    {
-        $columns = [];
-        $bindings = [];
-        foreach ($values as $index => $value) {
-            $columns[] = 'CASE WHEN EXISTS (' . $sql . ') THEN 1 ELSE 0 END AS match_' . $index;
-            array_push($bindings, ...$prefixBindings);
-            $bindings[] = $value;
+    private function correlatedCandidateSql(
+        Connection $connection,
+        string $table,
+        array $config,
+        bool $unique,
+        mixed $sampleValue,
+    ): array {
+        $candidate = $this->candidateQuery(
+            $connection,
+            $table,
+            $config,
+            $unique,
+            $sampleValue,
+        );
+        $sql = $candidate->toSql();
+        $position = strrpos($sql, '?');
+        if ($position === false) {
+            throw new \LogicException('Database candidate query must contain a value binding.');
         }
 
-        return $connection->query()->selectRaw(implode(', ', $columns), $bindings)->get()[0];
+        $bindings = $candidate->getBindings();
+        array_pop($bindings);
+
+        return [
+            substr_replace($sql, 'c.candidate_value', $position, 1),
+            $bindings,
+        ];
+    }
+
+    /**
+     * @param list<mixed> $fixedBindings
+     * @param non-empty-list<mixed> $values
+     * @return list<int>
+     */
+    private function matchedCandidateIndexes(
+        Connection $connection,
+        string $candidateSql,
+        array $fixedBindings,
+        array $values,
+    ): array {
+        $sourceParts = [];
+        foreach ($values as $index => $value) {
+            unset($value);
+            $sourceParts[] = $index === 0
+                ? 'SELECT ' . $index . ' AS candidate_key, ? AS candidate_value'
+                : 'SELECT ' . $index . ', ?';
+        }
+
+        $rows = $connection->query()
+            ->fromSub(implode(' UNION ALL ', $sourceParts), 'c', $values)
+            ->addSelectAs('c.candidate_key', 'candidate_key')
+            ->whereRaw('EXISTS (' . $candidateSql . ')', $fixedBindings)
+            ->get();
+
+        $matched = [];
+        foreach ($rows as $row) {
+            $index = $row['candidate_key'] ?? null;
+            if (is_int($index) || (is_string($index) && ctype_digit($index))) {
+                $matched[] = (int) $index;
+            }
+        }
+
+        return $matched;
     }
 
     /**

@@ -222,7 +222,7 @@ test('DBLayer SQLite provider uses connection-derived sizing across representati
     }
 });
 
-test('DBLayer SQLite provider honors constrained bind limits including per-candidate ignore bindings', function () {
+test('DBLayer SQLite provider honors constrained bind limits with one fixed ignore binding', function () {
     $connection = DB::addConnection([
         'driver' => 'sqlite',
         'database' => ':memory:',
@@ -241,12 +241,16 @@ test('DBLayer SQLite provider honors constrained bind limits including per-candi
     $result = Validator::make([
         'contacts.*.email' => Rule::unique('users', 'email')->ignore('1'),
     ], $provider)->validate(['contacts' => $contacts]);
-    $safeSize = $connection->safeBatchSize(parametersPerRow: 2, requested: 100);
+    $safeSize = $connection->safeBatchSize(
+        parametersPerRow: 1,
+        fixedBindings: 1,
+        requested: 100,
+    );
 
     expect($result->passes())->toBeTrue()
-        ->and($safeSize)->toBe(16)
+        ->and($safeSize)->toBe(31)
         ->and($connection->getStats()['queries'])->toBe((int) ceil(100 / $safeSize))
-        ->and($safeSize * 2)->toBeLessThanOrEqual($connection->effectiveMaxBindParameters());
+        ->and($safeSize + 1)->toBeLessThanOrEqual($connection->effectiveMaxBindParameters());
 });
 
 test('DBLayer SQLite provider groups duplicate values and separate columns correctly', function () {
