@@ -672,6 +672,7 @@ class Validator
     public function strict(): self
     {
         $this->assertMutable(__FUNCTION__);
+
         return $this->allowUnknown(false);
     }
 
@@ -950,7 +951,6 @@ class Validator
         return $plan;
     }
 
-    /** @param array<string,array<int,string>> $errors */
     /**
      * @param array<int|string,mixed> $definitions
      * @return array<int|string,mixed>
@@ -982,6 +982,7 @@ class Validator
         return $snapshot;
     }
 
+    /** @param array<string,array<int,string>> $errors */
     protected function throwIfValidationShouldFail(
         ValidationResult $result,
         array $errors,

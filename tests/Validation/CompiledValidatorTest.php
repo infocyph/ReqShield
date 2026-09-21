@@ -24,17 +24,20 @@ test('compiled validator snapshots mutable builder configuration once', function
     expect($compiled->validate([])->first('name'))->toBe('Original message.');
 });
 
-test('compiled validator snapshots mutable rule objects', function () {
-    $rule = new MutableAuditRule();
+test('compiled validator snapshots mutable compiled rule objects', function () {
     $builder = Validator::make([
-        'value' => [$rule],
+        'value' => [new MutableAuditRule()],
     ]);
     $compiled = new CompiledValidator($builder);
 
-    $rule->passes = false;
+    $schemaProperty = new ReflectionProperty(Validator::class, 'schema');
+    $schema = $schemaProperty->getValue($builder);
+    $builderRule = $schema['value']->getAllRules()[0];
+    expect($builderRule)->toBeInstanceOf(MutableAuditRule::class);
+    $builderRule->passes = false;
 
-    expect($compiled->validate(['value' => 'ok'])->passes())->toBeTrue()
-        ->and($builder->validate(['value' => 'ok'])->fails())->toBeTrue();
+    expect($builder->validate(['value' => 'ok'])->fails())->toBeTrue()
+        ->and($compiled->validate(['value' => 'ok'])->passes())->toBeTrue();
 });
 
 test('compiled validator rejects topology mutation reached through callbacks', function () {
