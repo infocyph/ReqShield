@@ -290,7 +290,7 @@ test('DBLayer SQLite provider preserves SQL scalar and null semantics', function
 
     foreach ([0, '0', false, null, 'alpha'] as $index => $value) {
         $checks[] = [
-            'id' => "check-{$index}",
+            'id' => $index,
             'column' => 'token',
             'value' => $value,
         ];
@@ -308,13 +308,7 @@ test('DBLayer SQLite provider preserves SQL scalar and null semantics', function
         $checks,
     );
 
-    expect($provider->batchUnique('edge_values', $uniqueChecks))->toBe([
-        'check-0',
-        'check-1',
-        'check-2',
-        'check-3',
-        'check-4',
-    ]);
+    expect($provider->batchUnique('edge_values', $uniqueChecks))->toBe([0, 1, 2, 3, 4]);
 });
 
 test('DBLayer infrastructure failures remain distinct from validation misses', function () {
