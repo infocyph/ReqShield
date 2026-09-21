@@ -190,6 +190,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         ];
     }
 
+    /** @param non-empty-string $idColumn */
     private function excludeIgnoredRow(QueryBuilder $query, string $idColumn, mixed $ignore): void
     {
         $query->where(static function (QueryBuilder $nested) use ($idColumn, $ignore): void {
@@ -368,6 +369,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         return $this->validatedConnection(($this->connection)());
     }
 
+    /** @return non-empty-string */
     private function sqlIdentifier(string $identifier, string $type): string
     {
         $identifier = trim($identifier);
