@@ -91,7 +91,7 @@ final class BatchExecutor
     private function prepare(array $batch): array
     {
         $prepared = [];
-        foreach ($batch as $id => $item) {
+        foreach (array_values($batch) as $id => $item) {
             $rule = $item['rule'];
             if (!$rule instanceof DatabaseBatchRule) {
                 throw new DatabaseValidationException('Unsupported database batch rule: ' . $rule::class);
@@ -157,11 +157,16 @@ final class BatchExecutor
             }
 
             $known = array_fill_keys(array_column($checks, 'id'), true);
+            $seen = [];
             foreach ($returned as $id) {
                 if (!is_int($id) || !isset($known[$id])) {
                     throw new DatabaseValidationException('Database provider returned an unknown or malformed check ID.');
                 }
+                if (isset($seen[$id])) {
+                    throw new DatabaseValidationException('Database provider returned a duplicate check ID.');
+                }
 
+                $seen[$id] = true;
                 $failed[$id] = true;
             }
         }
