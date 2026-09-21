@@ -12,6 +12,8 @@ The suite covers:
 
 * fresh construction at 1, 10, 50, and 100 fields;
 * immutable compiled-plan reuse, string/object/custom/conditional schemas;
+* frozen ``SchemaRegistry`` lookup, reusable ``ValidatorProfile`` application,
+  direct setter configuration, and compiled snapshot reuse;
 * flat passing and first/middle/final failure paths;
 * fail-fast and collect-all behavior;
 * active/inactive implicit rules and nullable/optional short circuits;
@@ -19,7 +21,8 @@ The suite covers:
 * compiled sanitizer and cast pipelines;
 * localized and wildcard failure messages;
 * wildcard scaling through 10,000 matches;
-* DBLayer 5 SQLite exists and unique checks around connection-derived safe batch
+* DBLayer 5.1 direct-query baseline, native provider resolver overhead, and
+  SQLite exists/unique checks around connection-derived safe batch
   boundaries through 1,000 wildcard values;
 * DBLayer 5 unique-ignore validation under a constrained 32-parameter ceiling;
 * built-in rule resolution.

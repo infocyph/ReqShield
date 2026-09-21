@@ -48,7 +48,7 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **complete — PR run #53 green** |
 | 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **complete — PR run #59 green** |
 | 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **complete — PR run #61 green** |
-| 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | **next** |
+| 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | **implementation complete / final QA pending** |
 | 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
 
 #### Batch 1 — baseline and correlation contract
@@ -143,16 +143,16 @@ ReqShield's responsibility is limited to validating the **shape and policy value
 
 Required boundary:
 
-- [ ] Treat strings such as `exec`, `system`, `shell_exec`, `proc_open`, `pcntl_fork`, `pcntl_exec`, `pcntl_signal`, `posix_kill`, `posix_setuid`, etc. as ordinary data unless the application's schema says otherwise.
-- [ ] Do not add a dangerous-function-name blacklist or sanitizer that rejects these substrings globally.
-- [ ] Do not scan uploaded files, PHP source, templates or arbitrary text for dangerous-function names.
-- [ ] Do not add shell quoting, shell escaping, executable selection, process spawning, signal control, UID/GID switching, sandboxing or runtime-profile management to ReqShield.
-- [ ] Do not claim validation can make uploaded/dynamic PHP safe to execute.
-- [ ] Where Foundation exposes a registered operation/capability identifier, validate it structurally with normal ReqShield rules such as required/string/enum/allowlist/bounds.
-- [ ] User input must select a **registered application operation**, not an executable or raw shell command, when Foundation applies this pattern.
-- [ ] Authorization for that operation remains Foundation/application policy; validation is not authorization.
-- [ ] Filesystem/path containment remains Pathwise 4.1 responsibility.
-- [ ] Process execution, argv construction, environment/cwd policy, signals, privilege changes, sandbox profiles and OS isolation belong to the dedicated process/runtime layer.
+- [X] Treat strings such as `exec`, `system`, `shell_exec`, `proc_open`, `pcntl_fork`, `pcntl_exec`, `pcntl_signal`, `posix_kill`, `posix_setuid`, etc. as ordinary data unless the application's schema says otherwise.
+- [X] Do not add a dangerous-function-name blacklist or sanitizer that rejects these substrings globally.
+- [X] Do not scan uploaded files, PHP source, templates or arbitrary text for dangerous-function names.
+- [X] Do not add shell quoting, shell escaping, executable selection, process spawning, signal control, UID/GID switching, sandboxing or runtime-profile management to ReqShield.
+- [X] Do not claim validation can make uploaded/dynamic PHP safe to execute.
+- [X] Where Foundation exposes a registered operation/capability identifier, validate it structurally with normal ReqShield rules such as required/string/enum/allowlist/bounds.
+- [X] User input must select a **registered application operation**, not an executable or raw shell command, when Foundation applies this pattern.
+- [X] Authorization for that operation remains Foundation/application policy; validation is not authorization.
+- [X] Filesystem/path containment remains Pathwise 4.1 responsibility.
+- [X] Process execution, argv construction, environment/cwd policy, signals, privilege changes, sandbox profiles and OS isolation belong to the dedicated process/runtime layer.
 
 Conceptual safe boundary:
 
@@ -443,11 +443,11 @@ A shared compiled validator is expected to be safely reusable under these constr
 
 Preserve the distinction between a validation miss and infrastructure failure.
 
-- [ ] `exists` miss / `unique` conflict remain ordinary validation failures.
-- [ ] connection/query/driver failures become `DatabaseValidationException` with the original exception preserved as `previous`.
-- [ ] malformed provider output remains a ReqShield database-validation infrastructure/contract failure.
-- [ ] never convert DB outages into "field invalid" results.
-- [ ] never leak raw SQL, credentials or sensitive bindings through public validation messages.
+- [X] `exists` miss / `unique` conflict remain ordinary validation failures.
+- [X] connection/query/driver failures become `DatabaseValidationException` with the original exception preserved as `previous`.
+- [X] malformed provider output remains a ReqShield database-validation infrastructure/contract failure.
+- [X] never convert DB outages into "field invalid" results.
+- [X] never leak raw SQL, credentials or sensitive bindings through public validation messages.
 
 Foundation will map these exceptions into its application/HTTP policy; ReqShield must not own HTTP status codes.
 
@@ -522,8 +522,8 @@ Required matrix:
 - [X] repeated validation using the same safe validator/compiled-validator path;
 - [X] sequential isolation;
 - [X] interleaved Fiber isolation;
-- [ ] large wildcard input under configured limits;
-- [ ] bounds failures occur before expensive DB work where applicable.
+- [X] large wildcard input under configured limits;
+- [X] bounds failures occur before expensive DB work where applicable.
 
 ### 9.4 Process/capability boundary tests
 
@@ -627,9 +627,9 @@ Performance fixes must preserve correctness and isolation first.
 
 Update:
 
-- [ ] `README.md` with optional native DBLayer integration example;
-- [ ] `docs/database-rules.rst` with DBLayer 5.1 bridge usage and connection-resolver lifetime guidance;
-- [ ] schema documentation with instance-owned registry/freeze pattern;
+- [X] `README.md` with optional native DBLayer integration example;
+- [X] `docs/database-rules.rst` with DBLayer 5.1 bridge usage and connection-resolver lifetime guidance;
+- [X] schema documentation with instance-owned registry/freeze pattern;
 - [X] validation-profile documentation with canonical option meanings, immutable overlay semantics and a framework-neutral example;
 - [X] compiled-validator documentation that distinguishes mutable configuration/build phase from frozen reusable execution phase;
 - [X] persistent-runtime guidance warning against process-global mutable schema registration;
@@ -637,8 +637,8 @@ Update:
 - [X] document that ReqShield exceptions are transport-neutral and HTTP status selection belongs to the application/framework;
 - [X] clarify that `Path`, `SafeFilename`, `SecureFile` and `UploadMeta` validate syntax/metadata only; Pathwise 4.1 owns canonical path containment, storage trust, malware/storage policy and filesystem authorization;
 - [X] document the recommended registered-operation pattern for applications that validate input for privileged process capabilities;
-- [ ] installation/development docs to identify DBLayer 5.1 as a development/reference integration only;
-- [ ] upgrade/release notes for 3.2.
+- [X] installation/development docs to identify DBLayer 5.1 as a development/reference integration only;
+- [X] upgrade/release notes for 3.2.
 
 Example framework-neutral provider usage should resemble:
 
@@ -771,7 +771,7 @@ The audit now provides direct implementation evidence that a **small immutable `
 4. **Batch 4 — COMPLETE:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are green in PR run #53.
 5. **Batch 5 — COMPLETE:** frozen compiled snapshots, callback mutation blocking, bounded cache isolation and same-instance sequential/Fiber reuse are green in PR run #59.
 6. **Batch 6 — COMPLETE:** transport-neutral exceptions, caller-controlled formatter status, process-operation drift tests and Pathwise 4.1/Runwire boundary documentation are green in PR run #61.
-7. **Batch 7 — next:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
+7. **Batch 7 — implementation complete / final QA pending:** release docs, 3.2 upgrade notes, runtime-topology benchmarks, direct DBLayer/provider baseline coverage and final release-regression tests are implemented; the final PHP 8.4/8.5 stable + lowest matrix remains the closure gate.
 8. **Batch 8:** return to Foundation 26.7, consume ReqShield 3.2, remove duplicate DB provider/schema/profile mechanics, run Foundation acceptance/performance gates, and update the Foundation tracker/benchmark naming only after the dependency is consumable.
 
 ---

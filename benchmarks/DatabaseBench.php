@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Benchmarks;
 
+use Infocyph\DBLayer\Connection\Connection;
 use Infocyph\DBLayer\DB;
 use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Rule;
@@ -14,6 +15,8 @@ use PhpBench\Attributes as Bench;
 #[Bench\Iterations(5)]
 final class DatabaseBench
 {
+    private Connection $connection;
+
     private Validator $constrainedValidator;
 
     private Validator $existsValidator;
@@ -26,6 +29,7 @@ final class DatabaseBench
     {
         DB::resetRuntimeState();
         $connection = DB::addConnection(['driver' => 'sqlite', 'database' => ':memory:'], 'benchmark');
+        $this->connection = $connection;
         $connection->statement('CREATE TABLE teams (id INTEGER PRIMARY KEY, code TEXT)');
         $connection->statement('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)');
         $connection->insert('INSERT INTO teams (id, code) VALUES (?, ?)', [1, 'core']);
@@ -50,6 +54,41 @@ final class DatabaseBench
         $this->constrainedValidator = Validator::make([
             'contacts.*.email' => Rule::unique('users', 'email')->ignore(1),
         ], DBLayerDatabaseProvider::fromConnection($constrained));
+    }
+
+    #[Bench\Groups(['database', 'dblayer-direct-baseline'])]
+    public function benchDirectDBLayerExistsBaseline(): void
+    {
+        $rows = $this->connection
+            ->table('teams')
+            ->select(['id'])
+            ->whereIn('id', [1])
+            ->get();
+
+        if ($rows === []) {
+            throw new \RuntimeException('Direct DBLayer benchmark produced no rows.');
+        }
+    }
+
+    #[Bench\Groups(['database', 'dblayer-native-provider-resolver'])]
+    public function benchNativeProviderResolver(): void
+    {
+        $provider = new DBLayerDatabaseProvider(
+            fn(): Connection => $this->connection,
+        );
+
+        $failed = $provider->batchExists('teams', [
+            [
+                'id' => 0,
+                'field' => 'team_id',
+                'column' => 'id',
+                'value' => 1,
+            ],
+        ]);
+
+        if ($failed !== []) {
+            throw new \RuntimeException('Resolver benchmark produced an invalid result.');
+        }
     }
 
     #[Bench\Groups(['database', 'dblayer-sqlite-constrained-bind-limit'])]

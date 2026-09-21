@@ -70,4 +70,5 @@ Table of Contents
    :caption: Development
 
    benchmark
+   upgrading-3.2
    development
