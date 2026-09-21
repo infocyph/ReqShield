@@ -32,7 +32,7 @@
         "ext-mbstring": "*"
     },
     "require-dev": {
-        "infocyph/dblayer": "^5.0",
+        "infocyph/dblayer": "^5.1",
         "infocyph/phpforge": "dev-main@dev"
     },
     "minimum-stability": "stable",
