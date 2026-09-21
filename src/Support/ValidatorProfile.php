@@ -118,7 +118,7 @@ final readonly class ValidatorProfile
         return $this->options;
     }
 
-    /** @return array<string,mixed> */
+    /** @param array<string,mixed> $options */
     private static function assertKnownOptions(array $options): void
     {
         foreach (array_keys($options) as $key) {
@@ -131,6 +131,7 @@ final readonly class ValidatorProfile
         }
     }
 
+    /** @return array<string,mixed> */
     private static function associativeArray(mixed $value): array
     {
         if (!is_array($value)) {
@@ -157,6 +158,7 @@ final readonly class ValidatorProfile
         };
     }
 
+    /** @return Limits */
     private static function limits(mixed $value): array
     {
         $limits = self::associativeArray($value);
@@ -183,6 +185,7 @@ final readonly class ValidatorProfile
         return $normalized;
     }
 
+    /** @return array<string,array<string,mixed>> */
     private static function localePacks(mixed $value): array
     {
         if (!is_array($value)) {
@@ -318,6 +321,7 @@ final readonly class ValidatorProfile
         return $resolved;
     }
 
+    /** @return array<string,SanitizerPipeline> */
     private static function sanitizerMap(mixed $value): array
     {
         if (!is_array($value)) {
@@ -350,6 +354,7 @@ final readonly class ValidatorProfile
         return $normalized;
     }
 
+    /** @return array<string,string> */
     private static function stringMap(mixed $value): array
     {
         if (!is_array($value)) {
