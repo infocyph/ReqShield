@@ -67,11 +67,11 @@ Reference Integration
 
 ReqShield is database-library agnostic. Applications may implement
 ``DatabaseProvider`` with PDO, DBLayer, Laravel, Doctrine, or another database
-layer. DBLayer 5 is the development suite's reference integration, not a runtime
+layer. DBLayer 5.1 is the development suite's reference integration, not a runtime
 dependency for normal consumers.
 
 ReqShield owns logical validation batching. The reference provider uses DBLayer
-5's driver-aware ``Connection::safeBatchSize()`` for physical query chunks,
+5.1's driver-aware ``Connection::safeBatchSize()`` for physical query chunks,
 including fixed bindings introduced by unique-ignore predicates and a 1,000-value
 application ceiling. This honors driver and configured ``security.max_params``
 limits without duplicating bind-limit maps in ReqShield.
