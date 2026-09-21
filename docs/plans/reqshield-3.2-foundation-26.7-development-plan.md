@@ -45,7 +45,7 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | 1 | Baseline + DBLayer 5.1 floor + integer correlation contract | **complete — PR run #43 green** |
 | 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **complete — PR run #48 green** |
 | 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **complete — PR run #48 green** |
-| 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **implementation complete / QA pending** |
+| 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **complete — PR run #53 green** |
 | 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **next** |
 | 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | open |
 | 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | open |
@@ -542,7 +542,7 @@ These tests protect ReqShield from drifting into a false sandbox role:
 - [X] conflicting/invalid limit and unknown-field settings fail deterministically;
 - [X] profile construction/application performs no DB resolution;
 
-**Batch 4 implementation status:** complete. `ValidatorProfile` is sparse and immutable, map overlays preserve Foundation merge semantics, unknown options/limits fail explicitly, and application remains DB-cold; PR CI is the closure gate.
+**Batch 4 status:** COMPLETE — `ValidatorProfile` is sparse and immutable, Foundation-compatible merge/normalization semantics are covered, application remains DB-cold, and PR run #53 is green across QA/analysis/stable/lowest/benchmarks.
 
 - [ ] compiling creates a snapshot independent from later mutation of the source builder;
 - [ ] post-compile mutation of the source `Validator` cannot alter the compiled validator;
@@ -763,7 +763,7 @@ The audit now provides direct implementation evidence that a **small immutable `
 1. **Batch 1 — COMPLETE:** DBLayer `^5.1` floor, integer correlation contract and release-gate cleanup are green in PR run #43.
 2. **Batch 2 — COMPLETE:** native DBLayer 5.1 bridge and production regression matrix are green in PR run #48.
 3. **Batch 3 — COMPLETE:** instance-owned frozen `SchemaRegistry`, rule snapshot isolation and persistent/Fiber coverage are green in PR run #48.
-4. **Batch 4 — implementation complete / QA pending:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are implemented.
+4. **Batch 4 — COMPLETE:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are green in PR run #53.
 5. **Batch 5:** rework `CompiledValidator` into a frozen execution snapshot; close same-instance sequential/Fiber reentrancy; classify/audit bounded caches.
 6. **Batch 6:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
 7. **Batch 7:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
