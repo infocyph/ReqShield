@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Infocyph\DBLayer\DB;
 use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
 use Infocyph\ReqShield\Rule;
-use Infocyph\ReqShield\Tests\Integration\Database\DBLayerDatabaseProvider;
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Validator;
 
 beforeEach(function () {
@@ -73,7 +73,7 @@ afterEach(function () {
 });
 
 test('DBLayer SQLite provider satisfies exists and unique semantics', function () {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
     $validator = Validator::make([
         'team_id' => Rule::exists('teams', 'id'),
         'email' => Rule::unique('users', 'email'),
@@ -93,7 +93,7 @@ test('DBLayer SQLite provider satisfies exists and unique semantics', function (
 });
 
 test('DBLayer SQLite provider handles ignore and soft deletes', function () {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
 
     expect(Validator::make([
         'email' => Rule::unique('users', 'email')->ignore(1),
@@ -133,10 +133,11 @@ test('DBLayer SQLite provider handles ignore and soft deletes', function () {
 });
 
 test('DBLayer SQLite provider batches wildcard checks', function () {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
     $validator = Validator::make([
         'contacts.*.team_id' => 'required|exists:teams,id',
     ], $provider);
+    $this->connection->resetStats();
 
     $result = $validator->validate([
         'contacts' => [
@@ -146,15 +147,16 @@ test('DBLayer SQLite provider batches wildcard checks', function () {
     ]);
 
     expect($result->errors())->toHaveKey('contacts.1.team_id');
-    expect($provider->operations)->toBe(1);
+    expect($this->connection->getStats()['queries'])->toBe(1);
 });
 
 test('DBLayer SQLite provider handles mixed nested database rules', function () {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
     $validator = Validator::make([
         'profile.team_id' => 'required|integer|exists:teams,id',
         'profile.email' => 'required|email|unique:users,email',
     ], $provider)->setFailFast(false);
+    $this->connection->resetStats();
 
     $result = $validator->validate([
         'profile' => [
@@ -164,19 +166,20 @@ test('DBLayer SQLite provider handles mixed nested database rules', function () 
     ]);
 
     expect($result->errors())->toHaveKeys(['profile.team_id', 'profile.email'])
-        ->and($provider->operations)->toBe(2);
+        ->and($this->connection->getStats()['queries'])->toBe(2);
 });
 
 test('DBLayer SQLite provider keeps logical batches intact at representative sizes', function (int $size) {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
     $contacts = array_fill(0, $size, ['team_id' => 10]);
+    $this->connection->resetStats();
 
     $result = Validator::make([
         'contacts.*.team_id' => 'required|exists:teams,id',
     ], $provider)->validate(['contacts' => $contacts]);
 
     expect($result->passes())->toBeTrue()
-        ->and($provider->operations)->toBe(1);
+        ->and($this->connection->getStats()['queries'])->toBe(1);
 })->with([1, 2, 10, 100, 1000]);
 
 test('DBLayer SQLite provider uses connection-derived sizing across representative unique batches', function () {
@@ -184,8 +187,9 @@ test('DBLayer SQLite provider uses connection-derived sizing across representati
     $sizes = array_unique([1, 2, 10, $safeSize - 1, $safeSize, $safeSize + 1, 100, 1_000]);
 
     foreach ($sizes as $size) {
-        $provider = new DBLayerDatabaseProvider($this->connection);
+        $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
         $contacts = [];
+        $this->connection->resetStats();
 
         foreach (range(1, $size) as $index) {
             $contacts[] = ['email' => "new-{$index}@example.com"];
@@ -196,7 +200,7 @@ test('DBLayer SQLite provider uses connection-derived sizing across representati
         ], $provider)->validate(['contacts' => $contacts]);
 
         expect($result->passes())->toBeTrue()
-            ->and($provider->operations)->toBe((int) ceil($size / $safeSize));
+            ->and($this->connection->getStats()['queries'])->toBe((int) ceil($size / $safeSize));
     }
 });
 
@@ -205,15 +209,16 @@ test('DBLayer SQLite provider uses connection-derived sizing across representati
     $sizes = array_unique([1, 2, 10, $safeSize - 1, $safeSize, $safeSize + 1, 100, 1_000]);
 
     foreach ($sizes as $size) {
-        $provider = new DBLayerDatabaseProvider($this->connection);
+        $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
         $checks = [];
+        $this->connection->resetStats();
 
         foreach (range(1, $size) as $index) {
             $checks[] = ['id' => $index, 'column' => 'code', 'value' => "missing-{$index}"];
         }
 
         expect($provider->batchExists('teams', $checks))->toHaveCount($size)
-            ->and($provider->operations)->toBe((int) ceil($size / $safeSize));
+            ->and($this->connection->getStats()['queries'])->toBe((int) ceil($size / $safeSize));
     }
 });
 
@@ -226,8 +231,9 @@ test('DBLayer SQLite provider honors constrained bind limits and fixed ignore bi
     $connection->statement('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)');
     $connection->insert('INSERT INTO users (id, email) VALUES (?, ?)', [1, 'candidate-1@example.com']);
 
-    $provider = new DBLayerDatabaseProvider($connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($connection);
     $contacts = [];
+    $connection->resetStats();
     foreach (range(1, 100) as $index) {
         $contacts[] = ['email' => "candidate-{$index}@example.com"];
     }
@@ -239,19 +245,17 @@ test('DBLayer SQLite provider honors constrained bind limits and fixed ignore bi
 
     expect($result->passes())->toBeTrue()
         ->and($safeSize)->toBe(31)
-        ->and($provider->operations)->toBe((int) ceil(100 / $safeSize))
-        ->and(array_all(
-            $provider->bindingCounts,
-            static fn(int $bindings): bool => $bindings <= $connection->effectiveMaxBindParameters(),
-        ))->toBeTrue();
+        ->and($connection->getStats()['queries'])->toBe((int) ceil(100 / $safeSize))
+        ->and($safeSize + 1)->toBeLessThanOrEqual($connection->effectiveMaxBindParameters());
 });
 
 test('DBLayer SQLite provider groups duplicate values and separate columns correctly', function () {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
     $contacts = array_fill(0, 10, [
         'email' => 'new@example.com',
         'username' => 'new-user',
     ]);
+    $this->connection->resetStats();
 
     $result = Validator::make([
         'contacts.*.email' => 'required|unique:users,email',
@@ -259,11 +263,12 @@ test('DBLayer SQLite provider groups duplicate values and separate columns corre
     ], $provider)->validate(['contacts' => $contacts]);
 
     expect($result->passes())->toBeTrue()
-        ->and($provider->operations)->toBe(2);
+        ->and($this->connection->getStats()['queries'])->toBe(2);
 });
 
 test('DBLayer SQLite provider reports partial and repeated unique conflicts', function () {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+    $this->connection->resetStats();
     $checks = [
         ['id' => 1, 'column' => 'email', 'value' => 'alice@example.com'],
         ['id' => 2, 'column' => 'email', 'value' => 'new@example.com'],
@@ -281,11 +286,11 @@ test('DBLayer SQLite provider reports partial and repeated unique conflicts', fu
     );
 
     expect($provider->batchUnique('users', $checks))->toBe([1, 3, 4])
-        ->and($provider->operations)->toBe(1);
+        ->and($this->connection->getStats()['queries'])->toBe(1);
 });
 
 test('DBLayer SQLite provider preserves SQL scalar and null semantics', function () {
-    $provider = new DBLayerDatabaseProvider($this->connection);
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
     $checks = [];
 
     foreach ([0, '0', false, null, 'alpha'] as $index => $value) {
@@ -314,7 +319,7 @@ test('DBLayer SQLite provider preserves SQL scalar and null semantics', function
 test('DBLayer infrastructure failures remain distinct from validation misses', function () {
     $validator = Validator::make([
         'team_id' => 'exists:missing_table,id',
-    ], new DBLayerDatabaseProvider($this->connection));
+    ], DBLayerDatabaseProvider::fromConnection($this->connection));
     $exception = null;
 
     try {
@@ -325,4 +330,122 @@ test('DBLayer infrastructure failures remain distinct from validation misses', f
 
     expect($exception)->toBeInstanceOf(DatabaseValidationException::class)
         ->and($exception?->getPrevious())->not->toBeNull();
+});
+
+
+test('DBLayer provider resolves the current execution connection for each operation', function () {
+    $second = DB::addConnection([
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+    ], 'reqshield-second');
+    $second->statement('CREATE TABLE teams (id INTEGER PRIMARY KEY, code TEXT)');
+    $second->insert('INSERT INTO teams (id, code) VALUES (?, ?)', [20, 'secondary']);
+
+    $current = $this->connection;
+    $resolutions = 0;
+    $provider = new DBLayerDatabaseProvider(
+        static function () use (&$current, &$resolutions) {
+            ++$resolutions;
+
+            return $current;
+        },
+    );
+
+    expect($provider->batchExists('teams', [
+        ['id' => 1, 'field' => 'team_id', 'column' => 'id', 'value' => 10],
+    ]))->toBe([]);
+
+    $current = $second;
+
+    expect($provider->batchExists('teams', [
+        ['id' => 2, 'field' => 'team_id', 'column' => 'id', 'value' => 20],
+    ]))->toBe([])
+        ->and($provider->batchExists('teams', [
+            ['id' => 3, 'field' => 'team_id', 'column' => 'id', 'value' => 10],
+        ]))->toBe([3])
+        ->and($resolutions)->toBe(3);
+});
+
+test('DBLayer provider resolves once per operation even when bind limits require chunks', function () {
+    $connection = DB::addConnection([
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'security' => ['max_params' => 3],
+    ], 'reqshield-resolver-once');
+    $connection->statement('CREATE TABLE teams (id INTEGER PRIMARY KEY, code TEXT)');
+
+    $resolutions = 0;
+    $provider = new DBLayerDatabaseProvider(
+        static function () use ($connection, &$resolutions) {
+            ++$resolutions;
+
+            return $connection;
+        },
+    );
+    $checks = [];
+    foreach (range(1, 7) as $id) {
+        $checks[] = [
+            'id' => $id,
+            'field' => "team_{$id}",
+            'column' => 'code',
+            'value' => "missing-{$id}",
+        ];
+    }
+
+    $connection->resetStats();
+
+    expect($provider->batchExists('teams', $checks))->toHaveCount(7)
+        ->and($resolutions)->toBe(1)
+        ->and($connection->getStats()['queries'])->toBe(3);
+});
+
+test('DBLayer provider rejects unsafe identifiers before query execution', function () {
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+
+    expect(fn() => $provider->batchExists('teams; DROP TABLE users', [
+        ['id' => 1, 'field' => 'team_id', 'column' => 'id', 'value' => 10],
+    ]))->toThrow(InvalidArgumentException::class)
+        ->and(fn() => $provider->batchExists('teams', [
+            ['id' => 1, 'field' => 'team_id', 'column' => 'id) OR 1=1 --', 'value' => 10],
+        ]))->toThrow(InvalidArgumentException::class)
+        ->and(fn() => $provider->batchUnique('users', [[
+            'id' => 1,
+            'field' => 'email',
+            'column' => 'email',
+            'value' => 'new@example.com',
+            'ignore' => 1,
+            'id_column' => 'id; DROP TABLE users',
+            'include_trashed' => true,
+            'soft_delete_column' => null,
+        ]]))->toThrow(InvalidArgumentException::class)
+        ->and(fn() => $provider->batchUnique('users', [[
+            'id' => 1,
+            'field' => 'email',
+            'column' => 'email',
+            'value' => 'new@example.com',
+            'ignore' => null,
+            'id_column' => 'id',
+            'include_trashed' => false,
+            'soft_delete_column' => 'deleted_at) OR 1=1 --',
+        ]]))->toThrow(InvalidArgumentException::class);
+});
+
+
+test('non-database validation does not resolve the DBLayer connection', function () {
+    $resolutions = 0;
+    $provider = new DBLayerDatabaseProvider(
+        static function () use (&$resolutions) {
+            ++$resolutions;
+            throw new RuntimeException('resolver must stay cold');
+        },
+    );
+
+    $result = Validator::make([
+        'email' => 'required|email',
+    ], $provider)->validate([
+        'email' => 'valid@example.com',
+    ]);
+
+    expect($result->passes())->toBeTrue()
+        ->and($resolutions)->toBe(0);
 });

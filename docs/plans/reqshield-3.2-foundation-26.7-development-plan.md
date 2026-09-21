@@ -42,9 +42,9 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 
 | Batch | Scope | Status |
 | --- | --- | --- |
-| 1 | Baseline + DBLayer 5.1 floor + integer correlation contract | **implementation complete / QA pending** |
-| 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **next** |
-| 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | open |
+| 1 | Baseline + DBLayer 5.1 floor + integer correlation contract | **complete — PR run #43 green** |
+| 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **implementation complete / QA pending** |
+| 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **next** |
 | 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | open |
 | 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | open |
 | 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | open |
@@ -62,9 +62,9 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 - [X] Align mock/reference provider fixtures and direct DBLayer tests with integer correlation IDs.
 - [X] Update database-rule documentation to DBLayer 5.1 reference semantics.
 - [X] Normalize the ecosystem filesystem-trust boundary to **Pathwise 4.1**; ReqShield does not acquire a Pathwise dependency.
-- [ ] Run the full PHPForge/ReqShield stable + lowest matrix. This remains pending because the feature branch is not configured for push CI; do not mark Batch 1 fully closed until the real QA lanes run.
+- [X] Full PR Security & Standards matrix passed on PHP 8.4/8.5 stable/lowest in PR run #43 after clearing PHPStan, skip-directive, reference-integrity and Rector failures.
 
-**Batch 1 status:** implementation complete; verification is intentionally carried into the Batch 7 aggregate QA gate unless a PR/main-targeted CI run is executed earlier.
+**Batch 1 status:** COMPLETE — PR run #43 is green across clean install, PHP 8.4/8.5 QA/analysis, stable/lowest and benchmarks.
 
 Current released ReqShield baseline:
 
@@ -180,7 +180,7 @@ Do **not** introduce APIs such as `SafeShellCommand`, `ForbiddenPhpFunction`, `P
 
 - [X] Raise `infocyph/dblayer` in `require-dev` from `^5.0` to `^5.1`.
 - [X] Keep DBLayer out of normal `require`; ReqShield remains database-library agnostic.
-- [ ] Add/update Composer `suggest` text for consumers that want the native DBLayer database-rule provider.
+- [X] Add Composer `suggest` text for consumers that want the optional native DBLayer 5.1 database-rule provider.
 - [ ] Run the DB integration suite specifically against DBLayer 5.1 stable behavior.
 
 ### 3.2 Consume DBLayer 5.1 runtime semantics directly
@@ -231,12 +231,12 @@ Closure(): Infocyph\DBLayer\Connection\Connection
 
 Requirements:
 
-- [ ] Resolve the connection at the beginning of each `batchExists()` / `batchUnique()` call.
-- [ ] Resolve once per provider operation, then use that same connection for all physical chunks in that operation.
-- [ ] Never retain the resolved execution-scoped connection after the method returns.
-- [ ] Derive safe batch sizing from that exact connection.
-- [ ] Allow a direct `Connection` convenience constructor/factory only if its semantics are explicitly documented as caller-owned and safe for the caller's chosen lifetime.
-- [ ] Prefer a resolver-first API for framework/persistent-runtime integrations.
+- [X] Resolve the connection at the beginning of each `batchExists()` / `batchUnique()` call.
+- [X] Resolve once per provider operation, then use that same connection for all physical chunks in that operation.
+- [X] Never retain the resolved execution-scoped connection after the method returns.
+- [X] Derive safe batch sizing from that exact connection.
+- [X] Allow a direct `Connection` convenience constructor/factory only if its semantics are explicitly documented as caller-owned and safe for the caller's chosen lifetime.
+- [X] Prefer a resolver-first API for framework/persistent-runtime integrations.
 
 This lets Foundation pass a closure around its execution-scoped `DBLayerFactory::connection($name)` without ReqShield knowing Foundation internals.
 
@@ -244,20 +244,20 @@ This lets Foundation pass a closure around its execution-scoped `DBLayerFactory:
 
 Carry forward the already-proven reference-provider semantics:
 
-- [ ] `exists` batching grouped by column.
-- [ ] `unique` batching grouped by column + ignore + ID column + soft-delete policy.
-- [ ] deduplicate repeated candidate values before generating `WHERE IN` bindings;
-- [ ] preserve per-check correlation after deduplication;
-- [ ] query `NULL` separately where required by SQL semantics;
-- [ ] preserve zero-like values (`0`, `'0'`, `false`) without accidental truthiness filtering;
-- [ ] support custom `id_column`;
-- [ ] support `withTrashed()` / `withoutTrashed(custom_column)`;
-- [ ] use bound parameters for values and ignore IDs;
-- [ ] validate/quote identifiers using DBLayer-supported query construction rather than interpolating user-controlled identifiers;
-- [ ] physical chunk size must come from `Connection::safeBatchSize()`;
-- [ ] do not copy the test reference provider's hard-coded `MAX_BATCH_VALUES = 1_000` into production by default; if a provider-level ceiling is retained, make it explicit/configurable and justify it with validation bounds + benchmark evidence;
-- [ ] account for fixed ignore bindings when calculating unique-query chunk size;
-- [ ] keep an application/request ceiling for unusually large validation batches if needed, but never exceed DBLayer's effective bind ceiling.
+- [X] `exists` batching grouped by column.
+- [X] `unique` batching grouped by column + ignore + ID column + soft-delete policy.
+- [X] deduplicate repeated candidate values before generating `WHERE IN` bindings;
+- [X] preserve per-check correlation after deduplication;
+- [X] query `NULL` separately where required by SQL semantics;
+- [X] preserve zero-like values (`0`, `'0'`, `false`) without accidental truthiness filtering;
+- [X] support custom `id_column`;
+- [X] support `withTrashed()` / `withoutTrashed(custom_column)`;
+- [X] use bound parameters for values and ignore IDs;
+- [X] validate/quote identifiers using DBLayer-supported query construction rather than interpolating user-controlled identifiers;
+- [X] physical chunk size must come from `Connection::safeBatchSize()`;
+- [X] do not copy the test reference provider's hard-coded `MAX_BATCH_VALUES = 1_000` into production by default; if a provider-level ceiling is retained, make it explicit/configurable and justify it with validation bounds + benchmark evidence;
+- [X] account for fixed ignore bindings when calculating unique-query chunk size;
+- [X] keep an application/request ceiling for unusually large validation batches if needed, but never exceed DBLayer's effective bind ceiling.
 
 ### 4.4 Correct nullable ignore-column semantics
 
@@ -275,7 +275,7 @@ id_column != :ignore
 
 because SQL three-valued logic would incorrectly exclude rows whose custom ID column is `NULL`.
 
-Add an explicit regression test for this behavior in the production-provider suite.
+**Implemented:** the production-provider suite explicitly covers a nullable custom ID column under an ignore predicate and proves the NULL row still participates in uniqueness checking.
 
 ---
 
@@ -481,26 +481,28 @@ Move/expand the current DBLayer reference-provider coverage so it validates the 
 
 Required matrix:
 
-- [ ] flat `exists` / `unique`;
-- [ ] nested database rules;
-- [ ] wildcard batching;
-- [ ] mixed tables/columns;
-- [ ] duplicate candidate values;
-- [ ] zero-like values;
-- [ ] `NULL` values;
-- [ ] ignore IDs (`0`, `'0'`, integer/string application IDs as values, while correlation IDs remain integers);
-- [ ] custom ID columns;
-- [ ] nullable custom ID column + ignore regression;
-- [ ] default and custom soft-delete columns;
-- [ ] DBLayer 5.1 derived safe batch boundaries;
-- [ ] fixed-binding-aware batch sizing;
-- [ ] constrained `security.max_params`;
-- [ ] more than one physical chunk;
-- [ ] resolver invoked once per provider operation;
-- [ ] resolver not invoked for non-DB validation;
-- [ ] DB failure propagation;
-- [ ] unknown/malformed correlation IDs;
-- [ ] SQLite deterministic integration coverage.
+- [X] flat `exists` / `unique`;
+- [X] nested database rules;
+- [X] wildcard batching;
+- [X] mixed tables/columns;
+- [X] duplicate candidate values;
+- [X] zero-like values;
+- [X] `NULL` values;
+- [X] ignore IDs (`0`, `'0'`, integer/string application IDs as values, while correlation IDs remain integers);
+- [X] custom ID columns;
+- [X] nullable custom ID column + ignore regression;
+- [X] default and custom soft-delete columns;
+- [X] DBLayer 5.1 derived safe batch boundaries;
+- [X] fixed-binding-aware batch sizing;
+- [X] constrained `security.max_params`;
+- [X] more than one physical chunk;
+- [X] resolver invoked once per provider operation;
+- [X] resolver not invoked for non-DB validation;
+- [X] DB failure propagation;
+- [X] unknown/malformed correlation IDs;
+- [X] SQLite deterministic integration coverage.
+
+**Batch 2 implementation status:** complete. The test-only DBLayer provider has been replaced by the production `Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider`; PR CI remains the batch closure gate.
 
 ### 9.2 SchemaRegistry tests
 
@@ -753,9 +755,9 @@ The audit now provides direct implementation evidence that a **small immutable `
 
 ## 15. Implementation order
 
-1. **Batch 1 — implemented, QA pending:** raise the DBLayer development/reference floor to `^5.1`, correct the integer correlation-ID public/static contract, harden duplicate/malformed provider results, and update direct provider tests/docs.
-2. **Batch 2 — next:** promote/refactor the DBLayer reference provider into production source with resolver-first connection ownership; port/expand the DB regression matrix, including nullable-ignore, identifier rejection and execution-connection lifetime coverage; do not blindly carry the test-only `MAX_BATCH_VALUES = 1000` ceiling without benchmark/security justification.
-3. **Batch 3:** add the instance-owned freezeable `SchemaRegistry`; keep static fragments compatibility-only.
+1. **Batch 1 — COMPLETE:** DBLayer `^5.1` floor, integer correlation contract and release-gate cleanup are green in PR run #43.
+2. **Batch 2 — implementation complete / QA pending:** native DBLayer 5.1 bridge, resolver-first ownership, DBLayer-derived chunking and the production regression matrix are implemented; PR CI is the closure gate.
+3. **Batch 3 — next:** add the instance-owned freezeable `SchemaRegistry`; keep static fragments compatibility-only.
 4. **Batch 4:** add the lightweight immutable `ValidatorProfile`, with merge/apply semantics matching current Foundation behavior.
 5. **Batch 5:** rework `CompiledValidator` into a frozen execution snapshot; close same-instance sequential/Fiber reentrancy; classify/audit bounded caches.
 6. **Batch 6:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.

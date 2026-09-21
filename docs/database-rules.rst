@@ -62,24 +62,53 @@ Unique checks include all rows by default and therefore make no assumption that 
 column name) to opt into soft-delete filtering; ``withTrashed()`` restores the
 default.
 
-Reference Integration
----------------------
+Native DBLayer 5.1 Integration
+------------------------------
 
-ReqShield is database-library agnostic. Applications may implement
-``DatabaseProvider`` with PDO, DBLayer, Laravel, Doctrine, or another database
-layer. DBLayer 5.1 is the development suite's reference integration, not a runtime
-dependency for normal consumers.
+ReqShield remains database-library agnostic. DBLayer is an optional suggested
+dependency, not a normal runtime requirement. When DBLayer 5.1 is installed,
+ReqShield provides the native bridge
+``Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider``.
 
-ReqShield owns logical validation batching. The reference provider uses DBLayer
-5.1's driver-aware ``Connection::safeBatchSize()`` for physical query chunks,
-including fixed bindings introduced by unique-ignore predicates and a 1,000-value
-application ceiling. This honors driver and configured ``security.max_params``
-limits without duplicating bind-limit maps in ReqShield.
+Persistent/framework runtimes should prefer a resolver so the bridge receives
+the current execution-owned connection without retaining it:
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
+
+    $provider = new DBLayerDatabaseProvider(
+        static fn () => $databaseFactory->connection(),
+    );
+
+For a caller-owned connection with a known safe lifetime, the convenience
+factory is available:
+
+.. code-block:: php
+
+    $provider = DBLayerDatabaseProvider::fromConnection($connection);
+
+The resolver is invoked exactly once at the beginning of each
+``batchExists()`` or ``batchUnique()`` operation. The returned connection is
+used for every physical chunk in that operation and is not stored on the
+provider afterwards.
+
+ReqShield owns logical validation batching. The native bridge delegates physical
+query sizing to the exact DBLayer connection through
+``Connection::safeBatchSize()``, including fixed bindings introduced by
+unique-ignore predicates. It does not duplicate DBLayer driver bind-limit maps
+or impose the old reference provider's fixed 1,000-value ceiling. ReqShield's
+normal input/wildcard limits remain the higher-level validation abuse controls.
+
+Unique-ignore handling preserves SQL NULL semantics with the logical predicate
+``(id_column != :ignore OR id_column IS NULL)``. Candidate NULL values are
+queried separately, repeated values are deduplicated before ``WHERE IN``
+generation, and zero-like scalar values retain database-comparison semantics.
 
 The deterministic SQLite integration matrix covers flat, nested, wildcard,
-mixed, duplicate and zero-like values, ignore IDs, custom ID and soft-delete
-columns, derived batch boundaries, constrained bind limits, runtime resets, and
-infrastructure failures. It intentionally uses DBLayer's low-level connection
-and query-builder APIs with plain array results; repositories, repository casts,
-collections, relations, query caching, and DBLayer types are not part of
-ReqShield's validation engine or public provider contract.
+mixed, duplicate and zero-like values, NULLs, ignore IDs, nullable/custom ID
+columns, soft deletes, DBLayer-derived batch boundaries, constrained bind
+limits, multi-chunk operations, resolver lifetime, identifier rejection and
+infrastructure failures. Production bridge code uses DBLayer's instance
+``Connection``/query-builder APIs only; it does not use the static DB facade.
+

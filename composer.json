@@ -35,6 +35,9 @@
         "infocyph/dblayer": "^5.1",
         "infocyph/phpforge": "dev-main@dev"
     },
+    "suggest": {
+        "infocyph/dblayer": "Provides the optional native DBLayer 5.1 exists/unique database-rule bridge."
+    },
     "minimum-stability": "stable",
     "prefer-stable": true,
     "autoload": {
