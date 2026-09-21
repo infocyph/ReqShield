@@ -64,14 +64,8 @@ final readonly class ValidatorProfile
         'throw_on_failure',
     ];
 
-    /** @var ProfileOptions */
-    private array $options;
-
     /** @param ProfileOptions $options */
-    private function __construct(array $options)
-    {
-        $this->options = $options;
-    }
+    private function __construct(private array $options) {}
 
     /** @param array<string,mixed> $options */
     public static function fromArray(array $options = []): self
@@ -106,14 +100,9 @@ final readonly class ValidatorProfile
                 continue;
             }
 
-            $incomingMap = $incoming[$key];
-            if (!is_array($incomingMap)) {
-                continue;
-            }
-
             $merged[$key] = array_replace(
                 $this->mapOption($key),
-                $incomingMap,
+                $incoming[$key],
             );
         }
 
