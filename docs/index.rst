@@ -52,6 +52,7 @@ Table of Contents
    nested-validation
    sanitization
    schema-registry
+   validator-profiles
    database-rules
    custom-rules
    helper-functions

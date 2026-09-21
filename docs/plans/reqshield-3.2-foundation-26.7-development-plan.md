@@ -43,10 +43,10 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | Batch | Scope | Status |
 | --- | --- | --- |
 | 1 | Baseline + DBLayer 5.1 floor + integer correlation contract | **complete — PR run #43 green** |
-| 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **implementation complete / QA pending** |
-| 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **implementation complete / QA pending** |
-| 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **next** |
-| 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | open |
+| 2 | Production native DBLayer 5.1 provider + resolver lifetime + DB regression matrix | **complete — PR run #48 green** |
+| 3 | Instance-owned freezeable `SchemaRegistry` + static-fragment compatibility boundary | **complete — PR run #48 green** |
+| 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **implementation complete / QA pending** |
+| 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **next** |
 | 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | open |
 | 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | open |
 | 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
@@ -362,16 +362,16 @@ Exact names may differ, but the ownership must not.
 
 Required profile semantics:
 
-- [ ] final/immutable value object; no container, config-repository or Foundation dependency;
-- [ ] normalize/apply ReqShield-native options: fail-fast behavior, aliases, messages, sanitizers, casts, locale/locale packs, nested mode, unknown-field policy, DTO mapping, throw-on-failure and validation limits;
-- [ ] preserve current Foundation profile behavior during migration, including deterministic precedence for `strip_unknown`, `strict` and `allow_unknown`;
-- [ ] accept ReqShield's existing `required` nested-mode compatibility alias as targeted mode;
-- [ ] validate positive limit values once in the profile layer instead of repeating that parser in every framework bridge;
-- [ ] support immutable overlay/merge so shared defaults can be normalized once and schema/request overrides applied without mutating the base profile;
-- [ ] nested map options such as messages, aliases, sanitizers, casts, locale packs and limits must have explicit merge semantics;
-- [ ] profile parsing must not resolve DB connections or perform validation I/O;
-- [ ] reusable/frozen profiles must not retain request data;
-- [ ] unknown profile keys should fail clearly or be handled by an explicitly documented forward-compatibility policy; do not silently turn configuration typos into security-policy drift.
+- [X] final/immutable value object; no container, config-repository or Foundation dependency;
+- [X] normalize/apply ReqShield-native options: fail-fast behavior, aliases, messages, sanitizers, casts, locale/locale packs, nested mode, unknown-field policy, DTO mapping, throw-on-failure and validation limits;
+- [X] preserve current Foundation profile behavior during migration, including deterministic precedence for `strip_unknown`, `strict` and `allow_unknown`;
+- [X] accept ReqShield's existing `required` nested-mode compatibility alias as targeted mode;
+- [X] validate positive limit values once in the profile layer instead of repeating that parser in every framework bridge;
+- [X] support immutable overlay/merge so shared defaults can be normalized once and schema/request overrides applied without mutating the base profile;
+- [X] nested map options such as messages, aliases, sanitizers, casts, locale packs and limits must have explicit merge semantics;
+- [X] profile parsing must not resolve DB connections or perform validation I/O;
+- [X] reusable/frozen profiles must not retain request data;
+- [X] unknown profile keys should fail clearly or be handled by an explicitly documented forward-compatibility policy; do not silently turn configuration typos into security-policy drift.
 
 Foundation still owns where its configuration comes from, merge/source order, and which profile applies to a named application schema. It should no longer own the generic meaning of each ReqShield profile option.
 
@@ -502,7 +502,7 @@ Required matrix:
 - [X] unknown/malformed correlation IDs;
 - [X] SQLite deterministic integration coverage.
 
-**Batch 2 implementation status:** complete. The test-only DBLayer provider has been replaced by the production `Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider`; PR CI remains the batch closure gate.
+**Batch 2 status:** COMPLETE — native DBLayer 5.1 bridge, resolver lifetime, regression matrix, analysis and benchmarks are green in PR run #48.
 
 ### 9.2 SchemaRegistry tests
 
@@ -515,7 +515,7 @@ Required matrix:
 - [X] interleaved Fiber reads remain isolated from other registries;
 - [X] frozen topology cannot be mutated through returned structures.
 
-**Batch 3 implementation status:** complete. The registry snapshots cloneable rule objects on write/read so a frozen registry does not expose mutable rule references; PR CI is the batch closure gate.
+**Batch 3 status:** COMPLETE — the registry snapshots cloneable rule objects on write/read, persistent/Fiber isolation is covered, and PR run #48 is green.
 
 ### 9.3 Runtime tests
 
@@ -537,10 +537,13 @@ These tests protect ReqShield from drifting into a false sandbox role:
 
 ### 9.5 ValidatorProfile / compiled-runtime tests
 
-- [ ] profile normalization and immutable overlay/merge;
-- [ ] exact migration parity with Foundation's current option semantics;
-- [ ] conflicting/invalid limit and unknown-field settings fail deterministically;
-- [ ] profile construction/application performs no DB resolution;
+- [X] profile normalization and immutable overlay/merge;
+- [X] exact migration parity with Foundation's current option semantics;
+- [X] conflicting/invalid limit and unknown-field settings fail deterministically;
+- [X] profile construction/application performs no DB resolution;
+
+**Batch 4 implementation status:** complete. `ValidatorProfile` is sparse and immutable, map overlays preserve Foundation merge semantics, unknown options/limits fail explicitly, and application remains DB-cold; PR CI is the closure gate.
+
 - [ ] compiling creates a snapshot independent from later mutation of the source builder;
 - [ ] post-compile mutation of the source `Validator` cannot alter the compiled validator;
 - [ ] mutation attempted through a callback against a frozen compiled execution fails closed;
@@ -622,7 +625,7 @@ Update:
 - [ ] `README.md` with optional native DBLayer integration example;
 - [ ] `docs/database-rules.rst` with DBLayer 5.1 bridge usage and connection-resolver lifetime guidance;
 - [ ] schema documentation with instance-owned registry/freeze pattern;
-- [ ] validation-profile documentation with canonical option meanings, immutable overlay semantics and a framework-neutral example;
+- [X] validation-profile documentation with canonical option meanings, immutable overlay semantics and a framework-neutral example;
 - [ ] compiled-validator documentation that distinguishes mutable configuration/build phase from frozen reusable execution phase;
 - [ ] persistent-runtime guidance warning against process-global mutable schema registration;
 - [ ] document that validation is not a process/PHP sandbox and dangerous-function-name filtering is intentionally out of scope;
@@ -758,9 +761,9 @@ The audit now provides direct implementation evidence that a **small immutable `
 ## 15. Implementation order
 
 1. **Batch 1 — COMPLETE:** DBLayer `^5.1` floor, integer correlation contract and release-gate cleanup are green in PR run #43.
-2. **Batch 2 — implementation complete / QA pending:** native DBLayer 5.1 bridge, resolver-first ownership, DBLayer-derived chunking and the production regression matrix are implemented; PR CI is the closure gate.
-3. **Batch 3 — implementation complete / QA pending:** instance-owned freezeable `SchemaRegistry`, mutable-rule snapshot isolation, Fiber/read isolation and legacy static-fragment documentation are implemented.
-4. **Batch 4 — next:** add the lightweight immutable `ValidatorProfile`, with merge/apply semantics matching current Foundation behavior.
+2. **Batch 2 — COMPLETE:** native DBLayer 5.1 bridge and production regression matrix are green in PR run #48.
+3. **Batch 3 — COMPLETE:** instance-owned frozen `SchemaRegistry`, rule snapshot isolation and persistent/Fiber coverage are green in PR run #48.
+4. **Batch 4 — implementation complete / QA pending:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are implemented.
 5. **Batch 5:** rework `CompiledValidator` into a frozen execution snapshot; close same-instance sequential/Fiber reentrancy; classify/audit bounded caches.
 6. **Batch 6:** remove automatic HTTP-422 exception-code ownership and lock/document the Pathwise 4.1 + Runwire trust boundaries with drift-prevention tests.
 7. **Batch 7:** complete docs/benchmarks, run PHP 8.4/8.5 stable + lowest QA/static-analysis gates, and close the ReqShield 3.2 release gate.
