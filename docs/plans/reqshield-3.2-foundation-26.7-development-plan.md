@@ -48,7 +48,7 @@ Implementation proceeds in bounded batches. Update this tracker in the same deve
 | 4 | Immutable `ValidatorProfile` + Foundation profile-parity semantics | **complete — PR run #53 green** |
 | 5 | Frozen/reentrant `CompiledValidator` + cache/state isolation | **complete — PR run #59 green** |
 | 6 | Transport-neutral exception cleanup + Pathwise 4.1 / Runwire trust-boundary closure | **complete — PR run #61 green** |
-| 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | **implementation complete / final QA pending** |
+| 7 | Documentation + benchmarks + PHP 8.4/8.5 stable/lowest QA + ReqShield 3.2 release gate | **complete — PR run #65 green** |
 | 8 | Foundation 26.7 migration: consume 3.2 and delete duplicate DB/schema/profile mechanics | open |
 
 #### Batch 1 — baseline and correlation contract
@@ -181,7 +181,7 @@ Do **not** introduce APIs such as `SafeShellCommand`, `ForbiddenPhpFunction`, `P
 - [X] Raise `infocyph/dblayer` in `require-dev` from `^5.0` to `^5.1`.
 - [X] Keep DBLayer out of normal `require`; ReqShield remains database-library agnostic.
 - [X] Add Composer `suggest` text for consumers that want the optional native DBLayer 5.1 database-rule provider.
-- [ ] Run the DB integration suite specifically against DBLayer 5.1 stable behavior.
+- [X] Run the DB integration suite specifically against DBLayer 5.1 stable behavior.
 
 ### 3.2 Consume DBLayer 5.1 runtime semantics directly
 
@@ -564,16 +564,19 @@ These tests protect ReqShield from drifting into a false sandbox role:
 
 Run the normal PHPForge/ReqShield gates on PHP 8.4 and 8.5 where configured:
 
-- [ ] Composer validate;
-- [ ] PHPUnit/Pest full suite;
-- [ ] DBLayer integration suite with `^5.1`;
-- [ ] PHPStan;
-- [ ] Rector dry-run;
-- [ ] coding-style checks;
-- [ ] lowest-dependency lane;
-- [ ] stable dependency lane.
+- [X] Composer validate;
+- [X] PHPUnit/Pest full suite;
+- [X] DBLayer integration suite with `^5.1`;
+- [X] PHPStan;
+- [X] Rector dry-run;
+- [X] coding-style checks;
+- [X] lowest-dependency lane;
+- [X] stable dependency lane.
 
 No suppression should be added merely to hide a provider/schema ownership issue.
+
+**Batch 7 QA evidence:** PR run #65 passed clean install, PHP 8.4/8.5 stable and lowest QA lanes, PHPStan/Psalm analysis, Pest, Pint, PHPCS, Rector, reference integrity, Composer validation and both benchmark jobs.
+
 
 ---
 
@@ -590,17 +593,17 @@ Benchmark representative DB validation paths:
 
 Acceptance goals:
 
-- [ ] logical batching remains one provider call per operation/table grouping as designed;
-- [ ] duplicate values do not multiply bindings unnecessarily;
-- [ ] safe sizing introduces no duplicated driver-limit logic;
-- [ ] lazy connection resolution is negligible relative to DB work;
-- [ ] no DB/provider setup occurs for non-DB validation.
+- [X] logical batching remains one provider call per operation/table grouping as designed;
+- [X] duplicate values do not multiply bindings unnecessarily;
+- [X] safe sizing introduces no duplicated driver-limit logic;
+- [X] lazy connection resolution is negligible relative to DB work;
+- [X] no DB/provider setup occurs for non-DB validation.
 
 ### 11.2 Schema registry
 
-- [ ] frozen registry lookup should remain effectively O(1) by name;
-- [ ] normal validation should not mutate/rebuild registry topology;
-- [ ] no deep clone of the whole registry per request merely for isolation.
+- [X] frozen registry lookup should remain effectively O(1) by name;
+- [X] normal validation should not mutate/rebuild registry topology;
+- [X] no deep clone of the whole registry per request merely for isolation.
 
 ### 11.3 Profile and compiled execution
 
@@ -613,13 +616,26 @@ Benchmark representative hot paths before/after the extraction:
 
 Acceptance:
 
-- [ ] normalizing a shared base profile should happen once where callers reuse it;
-- [ ] applying a pre-normalized profile should not perform repeated reflection or config parsing;
-- [ ] compiled execution must not deep-clone the complete validator per validation call merely to obtain isolation;
-- [ ] reentrancy safety must not introduce request-global locks or serialize independent validators;
-- [ ] caches remain bounded and allocation-light.
+- [X] normalizing a shared base profile should happen once where callers reuse it;
+- [X] applying a pre-normalized profile should not perform repeated reflection or config parsing;
+- [X] compiled execution must not deep-clone the complete validator per validation call merely to obtain isolation;
+- [X] reentrancy safety must not introduce request-global locks or serialize independent validators;
+- [X] caches remain bounded and allocation-light.
 
 Performance fixes must preserve correctness and isolation first.
+
+**Batch 7 performance evidence (PR run #65, PHP 8.5 representative benchmark):**
+
+- frozen registry lookup mode: `0.5`;
+- pre-normalized profile apply mode: `11.40` vs direct setter configuration `10.61`;
+- compiled repeated execution mode: `19.46`;
+- direct DBLayer exists baseline mode: `56.24`;
+- native provider with direct connection mode: `68.06`;
+- native provider with execution resolver mode: `63.65`;
+- constrained 1,000-value DB batch mode: `8384.14`.
+
+The resolver measurement is within benchmark variance of the direct-provider path and adds no retained connection state. These figures are representative CI measurements, not portable absolute latency guarantees.
+
 
 ---
 
@@ -771,7 +787,7 @@ The audit now provides direct implementation evidence that a **small immutable `
 4. **Batch 4 — COMPLETE:** immutable sparse `ValidatorProfile`, Foundation-compatible normalization/overlay semantics, DTO/messages/limits/DB-cold tests and documentation are green in PR run #53.
 5. **Batch 5 — COMPLETE:** frozen compiled snapshots, callback mutation blocking, bounded cache isolation and same-instance sequential/Fiber reuse are green in PR run #59.
 6. **Batch 6 — COMPLETE:** transport-neutral exceptions, caller-controlled formatter status, process-operation drift tests and Pathwise 4.1/Runwire boundary documentation are green in PR run #61.
-7. **Batch 7 — implementation complete / final QA pending:** release docs, 3.2 upgrade notes, runtime-topology benchmarks, direct DBLayer/provider baseline coverage and final release-regression tests are implemented; the final PHP 8.4/8.5 stable + lowest matrix remains the closure gate.
+7. **Batch 7 — COMPLETE:** release docs, 3.2 upgrade notes, runtime-topology benchmarks, direct DBLayer/provider baseline coverage and final release-regression tests are green in PR run #65 across PHP 8.4/8.5 stable/lowest QA, analysis and benchmarks.
 8. **Batch 8:** return to Foundation 26.7, consume ReqShield 3.2, remove duplicate DB provider/schema/profile mechanics, run Foundation acceptance/performance gates, and update the Foundation tracker/benchmark naming only after the dependency is consumable.
 
 ---
