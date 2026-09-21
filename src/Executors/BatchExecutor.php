@@ -16,7 +16,11 @@ use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
  *   message?:string,message_resolver?:callable():string,field_fail_fast?:bool
  * }
  * @phpstan-type Failure array{field:string,rule:string,message:string,value:mixed}
- * @phpstan-type Prepared array{id:int,item:BatchItem,rule:DatabaseBatchRule,payload:array<string,mixed>}
+ * @phpstan-type ProviderCheck array{
+ *   id:int,field:string,column:string,value:mixed,ignore?:mixed,id_column?:string,
+ *   include_trashed?:bool,soft_delete_column?:string|null
+ * }
+ * @phpstan-type Prepared array{id:int,item:BatchItem,rule:DatabaseBatchRule,payload:ProviderCheck}
  */
 final class BatchExecutor
 {
@@ -101,11 +105,60 @@ final class BatchExecutor
                 'id' => $id,
                 'item' => $item,
                 'rule' => $rule,
-                'payload' => ['id' => $id] + $rule->databasePayload($item['value'], $item['field']),
+                'payload' => $this->providerPayload($id, $rule, $item['value'], $item['field']),
             ];
         }
 
         return $prepared;
+    }
+
+    /** @return ProviderCheck */
+    private function providerPayload(
+        int $id,
+        DatabaseBatchRule $rule,
+        mixed $value,
+        string $field,
+    ): array {
+        $payload = $rule->databasePayload($value, $field);
+        $column = $payload['column'] ?? null;
+        if (!is_string($column) || $column === '') {
+            throw new DatabaseValidationException('Database rule payload requires a non-empty column.');
+        }
+
+        $check = [
+            'id' => $id,
+            'field' => $field,
+            'column' => $column,
+            'value' => $payload['value'] ?? $value,
+        ];
+
+        $operation = $rule->operation();
+        if ($operation === 'exists') {
+            return $check;
+        }
+        if ($operation !== 'unique') {
+            throw new DatabaseValidationException("Unsupported database operation: {$operation}.");
+        }
+
+        $idColumn = $payload['id_column'] ?? 'id';
+        $includeTrashed = $payload['include_trashed'] ?? true;
+        $softDeleteColumn = $payload['soft_delete_column'] ?? null;
+        if (!is_string($idColumn) || $idColumn === '') {
+            throw new DatabaseValidationException('Unique database rule requires a non-empty id column.');
+        }
+        if (!is_bool($includeTrashed)) {
+            throw new DatabaseValidationException('Unique database rule include_trashed must be boolean.');
+        }
+        if ($softDeleteColumn !== null && !is_string($softDeleteColumn)) {
+            throw new DatabaseValidationException('Unique database rule soft-delete column must be null or string.');
+        }
+
+        return $check + [
+            'ignore' => $payload['ignore'] ?? null,
+            'id_column' => $idColumn,
+            'include_trashed' => $includeTrashed,
+            'soft_delete_column' => $softDeleteColumn,
+        ];
     }
 
     /** @param BatchItem $item */
@@ -158,19 +211,29 @@ final class BatchExecutor
 
             $known = array_fill_keys(array_column($checks, 'id'), true);
             $seen = [];
-            foreach ($returned as $id) {
-                if (!is_int($id) || !isset($known[$id])) {
-                    throw new DatabaseValidationException('Database provider returned an unknown or malformed check ID.');
-                }
-                if (isset($seen[$id])) {
-                    throw new DatabaseValidationException('Database provider returned a duplicate check ID.');
-                }
-
+            foreach ($returned as $returnedId) {
+                $id = $this->validatedReturnedId($returnedId, $known, $seen);
                 $seen[$id] = true;
                 $failed[$id] = true;
             }
         }
 
         return $failed;
+    }
+
+    /**
+     * @param array<int,true> $known
+     * @param array<int,true> $seen
+     */
+    private function validatedReturnedId(mixed $id, array $known, array $seen): int
+    {
+        if (!is_int($id) || !isset($known[$id])) {
+            throw new DatabaseValidationException('Database provider returned an unknown or malformed check ID.');
+        }
+        if (isset($seen[$id])) {
+            throw new DatabaseValidationException('Database provider returned a duplicate check ID.');
+        }
+
+        return $id;
     }
 }

@@ -2,63 +2,13 @@
 
 declare(strict_types=1);
 
-use Infocyph\ReqShield\Contracts\DatabaseProvider;
-use Infocyph\ReqShield\Contracts\Rule as RuleContract;
 use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
 use Infocyph\ReqShield\Exceptions\InvalidRuleParameterException;
 use Infocyph\ReqShield\Rules\IntegerRule;
 use Infocyph\ReqShield\Rules\StringRule;
+use Infocyph\ReqShield\Tests\Fixtures\Validation\AuditDatabaseProvider;
+use Infocyph\ReqShield\Tests\Fixtures\Validation\MutableAuditRule;
 use Infocyph\ReqShield\Validator;
-
-final class ReqShieldMutableAuditRule implements RuleContract
-{
-    public bool $passes = true;
-
-    public function cost(): int
-    {
-        return 1;
-    }
-
-    public function message(string $field): string
-    {
-        return "The {$field} failed the mutable audit rule.";
-    }
-
-    public function passes(mixed $value, string $field, array $data): bool
-    {
-        return $this->passes && array_key_exists($field, $data) && $data[$field] === $value;
-    }
-}
-
-final class ReqShieldAuditDatabaseProvider implements DatabaseProvider
-{
-    /** @var list<int> */
-    public array $ids = [];
-
-    public function __construct(private readonly bool $returnUnknownId = false) {}
-
-    public function batchExists(string $table, array $checks): array
-    {
-        return $this->response($table, $checks);
-    }
-
-    public function batchUnique(string $table, array $checks): array
-    {
-        return $this->response($table, $checks);
-    }
-
-    /** @param list<array<string,mixed>> $checks */
-    private function response(string $table, array $checks): array
-    {
-        if ($table === '') {
-            throw new InvalidArgumentException('Database table cannot be empty.');
-        }
-
-        $this->ids = array_values(array_filter(array_column($checks, 'id'), is_int(...)));
-
-        return $this->returnUnknownId ? [999999] : [];
-    }
-}
 
 test('pure schema cache identity is collision safe and order sensitive', function () {
     Validator::clearPlanCache();
@@ -231,7 +181,7 @@ test('digits decimal and wildcard distinct use their documented exact semantics'
 });
 
 test('database checks use distinct IDs and reject unknown provider IDs', function () {
-    $provider = new ReqShieldAuditDatabaseProvider();
+    $provider = new AuditDatabaseProvider();
     Validator::make([
         'team_id' => ['exists:teams,id', 'exists:teams,id'],
     ], $provider)->validate(['team_id' => 1]);
@@ -239,7 +189,7 @@ test('database checks use distinct IDs and reject unknown provider IDs', functio
     expect($provider->ids)->toHaveCount(2)
         ->and($provider->ids[0])->not->toBe($provider->ids[1]);
 
-    $invalidProvider = new ReqShieldAuditDatabaseProvider(true);
+    $invalidProvider = new AuditDatabaseProvider(true);
 
     expect(fn() => Validator::make(['team_id' => 'exists:teams,id'], $invalidProvider)
         ->validate(['team_id' => 1]))->toThrow(DatabaseValidationException::class);
@@ -252,7 +202,7 @@ test('custom rule plans and caller rule objects are isolated', function () {
     $integerValidator = Validator::make(['value' => 'custom'], null, [
         'custom' => IntegerRule::class,
     ]);
-    $rule = new ReqShieldMutableAuditRule();
+    $rule = new MutableAuditRule();
     $mutableValidator = Validator::make(['value' => [$rule]]);
     $rule->passes = false;
 
@@ -268,7 +218,7 @@ test('JSON Schema export uses conservative ReqShield semantic extensions', funct
         'date' => 'date_format:Y-m-d',
         'copy' => 'same:source',
         'conditional' => 'required_if:status,active',
-    ], new ReqShieldAuditDatabaseProvider())->exportSchema('json_schema');
+    ], new AuditDatabaseProvider())->exportSchema('json_schema');
 
     expect($schema['properties']['site']['x-reqshield-active-url'])->toBeTrue()
         ->and($schema['properties']['team_id']['x-reqshield-exists'])->toBe([

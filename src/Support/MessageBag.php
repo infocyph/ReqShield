@@ -80,10 +80,7 @@ class MessageBag implements ArrayAccess, Countable, Iterator, JsonSerializable, 
 
     public function add(string $key, string $message): self
     {
-        if (!isset($this->messages[$key])) {
-            $this->messages[$key] = [];
-        }
-
+        $this->messages[$key] ??= [];
         $this->messages[$key][] = $message;
 
         // Invalidate caches

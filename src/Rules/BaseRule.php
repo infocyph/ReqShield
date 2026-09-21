@@ -205,10 +205,8 @@ abstract class BaseRule implements Rule
             return false;
         }
 
-        if (
-            interface_exists(\Psr\Http\Message\UploadedFileInterface::class)
-            && $value instanceof \Psr\Http\Message\UploadedFileInterface
-        ) {
+        $psrUploadedFile = 'Psr\\Http\\Message\\UploadedFileInterface';
+        if (interface_exists($psrUploadedFile) && is_a($value, $psrUploadedFile)) {
             return true;
         }
 

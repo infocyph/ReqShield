@@ -529,9 +529,12 @@ test('mimes rule prefers detected mime over client media type', function () {
 
     reqShieldDeleteTempFile($path);
 
-    expect($allowedText->passes())->toBeTrue();
+    $mimeDetectionAvailable = function_exists('finfo_open')
+        || function_exists('mime_content_type');
+
+    expect($allowedText->passes())->toBe($mimeDetectionAvailable);
     expect($allowedPhp->fails())->toBeTrue();
-})->skip(!function_exists('finfo_open') && !function_exists('mime_content_type'));
+});
 
 test('extensions rule supports uploaded file objects via client filename', function () {
     $path = tempnam(sys_get_temp_dir(), 'rqf');

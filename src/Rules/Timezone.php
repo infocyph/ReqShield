@@ -29,12 +29,10 @@ class Timezone extends BaseRule
             return false;
         }
 
-        if (self::$timezoneLookup === null) {
-            self::$timezoneLookup = array_fill_keys(
-                \DateTimeZone::listIdentifiers(),
-                true,
-            );
-        }
+        self::$timezoneLookup ??= array_fill_keys(
+            \DateTimeZone::listIdentifiers(),
+            true,
+        );
 
         return isset(self::$timezoneLookup[$value]);
     }
