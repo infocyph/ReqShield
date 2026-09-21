@@ -1,4 +1,4 @@
-# ReqShield 3.2 — DBLayer 5.1 Integration & Foundation 26.7 Development Plan
+# ReqShield 3.2 — Foundation 26.7 Extraction, DBLayer 5.1 & Persistent-Runtime Development Plan
 
 **Status:** implementation plan  
 **Target:** ReqShield 3.2  
@@ -11,6 +11,30 @@
 ---
 
 ## 1. Baseline
+
+### 1.1 Whole-codebase audit basis and version decision
+
+This plan was revalidated against the complete ReqShield source/test tree on `reqshield-3.2/foundation-26.7` and the Foundation 3 validation, configuration, auth/OAuth, database, runtime, worker and security integration surfaces on `foundation-3/close-26.6`.
+
+The audit found four generic mechanics that should move further down into ReqShield:
+
+1. the production ReqShield↔DBLayer database-rule bridge;
+2. named schema registry/composition/freeze mechanics;
+3. generic validation-profile normalization/application currently repeated in Foundation `ValidatorFactory`;
+4. a real frozen/reentrant compiled-validator execution boundary for persistent runtimes.
+
+It also found one lower-layer ownership leak inside ReqShield itself: `Validator::throwIfValidationShouldFail()` currently injects exception code `422`, even though Foundation already owns HTTP 422 mapping.
+
+**Version decision: keep the target at ReqShield 3.2.** A major release is not required if this work remains additive/compatibility-preserving:
+
+- keep existing mutable `Validator` configuration APIs available;
+- keep static fragment APIs for 3.x compatibility, while documenting/deprecating them as legacy bootstrap helpers;
+- make compiled execution a frozen snapshot without removing existing setters from ordinary validators;
+- keep `ValidationException` constructor compatibility while removing automatic HTTP-status ownership from the validator runtime;
+- keep existing result projection helpers compatible, adding caller-controlled status where useful rather than removing them;
+- narrow database correlation IDs in documentation/static contracts to the integer behavior already enforced at runtime.
+
+A ReqShield 4.0 should only be considered later if we choose to remove static fragment APIs, remove/rename transport-oriented result helpers, make all validators immutable, or otherwise break the established 3.x public surface.
 
 Current released ReqShield baseline:
 
@@ -45,7 +69,10 @@ Foundation currently owns a production `ReqShieldDatabaseProvider` even though t
 - generic validation schema registry mechanics;
 - immutable/frozen schema topology mechanics;
 - the optional native ReqShield↔DBLayer adapter;
-- validation bounds and validation-engine failure models.
+- validation bounds and validation-engine failure models;
+- framework-neutral validation-profile normalization/application;
+- frozen compiled-validator execution semantics and reentrancy guarantees;
+- transport-neutral validation exceptions/results, while optional serialization helpers may remain convenience APIs.
 
 ### DBLayer owns
 
@@ -74,6 +101,9 @@ Foundation currently owns a production `ReqShieldDatabaseProvider` even though t
 - The DBLayer adapter must not pin an execution-scoped `Connection` across requests/jobs/Fibers.
 - Foundation must not retain a second implementation of generic ReqShield database batching once the native adapter exists.
 - DB bind-limit maps must not be duplicated in ReqShield or Foundation; DBLayer 5.1 is authoritative.
+- Foundation must not keep a second generic option-to-ReqShield-setter translation layer once ReqShield owns a validation profile.
+- ReqShield validation execution must not assign an HTTP status code to thrown validation exceptions; Foundation/application transport mapping owns HTTP status.
+- A "compiled" validator must not merely retain an externally mutable validator and call it through a closure.
 
 ### Process/runtime security boundary
 
@@ -195,6 +225,7 @@ Carry forward the already-proven reference-provider semantics:
 - [ ] use bound parameters for values and ignore IDs;
 - [ ] validate/quote identifiers using DBLayer-supported query construction rather than interpolating user-controlled identifiers;
 - [ ] physical chunk size must come from `Connection::safeBatchSize()`;
+- [ ] do not copy the test reference provider's hard-coded `MAX_BATCH_VALUES = 1_000` into production by default; if a provider-level ceiling is retained, make it explicit/configurable and justify it with validation bounds + benchmark evidence;
 - [ ] account for fixed ignore bindings when calculating unique-query chunk size;
 - [ ] keep an application/request ceiling for unusually large validation batches if needed, but never exceed DBLayer's effective bind ceiling.
 
@@ -277,10 +308,62 @@ Do not force a large compatibility rewrite in 3.2.
 - [ ] Document them as bootstrap/legacy convenience rather than the preferred persistent-runtime topology.
 - [ ] Do not implement the new `SchemaRegistry` internally as another global/static store.
 - [ ] New framework integrations should consume the instance registry.
+- [ ] Mark/document static fragment registration as legacy bootstrap topology; do not use it in persistent Foundation runtime composition.
+- [ ] Consider an `@deprecated` documentation annotation in 3.2, but do not remove the API until a future major.
+
+### 6.4 Lightweight immutable `ValidatorProfile`
+
+Foundation's current `ValidatorFactory` performs generic ReqShield mechanics that are not application policy: it normalizes aliases/messages/sanitizers/casts/locale packs/limits and manually maps profile keys onto ReqShield setter calls. That translation belongs in ReqShield.
+
+Add a small framework-neutral immutable profile value, tentatively:
+
+```text
+src/Support/ValidatorProfile.php
+```
+
+Recommended shape:
+
+```php
+$profile = ValidatorProfile::fromArray($options);
+$validator = $profile->apply(Validator::make($rules, $databaseProvider));
+```
+
+Exact names may differ, but the ownership must not.
+
+Required profile semantics:
+
+- [ ] final/immutable value object; no container, config-repository or Foundation dependency;
+- [ ] normalize/apply ReqShield-native options: fail-fast behavior, aliases, messages, sanitizers, casts, locale/locale packs, nested mode, unknown-field policy, DTO mapping, throw-on-failure and validation limits;
+- [ ] preserve current Foundation profile behavior during migration, including deterministic precedence for `strip_unknown`, `strict` and `allow_unknown`;
+- [ ] accept ReqShield's existing `required` nested-mode compatibility alias as targeted mode;
+- [ ] validate positive limit values once in the profile layer instead of repeating that parser in every framework bridge;
+- [ ] support immutable overlay/merge so shared defaults can be normalized once and schema/request overrides applied without mutating the base profile;
+- [ ] nested map options such as messages, aliases, sanitizers, casts, locale packs and limits must have explicit merge semantics;
+- [ ] profile parsing must not resolve DB connections or perform validation I/O;
+- [ ] reusable/frozen profiles must not retain request data;
+- [ ] unknown profile keys should fail clearly or be handled by an explicitly documented forward-compatibility policy; do not silently turn configuration typos into security-policy drift.
+
+Foundation still owns where its configuration comes from, merge/source order, and which profile applies to a named application schema. It should no longer own the generic meaning of each ReqShield profile option.
 
 ---
 
 ## 7. Validator runtime/isolation audit
+
+### 7.1 `CompiledValidator` must become a real frozen execution boundary
+
+The current `CompiledValidator` is `readonly` only at the wrapper level: it stores a closure that directly calls a mutable `Validator`. That is not a sufficient persistent-runtime contract, especially because validation callbacks receive the validator instance and validation mutates bounded plan/LRU caches.
+
+ReqShield 3.2 should preserve mutable builder-style `Validator` APIs for compatibility while making compiled execution explicit and safe:
+
+- [ ] `Validator::compile()` / `Validator::compile(...)` must produce an independent frozen execution snapshot rather than a thin closure over mutable configuration;
+- [ ] do not rely on a shallow clone unless every nested mutable object has been audited;
+- [ ] frozen execution rejects topology/configuration mutation through callbacks or retained references with a dedicated exception;
+- [ ] the same compiled validator instance must be safely reusable sequentially and by interleaved Fibers;
+- [ ] callbacks may observe validation context, but cannot mutate frozen validator topology while an execution is in progress;
+- [ ] caller-owned mutable state captured by a callback remains the caller's responsibility and must be documented separately from ReqShield isolation;
+- [ ] database-provider resolution stays lazy and execution-scoped under compiled reuse.
+
+### 7.2 Mutable-validator audit
 
 ReqShield validators are configuration-bearing mutable objects before/during setup. Persistent runtimes must not accidentally share request-specific mutations.
 
@@ -305,7 +388,24 @@ Required guarantees:
 - [ ] a lazy DB connection resolver is not invoked unless a DB rule actually reaches batched execution;
 - [ ] interleaved Fiber validations using distinct provider/resolver state do not cross-contaminate.
 
-If a shared compiled validator is not safely reusable under these constraints, make the safe ownership/lifetime explicit rather than hiding state resets in Foundation.
+### 7.3 Cache/state classification
+
+Do not remove benign process caches merely because they are static. The audit found several bounded caches that may remain if tests prove they contain only reusable metadata:
+
+- `Sanitizer::$pipelineCallables`: string-defined sanitizer pipeline metadata only;
+- `SchemaCompiler::$resolvedBuiltinRuleClassCache`: built-in rule-class lookup metadata only;
+- `Validator::$processPlanCache`: only pure/string-schema compiled plans;
+- per-validator compiled/wildcard plan caches: schema/shape-derived plans only, never input values.
+
+Requirements:
+
+- [ ] bounded caches must remain bounded under adversarial schema/shape churn;
+- [ ] wildcard cache keys may use request shape but must never retain scalar request values or object payloads;
+- [ ] process caches must not become hidden application schema-registration stores;
+- [ ] static fragment registration remains classified separately as mutable global topology, not as a harmless cache;
+- [ ] cache/LRU mutation during Fiber interleaving must not alter validation correctness.
+
+A shared compiled validator is expected to be safely reusable under these constraints; do not hide ownership/state resets in Foundation.
 
 ---
 
@@ -320,6 +420,26 @@ Preserve the distinction between a validation miss and infrastructure failure.
 - [ ] never leak raw SQL, credentials or sensitive bindings through public validation messages.
 
 Foundation will map these exceptions into its application/HTTP policy; ReqShield must not own HTTP status codes.
+
+### 8.1 Transport/status cleanup discovered by the audit
+
+Current ReqShield contains one concrete ownership leak:
+
+```php
+new ValidationException('Validation failed', $errors, 422)
+```
+
+inside validator execution.
+
+Correct it in 3.2:
+
+- [ ] thrown validation exceptions from normal ReqShield execution use transport-neutral exception code semantics; do not automatically assign HTTP `422`;
+- [ ] preserve the existing `ValidationException` constructor signature for compatibility;
+- [ ] keep `ValidationResult::throw()` transport-neutral;
+- [ ] optional JSON:API / Problem Details projection helpers may remain, but caller-controlled status/type must be possible and docs must describe them as presentation helpers, not runtime HTTP policy;
+- [ ] where practical, make `toJsonApiErrors()` accept an optional caller status while preserving the existing no-argument call;
+- [ ] Foundation `ValidationExceptionMapper` remains the place that chooses HTTP 422 for Foundation web requests;
+- [ ] add a regression test that ReqShield throwing behavior itself does not imply Foundation/Webrick HTTP policy.
 
 ---
 
@@ -381,6 +501,21 @@ These tests protect ReqShield from drifting into a false sandbox role:
 - [ ] validation of an operation identifier does not execute, resolve or inspect an executable;
 - [ ] authorization/process execution remains outside ReqShield test fixtures except for framework-neutral mocked application examples.
 
+### 9.5 ValidatorProfile / compiled-runtime tests
+
+- [ ] profile normalization and immutable overlay/merge;
+- [ ] exact migration parity with Foundation's current option semantics;
+- [ ] conflicting/invalid limit and unknown-field settings fail deterministically;
+- [ ] profile construction/application performs no DB resolution;
+- [ ] compiling creates a snapshot independent from later mutation of the source builder;
+- [ ] post-compile mutation of the source `Validator` cannot alter the compiled validator;
+- [ ] mutation attempted through a callback against a frozen compiled execution fails closed;
+- [ ] the **same** compiled validator instance passes sequential reuse tests;
+- [ ] the **same** compiled validator instance passes interleaved Fiber reuse tests;
+- [ ] wildcard/conditional validation under shared compiled reuse retains no prior request values;
+- [ ] bounded cache sizes remain bounded under schema/shape churn;
+- [ ] transport-neutral thrown exception behavior is covered independently from Foundation HTTP mapping.
+
 ---
 
 ## 10. Static analysis and QA
@@ -425,6 +560,23 @@ Acceptance goals:
 - [ ] normal validation should not mutate/rebuild registry topology;
 - [ ] no deep clone of the whole registry per request merely for isolation.
 
+### 11.3 Profile and compiled execution
+
+Benchmark representative hot paths before/after the extraction:
+
+- raw `Validator::make()` + direct setter configuration;
+- reusable `ValidatorProfile` application;
+- compiled/frozen validator repeated execution;
+- wildcard compiled reuse across repeated same-shape inputs.
+
+Acceptance:
+
+- [ ] normalizing a shared base profile should happen once where callers reuse it;
+- [ ] applying a pre-normalized profile should not perform repeated reflection or config parsing;
+- [ ] compiled execution must not deep-clone the complete validator per validation call merely to obtain isolation;
+- [ ] reentrancy safety must not introduce request-global locks or serialize independent validators;
+- [ ] caches remain bounded and allocation-light.
+
 Performance fixes must preserve correctness and isolation first.
 
 ---
@@ -436,8 +588,12 @@ Update:
 - [ ] `README.md` with optional native DBLayer integration example;
 - [ ] `docs/database-rules.rst` with DBLayer 5.1 bridge usage and connection-resolver lifetime guidance;
 - [ ] schema documentation with instance-owned registry/freeze pattern;
+- [ ] validation-profile documentation with canonical option meanings, immutable overlay semantics and a framework-neutral example;
+- [ ] compiled-validator documentation that distinguishes mutable configuration/build phase from frozen reusable execution phase;
 - [ ] persistent-runtime guidance warning against process-global mutable schema registration;
 - [ ] document that validation is not a process/PHP sandbox and dangerous-function-name filtering is intentionally out of scope;
+- [ ] document that ReqShield exceptions are transport-neutral and HTTP status selection belongs to the application/framework;
+- [ ] clarify that `Path`, `SafeFilename`, `SecureFile` and `UploadMeta` validate syntax/metadata only; Pathwise owns canonical path containment, storage trust, malware/storage policy and filesystem authorization;
 - [ ] document the recommended registered-operation pattern for applications that validate input for privileged process capabilities;
 - [ ] installation/development docs to identify DBLayer 5.1 as a development/reference integration only;
 - [ ] upgrade/release notes for 3.2.
@@ -467,16 +623,31 @@ Once ReqShield 3.2 is released/consumable:
 ### Remove duplicated mechanics
 
 - [ ] Delete Foundation `src/Validation/ReqShieldDatabaseProvider.php`.
-- [ ] Replace it with ReqShield's native DBLayer provider.
+- [ ] Bind ReqShield's native DBLayer provider directly.
 - [ ] Pass Foundation's DB connection selection as a lazy resolver around the current execution-owned DBLayer connection.
 - [ ] Remove Foundation-specific physical batching, bind sizing, identifier normalization and SQL NULL/ignore handling now owned by the ReqShield bridge/DBLayer.
+- [ ] Delete or collapse `ValidationGraphFactory::databaseProvider()` if it becomes only a pass-through constructor.
+- [ ] Update Foundation DB-provider tests that currently use field strings as provider correlation IDs; native provider contract tests must use integer correlation IDs or exercise the provider through ReqShield validation.
 
 ### Schema topology
 
-- [ ] Replace Foundation's generic mutable registry mechanics with ReqShield's instance-owned `SchemaRegistry` where applicable.
-- [ ] Keep Foundation's schema names, auth schema definitions, config defaults/overrides and composition policy in Foundation.
+Foundation's current `ValidationSchemaRegistry` is already readonly and freezes its snapshot at application composition. The extraction is therefore about **generic ownership/deduplication**, not fixing an existing Foundation runtime leak.
+
+- [ ] Move generic schema normalize/define/extend/freeze mechanics to ReqShield `SchemaRegistry`.
+- [ ] Prefer deleting Foundation `ValidationSchemaRegistry.php` and binding the ReqShield registry directly after Foundation has layered its application schemas.
+- [ ] If a Foundation compatibility facade must remain, it may only adapt Foundation config/schema names; it must not reimplement generic registry normalization/composition/freeze behavior.
+- [ ] Keep Foundation's schema names, auth schema definitions, config source/default/override order and composition policy in Foundation.
 - [ ] Freeze production schema topology at graph/bootstrap construction completion.
 - [ ] Do not permit request execution to mutate shared schema registration.
+
+### Validator profile
+
+- [ ] Replace Foundation `ValidatorFactory`'s generic setter-by-setter ReqShield configuration with ReqShield `ValidatorProfile`.
+- [ ] Remove Foundation-local normalization of aliases/messages/sanitizers/casts/locale packs/limits once the native profile owns those semantics.
+- [ ] Foundation may retain a thin factory that selects named rules, selects/merges Foundation config defaults + schema/request overrides, chooses the optional DB provider, and hands the resulting native profile to ReqShield.
+- [ ] Do not make Foundation `ValueNormalizer` authoritative for ReqShield profile semantics.
+- [ ] Allow reusable base profiles to be normalized once during graph construction where practical.
+- [ ] Foundation `compile()` should return ReqShield's frozen/reentrant compiled validator path, not a wrapper around a mutable validator.
 
 ### Keep in Foundation
 
@@ -488,12 +659,25 @@ Once ReqShield 3.2 is released/consumable:
 - [ ] DB connection/profile selection;
 - [ ] authorization and selection of registered privileged operations/capabilities.
 
+### Intentionally retained Foundation validation/policy code
+
+The whole-codebase audit also reviewed Foundation's runtime/config/security/OAuth validators. Do **not** move these wholesale into ReqShield 3.2:
+
+- [ ] `RuntimeConfigValidator` and `Config/Internal/Runtime*Validator` remain Foundation bootstrap/runtime policy;
+- [ ] `ProductionSecurityValidator` remains Foundation deployment/security-topology policy;
+- [ ] OAuth/OpenID configuration validators remain Foundation protocol/application configuration policy;
+- [ ] tiny primitive checks may legitimately remain duplicated there because ReqShield is an optional Foundation capability and production/bootstrap config validation must not become dependent on installing the validation module;
+- [ ] future use of ReqShield for optional application configuration schemas must not invert this dependency boundary.
+
+These classes combine application topology, lower-library capability selection and security policy. They are not generic validation-engine mechanics even when individual checks resemble ReqShield rules.
+
 ### Keep outside ReqShield
 
 - [ ] Pathwise owns path/filesystem containment and upload/storage path safety.
 - [ ] A dedicated low-level process/runtime library owns safe executable/argv handling, process lifecycle, signals, environment/cwd policy, privilege changes and sandbox integration.
 - [ ] Foundation owns which process/runtime profile or registered operation is exposed to application code.
 - [ ] OS/container/runtime configuration remains the final execution-security boundary for untrusted code.
+- [ ] ReqShield rules named `Path`, `SafeFilename`, `SecureFile`, `UploadId` and `UploadMeta` remain syntactic/metadata validation; their success is never a Pathwise containment/trust decision.
 
 ### Foundation acceptance
 
@@ -503,7 +687,10 @@ Once ReqShield 3.2 is released/consumable:
 - [ ] sequential and interleaved Fiber validation isolation passes;
 - [ ] Foundation no longer contains generic ReqShield↔DBLayer SQL/batching mechanics;
 - [ ] direct ReqShield vs Foundation bridge benchmark attribution is recorded;
-- [ ] Point 26.7 ownership statement matches the actual codebase.
+- [ ] Foundation no longer contains the generic ReqShield profile-to-setter translation layer;
+- [ ] Foundation no longer contains a package-local generic schema registry implementation unless only a compatibility facade remains;
+- [ ] Foundation `ValidationExceptionMapper` still owns HTTP 422 mapping while ReqShield exceptions stay transport-neutral;
+- [ ] Point 26.7 ownership statement matches the actual codebase and Foundation's ReqShield benchmark is renamed/versioned for the 3.2 integration.
 
 ---
 
@@ -527,25 +714,30 @@ Do not add during this pass:
 - process/signal/UID/GID/sandbox policy;
 - executable allowlists or command registries owned by ReqShield;
 - authorization logic;
-- a large `ValidationProfile` abstraction unless implementation evidence shows it materially removes duplicated generic ReqShield mechanics.
+- a framework/container/config-repository abstraction inside ReqShield;
+- a mutable/process-global validation profile registry.
 
-Foundation's current setter-based `ValidatorFactory` may remain application adaptation in this pass. A future immutable ReqShield profile object is optional ergonomic follow-up, not a 3.2 completion blocker.
+The audit now provides direct implementation evidence that a **small immutable `ValidatorProfile` is required in 3.2**: Foundation currently duplicates generic option normalization and setter application. Keep this value object narrow; do not turn it into a framework configuration subsystem.
 
 ---
 
 ## 15. Implementation order
 
-1. Raise DBLayer dev/reference floor to `^5.1` and confirm baseline QA.
-2. Correct the integer correlation-ID public/static contract.
-3. Promote/refactor the DBLayer reference provider into production source with resolver-first connection ownership.
-4. Port the existing DB integration tests to the production provider and add nullable-ignore/runtime-lifetime regressions.
-5. Add the instance-owned freezeable `SchemaRegistry` and its isolation tests.
-6. Audit validator/compiled-validator persistent-runtime state and close any discovered leaks.
-7. Lock/document the process/runtime-security boundary and add drift-prevention tests showing ReqShield validates structured intent rather than dangerous-function substrings.
-8. Complete docs and benchmarks.
-9. Run PHP 8.4/8.5 stable + lowest QA/static-analysis gates.
-10. Release ReqShield 3.2.
-11. Return to Foundation 26.7, consume 3.2, remove duplicated bridge/registry mechanics, and run Foundation acceptance/performance gates.
+1. Capture baseline QA/API behavior and raise the DBLayer development/reference floor to `^5.1`.
+2. Correct the integer correlation-ID public/static contract and update direct provider tests.
+3. Promote/refactor the DBLayer reference provider into production source with resolver-first connection ownership; do not blindly carry the test-only `MAX_BATCH_VALUES = 1000` ceiling without benchmark/security justification.
+4. Port/expand DB integration coverage against the production provider, including nullable-ignore, identifier rejection and execution-connection lifetime regressions.
+5. Add the instance-owned freezeable `SchemaRegistry`; keep static fragments compatibility-only.
+6. Add the lightweight immutable `ValidatorProfile`, with merge/apply semantics matching current Foundation behavior.
+7. Rework `CompiledValidator` into a frozen execution snapshot and close same-instance sequential/Fiber reentrancy.
+8. Classify/audit all ReqShield caches; retain bounded metadata caches, prohibit request-value/global-topology leakage.
+9. Remove ReqShield's automatic HTTP-422 exception-code ownership while preserving 3.x API compatibility.
+10. Lock/document the Pathwise and Runwire trust boundaries and add drift-prevention tests.
+11. Complete docs and benchmarks, including profile/compiled reuse measurements.
+12. Run PHP 8.4/8.5 stable + lowest QA/static-analysis gates.
+13. Release ReqShield 3.2.
+14. Return to Foundation 26.7: consume 3.2; remove duplicate DB provider, package-local schema mechanics and generic profile setter translation; run Foundation acceptance/performance gates.
+15. Update Foundation's 26.7 tracker/benchmark naming only after the 3.2 dependency is actually consumable; do not make the Foundation branch claim a released floor prematurely.
 
 ---
 
@@ -560,15 +752,19 @@ ReqShield 3.2 is complete when:
 - `exists`/`unique` semantics correctly cover duplicate, NULL, zero-like, ignore/custom-ID and soft-delete cases;
 - provider correlation IDs are consistently integer and malformed output fails closed;
 - an instance-owned freezeable schema registry exists for persistent-runtime-safe topology;
+- a small immutable `ValidatorProfile` owns generic ReqShield option normalization/application;
+- Foundation no longer needs to understand the generic setter semantics behind that profile;
+- compiled validators are independent frozen execution snapshots, not closures over mutable builders;
+- the same compiled instance is safe under sequential and interleaved Fiber reuse;
 - non-DB validation remains DB-cold;
 - sequential/Fiber reuse does not leak mutable validation state;
+- bounded process/instance caches retain only reusable metadata/schema plans and never request scalar/object data;
+- ReqShield validation exceptions do not automatically encode HTTP 422; Foundation/application mapping owns transport status;
 - ReqShield explicitly remains validation-only for process-related inputs: it validates structured intent/parameters but does not blacklist dangerous function names, authorize capabilities, execute processes or claim to sandbox code;
 - QA/static analysis and representative performance gates are green;
-- Foundation can delete its duplicate DB provider/schema-registry mechanics without moving application policy into ReqShield.
+- Foundation can delete its duplicate DB provider/schema-registry/profile-translation mechanics without moving application policy into ReqShield.
 
 After that, Foundation Point 26.7 can close on top of ReqShield 3.2 rather than carrying framework-local substitutes for generic validation/database integration mechanics.
-
----
 
 ---
 
@@ -792,6 +988,8 @@ Runwire makes persistent Foundation workers a native deployment mode, so ReqShie
 Prove:
 
 - compiled validator/schema state is safe across many requests in one Runwire worker;
+- the **same frozen compiled validator instance** is safe when sequential requests and interleaved Fibers share it;
+- mutator calls reached through validation callbacks cannot alter frozen compiled topology;
 - per-validation result/error/data state is not retained globally;
 - instance-owned/frozen schema registry cannot be mutated by an unrelated request;
 - Fiber/interleaved validation retains no data from another execution;
@@ -897,6 +1095,7 @@ ReqShield 3.2 process/runtime-boundary acceptance additionally requires:
 - [ ] generic enum/allowlist/structured validation is sufficient for Foundation operation schemas;
 - [ ] persistent Runwire worker deployment does not cause schema/result/DB-provider state leakage;
 - [ ] Foundation owns end-to-end authorization before Runwire invocation;
-- [ ] Pathwise remains filesystem trust owner where files are involved.
+- [ ] Pathwise remains filesystem trust owner where files are involved;
+- [ ] ReqShield's path/upload rules are documented as syntax/metadata checks, not containment, malware, storage-trust or filesystem-authorization guarantees.
 
 All DBLayer, SchemaRegistry, runtime-state, QA, benchmark and Foundation 26.7 criteria from earlier sections of this plan remain unchanged.
