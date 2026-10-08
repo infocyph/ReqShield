@@ -304,6 +304,9 @@ trait HasValidatorSchemaCasting
             $this->effectiveSanitizers,
             fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, $pipeline),
             fn(string $pattern): string => $this->sanitizerWildcardRegexes[$pattern],
+            function (array $candidate): void {
+                $this->assertInputWithinLimits($candidate);
+            },
         );
     }
 
