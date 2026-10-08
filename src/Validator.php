@@ -894,6 +894,7 @@ class Validator
     {
         if (!empty($this->sanitizers) || !empty($this->schemaSanitizers)) {
             $data = $this->applySanitizers($data);
+            $this->assertInputWithinLimits($data);
         }
 
         $activeRules = $this->prepareRuntimeRules($data);
