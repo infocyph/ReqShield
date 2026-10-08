@@ -315,7 +315,6 @@ final class NestedValidator
         $seen[$path] = $value;
     }
 
-
     /**
      * @param array<int|string,mixed> $data
      * @return array{0:bool,1:mixed}

@@ -158,6 +158,7 @@ final class SanitizerMapApplier
             static fn(string $field): bool => str_contains($field, '*'),
         );
     }
+
     /**
      * @param array<string,mixed> $flattened
      * @param list<callable(mixed):mixed> $pipeline

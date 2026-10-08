@@ -292,7 +292,11 @@ final readonly class ValidatorProfile
             $normalized['limits'] = self::limits($options['limits']);
         }
 
-        /** @return SanitizerPipeline|null */
+    /** @var ProfileOptions $normalized */
+        return $normalized;
+    }
+
+    /** @return SanitizerPipeline|null */
     private static function normalizeSanitizerPipeline(mixed $pipeline): mixed
     {
         if (is_string($pipeline) || is_callable($pipeline)) {
@@ -309,10 +313,6 @@ final readonly class ValidatorProfile
         ));
 
         return $steps === [] ? null : $steps;
-    }
-
-    /** @var ProfileOptions $normalized */
-        return $normalized;
     }
 
     private static function nullableString(mixed $value): ?string
