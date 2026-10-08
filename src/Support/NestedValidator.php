@@ -408,6 +408,10 @@ final class NestedValidator
             }
 
             foreach ($data as $key => $value) {
+                if (is_string($key) && str_contains($key, '.')) {
+                    throw new \\InvalidArgumentException('Wildcard input keys cannot contain dots.');
+                }
+
                 static::expandWildcardSegments(
                     $expanded,
                     $value,
