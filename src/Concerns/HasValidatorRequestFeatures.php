@@ -16,7 +16,29 @@ trait HasValidatorRequestFeatures
     protected function assertInputWithinLimits(array $data): void
     {
         $fields = 0;
-        /** @return array<int|string,mixed> */
+        /** @var list<array{array<int|string,mixed>,int}> $stack */
+        $stack = [[$data, 1]];
+
+        while ($stack !== []) {
+            [$current, $depth] = array_pop($stack);
+            if ($depth > $this->maxDepth) {
+                throw new InputLimitException("Maximum input depth of {$this->maxDepth} exceeded.");
+            }
+
+            foreach ($current as $value) {
+                ++$fields;
+                if ($fields > $this->maxInputFields) {
+                    throw new InputLimitException("Maximum input field count of {$this->maxInputFields} exceeded.");
+                }
+
+                if (is_array($value) && $value !== []) {
+                    $stack[] = [$value, $depth + 1];
+                }
+            }
+        }
+    }
+
+    /** @return array<int|string,mixed> */
     protected static function normalizeRequestPayload(mixed $value): array
     {
         if (is_array($value)) {
