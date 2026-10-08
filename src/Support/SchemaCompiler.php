@@ -514,7 +514,7 @@ class SchemaCompiler
             'required_if', 'required_if_accepted', 'required_if_declined', 'required_unless', 'same',
         ];
         $dependency = $params[0] ?? null;
-        if (!in_array($name, $firstParameter, true) || !is_string($dependency) || $dependency === '') {
+        if (!static::hasFirstDependency($name, $dependency, $firstParameter)) {
             return [];
         }
 
@@ -524,6 +524,12 @@ class SchemaCompiler
         }
 
         return [$dependency];
+    }
+
+    /** @param list<string> $supported */
+    protected static function hasFirstDependency(string $name, mixed $value, array $supported): bool
+    {
+        return in_array($name, $supported, true) && is_string($value) && $value !== '';
     }
 
     /** @param array<int,mixed> $params */

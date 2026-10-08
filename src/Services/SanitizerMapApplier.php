@@ -144,16 +144,28 @@ final class SanitizerMapApplier
                 continue;
             }
 
-            foreach ($flattened as $path => $value) {
-                if (preg_match($regex, (string) $path) !== 1) {
-                    continue;
-                }
-
-                $flattened[$path] = $applyPipeline($value, $pipeline);
-            }
+            $this->applyWildcardPipeline($flattened, $regex, $pipeline, $applyPipeline);
         }
 
         return NestedValidator::unflattenData($flattened);
+    }
+
+    /**
+     * @param array<string,mixed> $flattened
+     * @param list<callable(mixed):mixed> $pipeline
+     * @param callable(mixed,list<callable(mixed):mixed>):mixed $applyPipeline
+     */
+    private function applyWildcardPipeline(
+        array &$flattened,
+        string $regex,
+        array $pipeline,
+        callable $applyPipeline,
+    ): void {
+        foreach ($flattened as $path => $value) {
+            if (preg_match($regex, (string) $path) === 1) {
+                $flattened[$path] = $applyPipeline($value, $pipeline);
+            }
+        }
     }
 
     /** @param array<string,list<callable(mixed):mixed>> $sanitizerMap */

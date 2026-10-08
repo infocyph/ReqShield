@@ -917,11 +917,7 @@ trait HasValidatorInternals
         }
 
         if ($value === null && $node->nullable) {
-            if (!$hasError) {
-                $context['validated'][$field] = null;
-            }
-
-            return !$hasError;
+            return $this->finishNullableField($context, $field, $hasError);
         }
 
         if ($node->isOptional && !$node->hasFilledRule && $this->isEmptyValidationValue($value)) {
@@ -950,6 +946,16 @@ trait HasValidatorInternals
 
         if (!$hasError) {
             $context['validated'][$field] = $value;
+        }
+
+        return !$hasError;
+    }
+
+    /** @param array<string,mixed> $context */
+    protected function finishNullableField(array &$context, string $field, bool $hasError): bool
+    {
+        if (!$hasError) {
+            $context['validated'][$field] = null;
         }
 
         return !$hasError;
