@@ -292,7 +292,7 @@ final readonly class ValidatorProfile
             $normalized['limits'] = self::limits($options['limits']);
         }
 
-    /** @var ProfileOptions $normalized */
+        /** @var ProfileOptions $normalized */
         return $normalized;
     }
 

@@ -176,6 +176,4 @@ final class SanitizerMapApplier
             }
         }
     }
-
-
 }

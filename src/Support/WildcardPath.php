@@ -35,12 +35,12 @@ final class WildcardPath
         if ($segment === '*') {
             static::expandWildcardBranch(
                 $expanded,
-            $data,
-            $remaining,
-            $path,
-            $schemaSegments,
-            $rule,
-            $maxExpansions,
+                $data,
+                $remaining,
+                $path,
+                $schemaSegments,
+                $rule,
+                $maxExpansions,
             );
 
             return;
@@ -69,9 +69,10 @@ final class WildcardPath
         return '/^' . str_replace('\*', '[^.]+', $escaped) . '$/';
     }
 
-    /** @param array<string,mixed> $expanded
-     *  @param list<string> $path
-     *  @param list<string> $schemaSegments
+    /**
+     * @param array<string,mixed> $expanded
+     * @param list<string> $path
+     * @param list<string> $schemaSegments
      */
     protected static function appendExpanded(
         array &$expanded,
@@ -88,13 +89,14 @@ final class WildcardPath
         $expanded[$target] = static::bindWildcardDependencies($rule, $target, $schemaSegments);
     }
 
-    /** @param array<int|string,mixed> $definitions
-     *  @param list<string> $captures
-     *  @return list<mixed>
+    /**
+     * @param array<int|string,mixed> $definitions
+     * @param list<string> $captures
+     * @return list<mixed>
      */
     protected static function bindArrayRules(array $definitions, array $captures, string $pattern): array
     {
-        return array_map(
+        return array_values(array_map(
             static fn(mixed $rule): mixed => match (true) {
                 $rule === 'distinct' => new Distinct($pattern),
                 is_string($rule) => static::bindRuleToken($rule, $captures),
@@ -102,7 +104,7 @@ final class WildcardPath
                 default => $rule,
             },
             $definitions,
-        );
+        ));
     }
 
     /** @param list<string> $captures */
@@ -189,10 +191,11 @@ final class WildcardPath
         return $captures;
     }
 
-    /** @param array<string,mixed> $expanded
-     *  @param list<string> $remaining
-     *  @param list<string> $path
-     *  @param list<string> $schemaSegments
+    /**
+     * @param array<string,mixed> $expanded
+     * @param list<string> $remaining
+     * @param list<string> $path
+     * @param list<string> $schemaSegments
      */
     protected static function expandWildcardBranch(
         array &$expanded,
