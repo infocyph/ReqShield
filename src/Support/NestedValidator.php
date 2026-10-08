@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
-use Infocyph\ReqShield\Exceptions\InputLimitException;
-use Infocyph\ReqShield\Rules\Distinct;
 
 final class NestedValidator
 {
@@ -29,7 +27,7 @@ final class NestedValidator
                 continue;
             }
 
-            static::expandWildcardSegments(
+            WildcardPath::expandWildcardSegments(
                 $expanded,
                 $data,
                 $ruleData['segments'],
@@ -302,139 +300,6 @@ final class NestedValidator
         }
 
         return $result;
-    }
-
-    /** @param list<string> $captures */
-    protected static function bindRuleToken(string $token, array $captures): string
-    {
-        [$name, $params] = RuleExpressionParser::parse($token);
-        if ($params === [] || in_array($name, ['regex', 'not_regex'], true)) {
-            return $token;
-        }
-
-        foreach ($params as &$parameter) {
-            $captureIndex = 0;
-            $parameter = preg_replace_callback(
-                '/(^|\.)\*(?=\.|$)/',
-                static function (array $match) use ($captures, &$captureIndex): string {
-                    $capture = $captures[$captureIndex] ?? end($captures);
-                    ++$captureIndex;
-
-                    return $match[1] . $capture;
-                },
-                $parameter,
-            ) ?? $parameter;
-        }
-        unset($parameter);
-
-        return $name . ':' . implode(',', $params);
-    }
-
-    /** @param list<string> $schemaSegments */
-    protected static function bindWildcardDependencies(mixed $definition, string $targetPath, array $schemaSegments): mixed
-    {
-        $captures = [];
-        $targetParts = explode('.', $targetPath);
-        foreach ($schemaSegments as $index => $segment) {
-            if ($segment === '*' && isset($targetParts[$index])) {
-                $captures[] = $targetParts[$index];
-            }
-        }
-
-        if ($captures === []) {
-            return $definition;
-        }
-
-        $pattern = implode('.', $schemaSegments);
-        if (is_string($definition)) {
-            $tokens = RuleExpressionParser::splitRules($definition);
-            $bound = array_map(
-                static fn(string $token): mixed => $token === 'distinct'
-                    ? new Distinct($pattern)
-                    : static::bindRuleToken($token, $captures),
-                $tokens,
-            );
-
-            return in_array('distinct', $tokens, true) ? $bound : implode('|', $bound);
-        }
-
-        if (!is_array($definition)) {
-            return $definition;
-        }
-
-        return array_map(
-            static fn(mixed $rule): mixed => match (true) {
-                $rule === 'distinct' => new Distinct($pattern),
-                is_string($rule) => static::bindRuleToken($rule, $captures),
-                $rule instanceof Distinct => $rule->forPattern($pattern),
-                default => $rule,
-            },
-            $definition,
-        );
-    }
-
-    /**
-     * @param array<string,mixed> $expanded
-     * @param list<string> $segments
-     * @param list<string> $path
-     * @param list<string> $schemaSegments
-     */
-    protected static function expandWildcardSegments(
-        array &$expanded,
-        mixed $data,
-        array $segments,
-        array $path,
-        array $schemaSegments,
-        mixed $rule,
-        int $maxExpansions,
-    ): void {
-        if ($segments === []) {
-            if (count($expanded) >= $maxExpansions) {
-                throw new InputLimitException("Maximum wildcard expansion limit of {$maxExpansions} exceeded.");
-            }
-
-            $targetPath = implode('.', $path);
-            $expanded[$targetPath] = static::bindWildcardDependencies($rule, $targetPath, $schemaSegments);
-
-            return;
-        }
-
-        $segment = $segments[0];
-        $remaining = array_slice($segments, 1);
-
-        if ($segment === '*') {
-            if (!is_array($data)) {
-                return;
-            }
-
-            foreach ($data as $key => $value) {
-                if (is_string($key) && str_contains($key, '.')) {
-                    throw new \InvalidArgumentException('Wildcard input keys cannot contain dots.');
-                }
-
-                static::expandWildcardSegments(
-                    $expanded,
-                    $value,
-                    $remaining,
-                    [...$path, (string) $key],
-                    $schemaSegments,
-                    $rule,
-                    $maxExpansions,
-                );
-            }
-
-            return;
-        }
-
-        static::expandWildcardSegments(
-            $expanded,
-            is_array($data) && array_key_exists($segment, $data) ? $data[$segment] : null,
-            $remaining,
-            [...$path, $segment],
-            $schemaSegments,
-            $rule,
-            $maxExpansions,
-        );
     }
 
     /** @param array<int|string,mixed> $array */
