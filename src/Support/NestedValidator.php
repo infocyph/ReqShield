@@ -257,7 +257,7 @@ final class NestedValidator
     /** @param array<int|string,mixed> $data */
     public static function shapeSignature(array $data): string
     {
-        $context = hash_init(static::resolveShapeHashAlgorithm());
+        $context = hash_init('sha256');
         static::updateShapeHash($context, $data);
 
         return hash_final($context);
@@ -420,7 +420,9 @@ final class NestedValidator
         hash_update($context, '{');
 
         foreach ($data as $key => $value) {
-            hash_update($context, 'k:' . $key . ';');
+            $keyType = is_int($key) ? 'i' : 's';
+            $keyBytes = (string) $key;
+            hash_update($context, $keyType . strlen($keyBytes) . ':' . $keyBytes);
 
             if (is_array($value)) {
                 static::updateShapeHash($context, $value);
