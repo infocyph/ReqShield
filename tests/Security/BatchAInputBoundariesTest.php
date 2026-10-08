@@ -28,10 +28,10 @@ test('conflicting dotted and nested payload representations fail closed', functi
         'user.age' => 'integer',
     ]);
 
-    expect($validator->validate([
+    expect(fn() => $validator->validate([
         'user' => ['age' => 'INVALID'],
         'user.age' => 1,
-    ])->passes())->toBeFalse();
+    ]))->toThrow(InvalidArgumentException::class);
 });
 
 test('associative wildcard conditional rules bind dependency names', function () {
