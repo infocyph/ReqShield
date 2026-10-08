@@ -13,6 +13,7 @@ final class SanitizerMapApplier
      * @param array<string,list<callable(mixed):mixed>> $sanitizerMap
      * @param callable(mixed,list<callable(mixed):mixed>):mixed $applyPipeline
      * @param callable(string): string $wildcardPatternToRegex
+     * @param (callable(array<int|string,mixed>):void)|null $assertBounds
      * @return array<int|string, mixed>
      */
     public function apply(
@@ -20,6 +21,7 @@ final class SanitizerMapApplier
         array $sanitizerMap,
         callable $applyPipeline,
         callable $wildcardPatternToRegex,
+        ?callable $assertBounds = null,
     ): array {
         if ($sanitizerMap === []) {
             return $data;
@@ -30,6 +32,10 @@ final class SanitizerMapApplier
             $sanitizerMap,
             $applyPipeline,
         );
+
+        if ($assertBounds !== null && $this->hasWildcardSanitizers($sanitizerMap)) {
+            $assertBounds($data);
+        }
 
         return $this->applyWildcardFieldSanitizers(
             $data,
