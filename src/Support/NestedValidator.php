@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Support;
 
 use Infocyph\ReqShield\Exceptions\InputLimitException;
+use Infocyph\ReqShield\Rules\Distinct;
 
 final class NestedValidator
 {
@@ -306,7 +307,7 @@ final class NestedValidator
         return $name . ':' . implode(',', $params);
     }
 
-    /** @param list<string> $targetSegments */
+    /** @param list<string> $schemaSegments */
     protected static function bindWildcardDependencies(mixed $definition, string $targetPath, array $schemaSegments): mixed
     {
         $captures = [];
@@ -321,14 +322,17 @@ final class NestedValidator
             return $definition;
         }
 
+        $pattern = implode('.', $schemaSegments);
         if (is_string($definition)) {
             $tokens = RuleExpressionParser::splitRules($definition);
             $bound = array_map(
-                static fn(string $token): string => static::bindRuleToken($token, $captures),
+                static fn(string $token): mixed => $token === 'distinct'
+                    ? new Distinct($pattern)
+                    : static::bindRuleToken($token, $captures),
                 $tokens,
             );
 
-            return implode('|', $bound);
+            return in_array('distinct', $tokens, true) ? $bound : implode('|', $bound);
         }
 
         if (!is_array($definition)) {
@@ -336,9 +340,12 @@ final class NestedValidator
         }
 
         return array_map(
-            static fn(mixed $rule): mixed => is_string($rule)
-                ? static::bindRuleToken($rule, $captures)
-                : $rule,
+            static fn(mixed $rule): mixed => match (true) {
+                $rule === 'distinct' => new Distinct($pattern),
+                is_string($rule) => static::bindRuleToken($rule, $captures),
+                $rule instanceof Distinct => $rule->forPattern($pattern),
+                default => $rule,
+            },
             $definition,
         );
     }
