@@ -33,6 +33,7 @@ final class NestedValidator
                 $data,
                 $ruleData['segments'],
                 [],
+                $ruleData['segments'],
                 $ruleData['rule'],
                 $maxExpansions,
             );
@@ -306,12 +307,12 @@ final class NestedValidator
     }
 
     /** @param list<string> $targetSegments */
-    protected static function bindWildcardDependencies(mixed $definition, string $targetPath, array $targetSegments): mixed
+    protected static function bindWildcardDependencies(mixed $definition, string $targetPath, array $schemaSegments): mixed
     {
         $captures = [];
         $targetParts = explode('.', $targetPath);
-        foreach ($targetSegments as $index => $segment) {
-            if (ctype_digit($segment) && isset($targetParts[$index])) {
+        foreach ($schemaSegments as $index => $segment) {
+            if ($segment === '*' && isset($targetParts[$index])) {
                 $captures[] = $targetParts[$index];
             }
         }
@@ -346,12 +347,14 @@ final class NestedValidator
      * @param array<string,mixed> $expanded
      * @param list<string> $segments
      * @param list<string> $path
+     * @param list<string> $schemaSegments
      */
     protected static function expandWildcardSegments(
         array &$expanded,
         mixed $data,
         array $segments,
         array $path,
+        array $schemaSegments,
         mixed $rule,
         int $maxExpansions,
     ): void {
@@ -361,7 +364,7 @@ final class NestedValidator
             }
 
             $targetPath = implode('.', $path);
-            $expanded[$targetPath] = static::bindWildcardDependencies($rule, $targetPath, $path);
+            $expanded[$targetPath] = static::bindWildcardDependencies($rule, $targetPath, $schemaSegments);
 
             return;
         }
@@ -380,6 +383,7 @@ final class NestedValidator
                     $value,
                     $remaining,
                     [...$path, (string) $key],
+                    $schemaSegments,
                     $rule,
                     $maxExpansions,
                 );
@@ -393,6 +397,7 @@ final class NestedValidator
             is_array($data) && array_key_exists($segment, $data) ? $data[$segment] : null,
             $remaining,
             [...$path, $segment],
+            $schemaSegments,
             $rule,
             $maxExpansions,
         );
