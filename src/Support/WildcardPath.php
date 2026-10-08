@@ -34,7 +34,13 @@ final class WildcardPath
         $remaining = array_slice($segments, 1);
         if ($segment === '*') {
             static::expandWildcardBranch(
-                $expanded, $data, $remaining, $path, $schemaSegments, $rule, $maxExpansions,
+                $expanded,
+            $data,
+            $remaining,
+            $path,
+            $schemaSegments,
+            $rule,
+            $maxExpansions,
             );
 
             return;
@@ -82,7 +88,7 @@ final class WildcardPath
         $expanded[$target] = static::bindWildcardDependencies($rule, $target, $schemaSegments);
     }
 
-    /** @param list<mixed> $definitions
+    /** @param array<int|string,mixed> $definitions
      *  @param list<string> $captures
      *  @return list<mixed>
      */
@@ -125,20 +131,21 @@ final class WildcardPath
         return $name . ':' . implode(',', $params);
     }
 
-    /** @param list<string> $captures
-     *  @return string|list<mixed>
+    /**
+     * @param list<string> $captures
+     * @return string|list<mixed>
      */
     protected static function bindStringRules(string $definition, array $captures, string $pattern): string|array
     {
         $tokens = RuleExpressionParser::splitRules($definition);
 
         if (in_array('distinct', $tokens, true)) {
-            return array_map(
+            return array_values(array_map(
                 static fn(string $token): mixed => $token === 'distinct'
                     ? new Distinct($pattern)
                     : static::bindRuleToken($token, $captures),
                 $tokens,
-            );
+            ));
         }
 
         return implode('|', array_map(
@@ -164,8 +171,9 @@ final class WildcardPath
         };
     }
 
-    /** @param list<string> $schemaSegments
-     *  @return list<string>
+    /**
+     * @param list<string> $schemaSegments
+     * @return list<string>
      */
     protected static function capturesForPath(string $targetPath, array $schemaSegments): array
     {

@@ -292,7 +292,26 @@ final readonly class ValidatorProfile
             $normalized['limits'] = self::limits($options['limits']);
         }
 
-        /** @var ProfileOptions $normalized */
+        /** @return SanitizerPipeline|null */
+    private static function normalizeSanitizerPipeline(mixed $pipeline): mixed
+    {
+        if (is_string($pipeline) || is_callable($pipeline)) {
+            return $pipeline;
+        }
+
+        if (!is_array($pipeline)) {
+            return null;
+        }
+
+        $steps = array_values(array_filter(
+            $pipeline,
+            static fn(mixed $step): bool => is_string($step) || is_callable($step),
+        ));
+
+        return $steps === [] ? null : $steps;
+    }
+
+    /** @var ProfileOptions $normalized */
         return $normalized;
     }
 
@@ -341,25 +360,6 @@ final readonly class ValidatorProfile
         }
 
         return $normalized;
-    }
-
-    /** @return SanitizerPipeline|null */
-    private static function normalizeSanitizerPipeline(mixed $pipeline): mixed
-    {
-        if (is_string($pipeline) || is_callable($pipeline)) {
-            return $pipeline;
-        }
-
-        if (!is_array($pipeline)) {
-            return null;
-        }
-
-        $steps = array_values(array_filter(
-            $pipeline,
-            static fn(mixed $step): bool => is_string($step) || is_callable($step),
-        ));
-
-        return $steps === [] ? null : $steps;
     }
 
     /** @return array<string,string> */

@@ -10,9 +10,7 @@ namespace Infocyph\ReqShield\Rules;
  */
 class Distinct extends BaseRule
 {
-    public function __construct(private ?string $wildcardPattern = null)
-    {
-    }
+    public function __construct(private ?string $wildcardPattern = null) {}
 
     public function cost(): int
     {
@@ -44,7 +42,10 @@ class Distinct extends BaseRule
             && $this->hasUniqueWildcardOccurrence($value, $field, $data, explode('.', $this->wildcardPattern));
     }
 
-    /** @param list<string> $pattern */
+    /**
+     * @param array<int|string,mixed> $data
+     * @param list<string> $pattern
+     */
     private function hasUniqueWildcardOccurrence(mixed $value, string $field, array $data, array $pattern): bool
     {
         $fieldParts = explode('.', $field);
@@ -74,8 +75,9 @@ class Distinct extends BaseRule
         return $occurrences === 1;
     }
 
-    /** @param list<string> $fieldParts
-     *  @param list<string> $pattern
+    /**
+     * @param list<string> $fieldParts
+     * @param list<string> $pattern
      */
     private function matchesDistinctGroup(
         string $candidateField,

@@ -150,6 +150,14 @@ final class SanitizerMapApplier
         return NestedValidator::unflattenData($flattened);
     }
 
+    /** @param array<string,list<callable(mixed):mixed>> $sanitizerMap */
+    protected function hasWildcardSanitizers(array $sanitizerMap): bool
+    {
+        return array_any(
+            array_keys($sanitizerMap),
+            static fn(string $field): bool => str_contains($field, '*'),
+        );
+    }
     /**
      * @param array<string,mixed> $flattened
      * @param list<callable(mixed):mixed> $pipeline
@@ -168,12 +176,5 @@ final class SanitizerMapApplier
         }
     }
 
-    /** @param array<string,list<callable(mixed):mixed>> $sanitizerMap */
-    protected function hasWildcardSanitizers(array $sanitizerMap): bool
-    {
-        return array_any(
-            array_keys($sanitizerMap),
-            static fn(string $field): bool => str_contains($field, '*'),
-        );
-    }
+
 }

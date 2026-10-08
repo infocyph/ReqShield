@@ -119,6 +119,14 @@ class SchemaCompiler
         $this->reverseCustomRuleMap = null;
     }
 
+    /** @param list<string> $supported */
+    protected static function firstDependency(string $name, mixed $value, array $supported): ?string
+    {
+        return in_array($name, $supported, true) && is_string($value) && $value !== ''
+            ? $value
+            : null;
+    }
+
     /**
      * @param array<string,mixed> $placeholders
      * @param array<int,mixed> $params
@@ -524,14 +532,6 @@ class SchemaCompiler
         }
 
         return [$dependency];
-    }
-
-    /** @param list<string> $supported */
-    protected static function firstDependency(string $name, mixed $value, array $supported): ?string
-    {
-        return in_array($name, $supported, true) && is_string($value) && $value !== ''
-            ? $value
-            : null;
     }
 
     /** @param array<int,mixed> $params */

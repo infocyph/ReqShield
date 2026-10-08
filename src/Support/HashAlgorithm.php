@@ -30,6 +30,7 @@ final class HashAlgorithm
 
         return $algorithm;
     }
+
     /** @param array<int|string,mixed> $data */
     public static function shapeSignature(array $data): string
     {
