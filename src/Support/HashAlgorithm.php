@@ -59,5 +59,4 @@ final class HashAlgorithm
 
         hash_update($context, '}');
     }
-
 }

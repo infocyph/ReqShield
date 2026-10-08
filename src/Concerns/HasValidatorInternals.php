@@ -306,16 +306,6 @@ trait HasValidatorInternals
         throw new \LogicException('Unsupported callable type.');
     }
 
-    /** @param ValidationContext $context */
-    protected function finishNullableField(array &$context, string $field, bool $hasError): bool
-    {
-        if (!$hasError) {
-            $context['validated'][$field] = null;
-        }
-
-        return !$hasError;
-    }
-
     /**
      * @param array<string,mixed> $map
      * @return array<string,list<callable(mixed):mixed>>
@@ -331,6 +321,16 @@ trait HasValidatorInternals
         }
 
         return $compiled;
+    }
+
+    /** @param ValidationContext $context */
+    protected function finishNullableField(array &$context, string $field, bool $hasError): bool
+    {
+        if (!$hasError) {
+            $context['validated'][$field] = null;
+        }
+
+        return !$hasError;
     }
 
     protected function getCachedWildcardPlan(string $cacheKey): ?ValidationPlan
