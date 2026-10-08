@@ -736,13 +736,7 @@ class Validator
     public function validate(array $data): ValidationResult
     {
         $this->assertInputWithinLimits($data);
-        foreach ($data as $field => $value) {
-            if (is_string($field) && str_contains($field, '.')
-                && NestedValidator::has($data, $field)
-                && NestedValidator::extractValue($data, $field) !== $value) {
-                throw new \InvalidArgumentException('Conflicting dotted and nested input representations.');
-            }
-        }
+        NestedValidator::assertNoConflictingPaths($data);
         $originalData = $data;
         [$data, $plan] = $this->prepareValidationDataAndSchema($data);
         $context = $this->initializeValidationContext();
@@ -903,6 +897,7 @@ class Validator
         if (!empty($this->sanitizers) || !empty($this->schemaSanitizers)) {
             $data = $this->applySanitizers($data);
             $this->assertInputWithinLimits($data);
+            NestedValidator::assertNoConflictingPaths($data);
         }
 
         $activeRules = $this->prepareRuntimeRules($data);
