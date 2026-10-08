@@ -6,10 +6,12 @@ namespace Infocyph\ReqShield\Rules;
 
 /**
  * Distinct Rule - Cost: 10
- * Array values must be unique (no duplicates)
+ * Array values or members of one expanded wildcard group must be unique.
  */
 class Distinct extends BaseRule
 {
+    public function __construct(private ?string $wildcardPattern = null) {}
+
     public function cost(): int
     {
         return 10;
@@ -20,6 +22,14 @@ class Distinct extends BaseRule
         return "The {$field} field has duplicate values.";
     }
 
+    public function forPattern(string $pattern): self
+    {
+        $copy = clone $this;
+        $copy->wildcardPattern = $pattern;
+
+        return $copy;
+    }
+
     public function passes(mixed $value, string $field, array $data): bool
     {
         $this->consumeRuleContext($value, $field, $data);
@@ -28,67 +38,59 @@ class Distinct extends BaseRule
             return count($value) === count(array_unique($value, SORT_REGULAR));
         }
 
-        $segments = explode('.', $field);
-        $wildcardIndexes = $this->wildcardIndexes($segments);
-        if ($wildcardIndexes === []) {
+        if ($this->wildcardPattern === null) {
             return false;
         }
 
+        $pattern = explode('.', $this->wildcardPattern);
+        $fieldParts = explode('.', $field);
+        if (count($fieldParts) !== count($pattern)) {
+            return false;
+        }
+
+        $wildcardPositions = array_keys(array_filter(
+            $pattern,
+            static fn(string $segment): bool => $segment === '*',
+        ));
+        if ($wildcardPositions === []) {
+            return false;
+        }
+
+        $lastWildcard = $wildcardPositions[count($wildcardPositions) - 1];
         $occurrences = 0;
+
         foreach ($data as $candidateField => $candidate) {
-            if (!$this->matchesWildcardValue($candidateField, $candidate, $value, $segments, $wildcardIndexes)) {
+            if (!is_string($candidateField) || $candidate !== $value) {
                 continue;
             }
 
-            ++$occurrences;
-        }
+            $candidateParts = explode('.', $candidateField);
+            if (count($candidateParts) !== count($pattern)) {
+                continue;
+            }
 
-        return $occurrences === 1;
-    }
+            $matches = true;
+            foreach ($pattern as $index => $segment) {
+                if ($segment === '*') {
+                    if ($index !== $lastWildcard && $candidateParts[$index] !== $fieldParts[$index]) {
+                        $matches = false;
+                        break;
+                    }
 
-    /**
-     * @param list<string> $segments
-     * @param list<int> $wildcardIndexes
-     */
-    private function matchesWildcardValue(
-        int|string $candidateField,
-        mixed $candidate,
-        mixed $value,
-        array $segments,
-        array $wildcardIndexes,
-    ): bool {
-        if (!is_string($candidateField) || $candidate !== $value) {
-            return false;
-        }
-
-        $candidateSegments = explode('.', $candidateField);
-        if (count($candidateSegments) !== count($segments)) {
-            return false;
-        }
-
-        foreach ($segments as $index => $segment) {
-            if (in_array($index, $wildcardIndexes, true)) {
-                if (!ctype_digit($candidateSegments[$index])) {
-                    return false;
+                    continue;
                 }
 
-                continue;
+                if ($candidateParts[$index] !== $segment) {
+                    $matches = false;
+                    break;
+                }
             }
 
-            if ($candidateSegments[$index] !== $segment) {
+            if ($matches && ++$occurrences > 1) {
                 return false;
             }
         }
 
-        return true;
-    }
-
-    /**
-     * @param list<string> $segments
-     * @return list<int>
-     */
-    private function wildcardIndexes(array $segments): array
-    {
-        return array_keys(array_filter($segments, ctype_digit(...)));
+        return $occurrences === 1;
     }
 }
