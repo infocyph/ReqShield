@@ -181,9 +181,7 @@ trait HasValidatorRequestFeatures
         $unknown = [];
 
         foreach ($fields as $field) {
-            if (!is_string($field)) {
-                continue;
-            }
+            $field = (string) $field;
 
             if (isset($plan->allowedFieldLookup[$field])
                 || isset($plan->allowedPrefixLookup[$field])
