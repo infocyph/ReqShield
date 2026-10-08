@@ -4,9 +4,27 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
-
 final class NestedValidator
 {
+    /** @param array<int|string,mixed> $data */
+    public static function assertNoConflictingPaths(array $data): void
+    {
+        $stack = [[$data, '']];
+        $seen = [];
+
+        while ($stack !== []) {
+            [$current, $prefix] = array_pop($stack);
+
+            foreach ($current as $key => $value) {
+                $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
+                static::rememberInputPath($seen, $path, $value);
+                if (is_array($value)) {
+                    $stack[] = [$value, $path];
+                }
+            }
+        }
+    }
+
     /**
      * @param array<int|string,mixed> $data
      * @param array<string,array{path:string,segments:list<string>,rule:mixed,is_wildcard:bool}> $parsedRules
@@ -255,35 +273,9 @@ final class NestedValidator
     }
 
     /** @param array<int|string,mixed> $data */
-    public static function assertNoConflictingPaths(array $data): void
-    {
-        $stack = [[$data, '']];
-        $seen = [];
-
-        while ($stack !== []) {
-            [$current, $prefix] = array_pop($stack);
-
-            foreach ($current as $key => $value) {
-                $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
-                if (array_key_exists($path, $seen) && $seen[$path] !== $value) {
-                    throw new \InvalidArgumentException('Conflicting dotted and nested input representations.');
-                }
-
-                $seen[$path] = $value;
-                if (is_array($value)) {
-                    $stack[] = [$value, $path];
-                }
-            }
-        }
-    }
-
-    /** @param array<int|string,mixed> $data */
     public static function shapeSignature(array $data): string
     {
-        $context = hash_init('sha256');
-        static::updateShapeHash($context, $data);
-
-        return hash_final($context);
+        return HashAlgorithm::shapeSignature($data);
     }
 
     /**
@@ -313,25 +305,16 @@ final class NestedValidator
         return array_keys($array) !== range(0, count($array) - 1);
     }
 
-    /** @param array<int|string,mixed> $data */
-    protected static function updateShapeHash(\HashContext $context, array $data): void
+    /** @param array<string,mixed> $seen */
+    protected static function rememberInputPath(array &$seen, string $path, mixed $value): void
     {
-        hash_update($context, '{');
-
-        foreach ($data as $key => $value) {
-            $keyType = is_int($key) ? 'i' : 's';
-            $keyBytes = (string) $key;
-            hash_update($context, $keyType . strlen($keyBytes) . ':' . $keyBytes);
-
-            if (is_array($value)) {
-                static::updateShapeHash($context, $value);
-            } else {
-                hash_update($context, 's;');
-            }
+        if (array_key_exists($path, $seen) && $seen[$path] !== $value) {
+            throw new \InvalidArgumentException('Conflicting dotted and nested input representations.');
         }
 
-        hash_update($context, '}');
+        $seen[$path] = $value;
     }
+
 
     /**
      * @param array<int|string,mixed> $data
