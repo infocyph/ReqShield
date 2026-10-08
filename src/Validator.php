@@ -740,7 +740,7 @@ class Validator
             if (is_string($field) && str_contains($field, '.')
                 && NestedValidator::has($data, $field)
                 && NestedValidator::extractValue($data, $field) !== $value) {
-                throw new \\InvalidArgumentException('Conflicting dotted and nested input representations.');
+                throw new \InvalidArgumentException('Conflicting dotted and nested input representations.');
             }
         }
         $originalData = $data;
