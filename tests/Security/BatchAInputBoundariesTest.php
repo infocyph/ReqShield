@@ -68,3 +68,45 @@ test('strict policy checks integer root keys', function () {
         ->validate(['name' => 'ok', 0 => 'unregistered'])
         ->fails())->toBeTrue();
 });
+
+test('nested dotted collisions are rejected at any depth', function () {
+    $validator = Validator::make(['user.profile.age' => 'integer']);
+
+    expect(fn() => $validator->validate([
+        'user' => [
+            'profile.age' => 2,
+            'profile' => ['age' => 'INVALID'],
+        ],
+    ]))->toThrow(InvalidArgumentException::class);
+});
+
+test('identical duplicate input representations remain valid', function () {
+    $validator = Validator::make(['user.age' => 'integer']);
+
+    expect($validator->validate([
+        'user' => ['age' => 2],
+        'user.age' => 2,
+    ])->passes())->toBeTrue();
+});
+
+test('distinct rejects duplicate associative wildcard members', function () {
+    $validator = Validator::make(['items.*.code' => 'distinct']);
+
+    expect($validator->validate([
+        'items' => [
+            'alice' => ['code' => 'same'],
+            'bob' => ['code' => 'same'],
+        ],
+    ])->fails())->toBeTrue();
+});
+
+test('distinct scopes multiple wildcard levels to the inner collection', function () {
+    $validator = Validator::make(['groups.*.items.*.code' => 'distinct']);
+
+    expect($validator->validate([
+        'groups' => [
+            'first' => ['items' => ['one' => ['code' => 'abc'], 'two' => ['code' => 'xyz']]],
+            'second' => ['items' => ['one' => ['code' => 'abc']]],
+        ],
+    ])->passes())->toBeTrue();
+});
