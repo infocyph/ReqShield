@@ -257,6 +257,29 @@ final class NestedValidator
     }
 
     /** @param array<int|string,mixed> $data */
+    public static function assertNoConflictingPaths(array $data): void
+    {
+        $stack = [[$data, '']];
+        $seen = [];
+
+        while ($stack !== []) {
+            [$current, $prefix] = array_pop($stack);
+
+            foreach ($current as $key => $value) {
+                $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
+                if (array_key_exists($path, $seen) && $seen[$path] !== $value) {
+                    throw new \\InvalidArgumentException('Conflicting dotted and nested input representations.');
+                }
+
+                $seen[$path] = $value;
+                if (is_array($value)) {
+                    $stack[] = [$value, $path];
+                }
+            }
+        }
+    }
+
+    /** @param array<int|string,mixed> $data */
     public static function shapeSignature(array $data): string
     {
         $context = hash_init('sha256');
@@ -419,11 +442,6 @@ final class NestedValidator
 
         // Check if keys are sequential integers starting from 0
         return array_keys($array) !== range(0, count($array) - 1);
-    }
-
-    protected static function resolveShapeHashAlgorithm(): string
-    {
-        return HashAlgorithm::require('xxh3');
     }
 
     /** @param array<int|string,mixed> $data */
