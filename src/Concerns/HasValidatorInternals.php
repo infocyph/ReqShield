@@ -359,6 +359,28 @@ trait HasValidatorInternals
         return $callback(...$invokeArgs);
     }
 
+    /** @param array<int|string,mixed> $rules */
+    protected function isProcessCacheSafeSchema(array $rules): bool
+    {
+        foreach ($rules as $definition) {
+            if (is_string($definition)) {
+                continue;
+            }
+
+            if (!is_array($definition)) {
+                return false;
+            }
+
+            foreach ($definition as $rule) {
+                if (!is_string($rule)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @param array<int|string, mixed> $data
      * @param RuleMap $rules

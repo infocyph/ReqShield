@@ -21,6 +21,104 @@ final class JsonSchemaNodeBuilder
         $this->addPropertyAtPath($schema, $segments, 0, $property, $required);
     }
 
+    /**
+     * @param JsonNode $property
+     * @param array<int, mixed> $params
+     */
+    public function applyEnumConstraint(
+        array &$property,
+        string $ruleName,
+        array $params,
+    ): bool {
+        if ($ruleName === 'in' && $params !== []) {
+            $property['enum'] = array_values($params);
+
+            return true;
+        }
+
+        if (
+            $ruleName !== 'enum'
+            || !isset($params[0])
+            || !is_string($params[0])
+            || !enum_exists($params[0])
+        ) {
+            return false;
+        }
+
+        $enumClass = $params[0];
+        $cases = $enumClass::cases();
+        if ($cases === []) {
+            return false;
+        }
+
+        if (is_subclass_of($enumClass, \BackedEnum::class)) {
+            $values = [];
+            foreach ($cases as $case) {
+                if ($case instanceof \BackedEnum) {
+                    $values[] = $case->value;
+                }
+            }
+            $property['enum'] = $values;
+
+            return true;
+        }
+
+        $property['enum'] = array_map(
+            static fn(\UnitEnum $case): string => $case->name,
+            $cases,
+        );
+
+        return true;
+    }
+
+    /**
+     * @param JsonNode $property
+     * @param array<int,mixed> $params
+     */
+    public function applyReqShieldExtension(array &$property, string $ruleName, array $params): void
+    {
+        if ($ruleName === 'active_url') {
+            $property['x-reqshield-active-url'] = true;
+
+            return;
+        }
+
+        if (in_array($ruleName, ['exists', 'unique'], true)) {
+            $property['x-reqshield-' . $ruleName] = [
+                'table' => $params[0] ?? null,
+                'column' => $params[1] ?? null,
+            ];
+
+            return;
+        }
+
+        if ($ruleName === 'date_format') {
+            $property['x-reqshield-date-format'] = $params[0] ?? null;
+
+            return;
+        }
+
+        $crossFieldRules = [
+            'same', 'different', 'gt', 'gte', 'lt', 'lte', 'in_array',
+            'date_equals', 'before', 'before_or_equal', 'after', 'after_or_equal',
+        ];
+        if (in_array($ruleName, $crossFieldRules, true)) {
+            $property['x-reqshield-' . str_replace('_', '-', $ruleName)] = $params[0] ?? true;
+
+            return;
+        }
+
+        if ($ruleName === 'confirmed') {
+            $property['x-reqshield-confirmed-by'] = true;
+
+            return;
+        }
+
+        if (str_starts_with($ruleName, 'required_') || str_starts_with($ruleName, 'present_')) {
+            $property['x-reqshield-' . str_replace('_', '-', $ruleName)] = $params;
+        }
+    }
+
     /** @param JsonNode $node */
     public function normalizeNode(array &$node): void
     {

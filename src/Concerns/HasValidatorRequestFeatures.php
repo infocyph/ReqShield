@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Concerns;
 
+use Infocyph\ReqShield\Exceptions\InputLimitException;
 use Infocyph\ReqShield\Exceptions\UnsupportedRequestObjectException;
 use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\ValidationContext;
@@ -11,7 +12,11 @@ use Infocyph\ReqShield\Support\ValidationPlan;
 
 trait HasValidatorRequestFeatures
 {
-    /** @return array<int|string,mixed> */
+    /** @param array<int|string,mixed> $data */
+    protected function assertInputWithinLimits(array $data): void
+    {
+        $fields = 0;
+        /** @return array<int|string,mixed> */
     protected static function normalizeRequestPayload(mixed $value): array
     {
         if (is_array($value)) {

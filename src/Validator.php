@@ -12,7 +12,6 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Contracts\Rule as RuleContract;
 use Infocyph\ReqShield\Exceptions\DatabaseProviderRequiredException;
 use Infocyph\ReqShield\Exceptions\FrozenValidatorException;
-use Infocyph\ReqShield\Exceptions\InputLimitException;
 use Infocyph\ReqShield\Exceptions\InvalidSchemaException;
 use Infocyph\ReqShield\Exceptions\ValidationException;
 use Infocyph\ReqShield\Executors\BatchExecutor;
@@ -793,11 +792,7 @@ class Validator
         }
     }
 
-    /** @param array<int|string,mixed> $data */
-    protected function assertInputWithinLimits(array $data): void
-    {
-        $fields = 0;
-        /** @var list<array{array<int|string,mixed>,int}> $stack */
+    /** @var list<array{array<int|string,mixed>,int}> $stack */
         $stack = [[$data, 1]];
 
         while ($stack !== []) {
@@ -843,28 +838,6 @@ class Validator
             $this->applyCasts($context['validated']),
             $this->dtoClass,
         );
-    }
-
-    /** @param array<int|string,mixed> $rules */
-    protected function isProcessCacheSafeSchema(array $rules): bool
-    {
-        foreach ($rules as $definition) {
-            if (is_string($definition)) {
-                continue;
-            }
-
-            if (!is_array($definition)) {
-                return false;
-            }
-
-            foreach ($definition as $rule) {
-                if (!is_string($rule)) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
     }
 
     /**

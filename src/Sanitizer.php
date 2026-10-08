@@ -28,29 +28,17 @@ class Sanitizer
 
     public static function alpha(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return self::pregReplace('/[^' . self::ALPHA . ']/', '', $value);
+        return is_string($value) ? self::pregReplace('/[^' . self::ALPHA . ']/', '', $value) : '';
     }
 
     public static function alphaDash(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return self::pregReplace('/[^' . self::SLUG_CHARS . ']/', '', $value);
+        return is_string($value) ? self::pregReplace('/[^' . self::SLUG_CHARS . ']/', '', $value) : '';
     }
 
     public static function alphanumeric(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return self::pregReplace('/[^' . self::ALPHANUMERIC . ']/', '', $value);
+        return is_string($value) ? self::pregReplace('/[^' . self::ALPHANUMERIC . ']/', '', $value) : '';
     }
 
     public static function alphanumericSpace(mixed $value): string
@@ -117,11 +105,7 @@ class Sanitizer
 
     public static function base64Encode(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return base64_encode($value);
+        return is_string($value) ? base64_encode($value) : '';
     }
 
     /**
@@ -246,11 +230,7 @@ class Sanitizer
 
     public static function escapeLike(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return addcslashes($value, '%_');
+        return is_string($value) ? addcslashes($value, '%_') : '';
     }
 
     public static function filename(mixed $value): string
@@ -390,11 +370,7 @@ class Sanitizer
 
     public static function normalizeWhitespace(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return self::pregReplace('/\s+/', ' ', trim($value));
+        return is_string($value) ? self::pregReplace('/\s+/', ' ', trim($value)) : '';
     }
 
     // ============================================
@@ -403,11 +379,7 @@ class Sanitizer
 
     public static function numeric(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return self::pregReplace('/[^' . self::NUMERIC . ']/', '', $value);
+        return is_string($value) ? self::pregReplace('/[^' . self::NUMERIC . ']/', '', $value) : '';
     }
 
     public static function pascalCase(mixed $value): string
@@ -431,20 +403,12 @@ class Sanitizer
 
     public static function phone(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return self::pregReplace('/[^0-9+]/', '', $value);
+        return is_string($value) ? self::pregReplace('/[^0-9+]/', '', $value) : '';
     }
 
     public static function removeLineBreaks(mixed $value): string
     {
-        if (!is_string($value)) {
-            return '';
-        }
-
-        return str_replace(["\r\n", "\r", "\n"], ' ', $value);
+        return is_string($value) ? str_replace(["\r\n", "\r", "\n"], ' ', $value) : '';
     }
 
     public static function sentenceCase(mixed $value): string
