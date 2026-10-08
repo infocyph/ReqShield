@@ -268,7 +268,7 @@ final class NestedValidator
             foreach ($current as $key => $value) {
                 $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
                 if (array_key_exists($path, $seen) && $seen[$path] !== $value) {
-                    throw new \\InvalidArgumentException('Conflicting dotted and nested input representations.');
+                    throw new \InvalidArgumentException('Conflicting dotted and nested input representations.');
                 }
 
                 $seen[$path] = $value;
@@ -409,7 +409,7 @@ final class NestedValidator
 
             foreach ($data as $key => $value) {
                 if (is_string($key) && str_contains($key, '.')) {
-                    throw new \\InvalidArgumentException('Wildcard input keys cannot contain dots.');
+                    throw new \InvalidArgumentException('Wildcard input keys cannot contain dots.');
                 }
 
                 static::expandWildcardSegments(
