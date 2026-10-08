@@ -110,3 +110,22 @@ test('distinct scopes multiple wildcard levels to the inner collection', functio
         ],
     ])->passes())->toBeTrue();
 });
+
+test('wildcard members containing literal dots are rejected rather than silently skipped', function () {
+    $validator = Validator::make(['items.*.code' => 'required|integer']);
+
+    expect(fn() => $validator->validate([
+        'items' => ['alice.smith' => ['code' => 'INVALID']],
+    ]))->toThrow(InvalidArgumentException::class);
+});
+
+test('distinct works with an object rule definition', function () {
+    $validator = Validator::make(['items.*.code' => [new \Infocyph\ReqShield\Rules\Distinct()]]);
+
+    expect($validator->validate([
+        'items' => [
+            'alice' => ['code' => 'one'],
+            'bob' => ['code' => 'two'],
+        ],
+    ])->passes())->toBeTrue();
+});
