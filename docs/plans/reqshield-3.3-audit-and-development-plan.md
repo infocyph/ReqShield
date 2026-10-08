@@ -188,7 +188,7 @@ Rollback criteria: reopen the release gate for any reproduced bypass, source-ind
 
 | Batch | Deliverable | Status |
 | --- | --- | --- |
-| A | Input/cache/wildcard/limit repairs with regressions | Planned; findings reproduced |
+| A | Input/cache/wildcard/limit repairs with regressions | In progress; regression-first implementation on PR #17, not yet QA-certified |
 | B | Safe result projection and upload source boundary | Planned; findings reproduced |
 | C | SQL/cast/snapshot/export repairs for 3.3.0 | Planned; findings reproduced |
 | D | Optional per-execution Runwire support | Planned; downstream feasibility verified |
