@@ -21,6 +21,7 @@ use Infocyph\ReqShield\Services\MessageTokenBuilder;
 use Infocyph\ReqShield\Services\SanitizerMapApplier;
 use Infocyph\ReqShield\Support\FieldAlias;
 use Infocyph\ReqShield\Support\FieldPlan;
+use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\RuleDefinitionSnapshot;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 use Infocyph\ReqShield\Support\ValidationPlan;
@@ -735,6 +736,13 @@ class Validator
     public function validate(array $data): ValidationResult
     {
         $this->assertInputWithinLimits($data);
+        foreach ($data as $field => $value) {
+            if (is_string($field) && str_contains($field, '.')
+                && NestedValidator::has($data, $field)
+                && NestedValidator::extractValue($data, $field) !== $value) {
+                throw new \\InvalidArgumentException('Conflicting dotted and nested input representations.');
+            }
+        }
         $originalData = $data;
         [$data, $plan] = $this->prepareValidationDataAndSchema($data);
         $context = $this->initializeValidationContext();
