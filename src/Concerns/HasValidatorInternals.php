@@ -787,7 +787,7 @@ trait HasValidatorInternals
                 [
                     $rulesCacheKey,
                     $this->nestedFlattenMode,
-                    NestedValidator::shapeSignature($data),
+                    HashAlgorithm::shapeCacheKey($data),
                 ],
             );
 

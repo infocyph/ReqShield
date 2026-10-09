@@ -31,6 +31,29 @@ final class HashAlgorithm
         return $algorithm;
     }
 
+    /**
+     * Returns a byte-exact structural cache key for small inputs. Large inputs
+     * use bounded, cryptographically hashed shape encoding.
+     *
+     * @param array<int|string,mixed> $data
+     */
+    public static function shapeCacheKey(array $data): string
+    {
+        $context = null;
+        $buffer = '';
+        static::updateShapeHash($context, $data, $buffer);
+
+        if ($context === null) {
+            return 'raw:' . $buffer;
+        }
+
+        if ($buffer !== '') {
+            hash_update($context, $buffer);
+        }
+
+        return 'sha256:' . hash_final($context);
+    }
+
     /** @param array<int|string,mixed> $data */
     public static function shapeSignature(array $data): string
     {
