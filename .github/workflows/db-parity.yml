@@ -12,16 +12,21 @@ permissions:
 
 jobs:
   typed-candidates:
-    name: Typed SQL parity - ${{ matrix.php }} - ${{ matrix.driver }}
+    name: Typed SQL parity - ${{ matrix.php }} - ${{ matrix.driver }} - ${{ matrix.mysql_image }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.4', '8.5']
-        driver: [mysql, pgsql]
+        include:
+          - {php: '8.4', driver: mysql, mysql_image: 'mysql:8.4'}
+          - {php: '8.5', driver: mysql, mysql_image: 'mysql:8.4'}
+          - {php: '8.4', driver: mysql, mysql_image: 'mysql:9.7'}
+          - {php: '8.5', driver: mysql, mysql_image: 'mysql:9.7'}
+          - {php: '8.4', driver: pgsql, mysql_image: 'mysql:8.4'}
+          - {php: '8.5', driver: pgsql, mysql_image: 'mysql:8.4'}
     services:
       mysql:
-        image: mysql:8.4
+        image: ${{ matrix.mysql_image }}
         env:
           MYSQL_DATABASE: reqshield
           MYSQL_USER: reqshield
