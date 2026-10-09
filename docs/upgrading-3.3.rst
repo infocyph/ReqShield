@@ -26,8 +26,10 @@ Input and Safe Output
 Database and Rule Semantics
 ---------------------------
 
-DBLayer **6.0** is the current optional reference integration. The
-existing DBLayer 5.1 provider still works with ordinary ``validate()``.
+DBLayer **6.0** is the minimum supported optional native integration.
+DBLayer 5.x and ArrayKit below 5.3 are no longer supported and are
+rejected by Composer; there is **no legacy adapter or fallback**. A
+non-database application does not need to install DBLayer.
 Batching preserves individual bound SQL values and the database engine's
 comparison semantics rather than coercing all candidates to one SQL type.
 Queries can use additional parameters and smaller chunks to respect
