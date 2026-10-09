@@ -149,6 +149,9 @@ trait HasValidatorRequestFeatures
     {
         foreach (array_keys($errors) as $field) {
             unset($validated[$field]);
+            if (str_contains($field, '.')) {
+                $this->pruneParentPath($validated, $field);
+            }
         }
 
         foreach ($fields as $field) {
