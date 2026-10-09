@@ -83,5 +83,5 @@ The repository also supplies ``probes/db-cross-engine-parity.php``,
 ``probes/runwire-persistent-soak.php`` and ``probes/host-http/``. Their hosted
 workflows exercise released dependencies, SQL engines, a 300-second host
 lifecycle and correct PHP-FPM HTTP workloads. A certificate applies only to
-its recorded commit and workload; see :doc:`release-3.3-verification` for the
-current acceptance status and remaining application-specific evidence.
+its recorded commit and workload; see :doc:`benchmark` for acceptance
+requirements and the scope of the hosted evidence.

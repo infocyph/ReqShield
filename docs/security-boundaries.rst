@@ -100,4 +100,4 @@ and before result delivery. They prevent subsequent library-dispatched
 callbacks; they cannot interrupt a running synchronous callback or undo
 its already committed side effects.
 
-See :doc:`runwire-integration` and :doc:`release-3.3-verification`.
+See :doc:`runwire-integration` and :doc:`benchmark`.
