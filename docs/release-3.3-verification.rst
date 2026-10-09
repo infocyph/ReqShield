@@ -12,7 +12,7 @@ Batch Evidence
 * B: ``790f8a9``, hosted run ``37863850902``, passed.
 * C: ``9135b8d``, hosted run ``37864826678``, passed.
 * D: ``8223ff9``, hosted run ``37866171652``, passed.
-* E: hosted PHPForge/Sphinx and real MySQL/PostgreSQL SQL-parity suites passed at candidate `5e81576`; production-host RPM, persistent-worker soak, final release guard and tag decision are still open. The final PR SHA must be rechecked after any documentation updates.
+* E: PHPForge full matrix, PHPForge release guard, Sphinx and MySQL/PostgreSQL parity passed on code candidate ``76b36f4``. See GitHub Actions runs ``37868272105``, ``37868271547``, ``37868271528`` and ``37868271577``. Production-host RPM, persistent-worker soak and MySQL 9.x checks remain open. The final PR SHA must be rechecked after these documentation updates.
 
 Unverified Final Gates
 ----------------------
