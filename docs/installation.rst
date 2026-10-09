@@ -36,8 +36,9 @@ Runwire **2.1.1**:
 
 ReqShield's production dependencies do not require either package. Use
 ``validate()`` without Runwire, or ``validateWithRunwire()`` when the
-application passes an existing host runtime/request/scope. The native
-DBLayer 5.1 bridge remains usable for ordinary database validations
-without DBLayer 6's Runwire query binding.
+application passes an existing host runtime/request/scope. **No legacy fallback is supported:** ReqShield conflicts with any installed
+DBLayer version below 6.0 or ArrayKit version below 5.3. When a native
+DBLayer bridge is installed, it uses DBLayer 6 APIs directly. DBLayer
+remains optional for ordinary validation.
 
 See :doc:`runwire-integration` and :doc:`database-rules` for details.
