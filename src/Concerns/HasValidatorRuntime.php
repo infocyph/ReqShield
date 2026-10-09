@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Infocyph\ReqShield\Concerns;
 
 use Infocyph\ReqShield\Contracts\Rule;
+use Infocyph\ReqShield\Support\RunwireExecution;
 use Infocyph\ReqShield\Support\InputCaster;
 use Infocyph\ReqShield\Support\JsonSchemaTypeHelper;
 use Infocyph\ReqShield\Support\ValueStringifier;
@@ -388,7 +389,7 @@ trait HasValidatorRuntime
      *   }>
      * } $context
      */
-    protected function executeBatchedRules(array &$context): void
+    protected function executeBatchedRules(array &$context, ?RunwireExecution $execution = null): void
     {
         if (
             $context['expensiveBatch'] === []
@@ -402,6 +403,7 @@ trait HasValidatorRuntime
             $context['errors'],
             $context['failures'],
             $this->stopOnFirstError,
+            $execution,
         );
 
         if ($context['errors'] !== []) {

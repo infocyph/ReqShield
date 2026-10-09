@@ -6,6 +6,8 @@ namespace Infocyph\ReqShield\Executors;
 
 use Infocyph\ReqShield\Contracts\DatabaseBatchRule;
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
+use Infocyph\ReqShield\Support\RunwireExecution;
 use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Exceptions\DatabaseProviderRequiredException;
 use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
@@ -38,6 +40,7 @@ final class BatchExecutor
         array &$errors,
         array &$failures = [],
         bool $stopOnFirstError = false,
+        ?RunwireExecution $execution = null,
     ): void {
         if ($batch === []) {
             return;
@@ -48,7 +51,9 @@ final class BatchExecutor
         }
 
         $prepared = $this->prepare($batch);
-        $failed = $this->runGroups($prepared, $this->db);
+        $execution?->checkpoint();
+        $failed = $this->runGroups($prepared, $this->db, $execution);
+        $execution?->checkpoint();
         $failedFields = [];
 
         foreach ($prepared as $check) {
@@ -185,7 +190,7 @@ final class BatchExecutor
      * @param list<Prepared> $prepared
      * @return array<int,true>
      */
-    private function runGroups(array $prepared, DatabaseProvider $db): array
+    private function runGroups(array $prepared, DatabaseProvider $db, ?RunwireExecution $execution = null): array
     {
         $groups = [];
         foreach ($prepared as $check) {
@@ -199,9 +204,15 @@ final class BatchExecutor
             $payload = array_column($checks, 'payload');
 
             try {
-                $returned = $rule->operation() === 'unique'
-                    ? $db->batchUnique($rule->table(), $payload)
-                    : $db->batchExists($rule->table(), $payload);
+                $execution?->checkpoint();
+                $returned = $execution !== null && $db instanceof DBLayerDatabaseProvider
+                    ? $db->batchWithRunwire($rule->operation(), $rule->table(), $payload, $execution)
+                    : ($rule->operation() === 'unique'
+                        ? $db->batchUnique($rule->table(), $payload)
+                        : $db->batchExists($rule->table(), $payload));
+                $execution?->checkpoint();
+            } catch (\Infocyph\Runwire\Exception\CancelledException $exception) {
+                throw $exception;
             } catch (\Throwable $exception) {
                 throw new DatabaseValidationException(
                     "Database validation failed for table '{$rule->table()}'.",
