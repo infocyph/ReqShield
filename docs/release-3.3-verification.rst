@@ -12,7 +12,7 @@ Batch Evidence
 * B: ``790f8a9``, hosted run ``37863850902``, passed.
 * C: ``9135b8d``, hosted run ``37864826678``, passed.
 * D: ``8223ff9``, hosted run ``37866171652``, passed.
-* E: PHPForge full matrix, PHPForge release guard, Sphinx and MySQL/PostgreSQL parity passed on code candidate ``76b36f4``. See GitHub Actions runs ``37868272105``, ``37868271547``, ``37868271528`` and ``37868271577``. Production-host RPM, persistent-worker soak and MySQL 9.x checks remain open. The final PR SHA must be rechecked after these documentation updates.
+* E: QA, security analysis, release guard, database engines and 300-second persistent host soak passed on ``bcb00a4f``. See workflows ``37873607084``, ``37873606200``, ``37873606051``, ``37873605970``, and ``37873606070``. A bounded correct-HTTP FPM comparison against exact 3.2 tag was **rejected** on run ``37873606074``: median successful RPM declines by 2.97%, 2.63%, and 2.20% at concurrency 1, 4, and 8 respectively, beyond the 2% budget. No release certificate is issued; production-host equivalence and final head SHA verification remain open.
 
 Unverified Final Gates
 ----------------------
@@ -25,12 +25,10 @@ Unverified Final Gates
    Check PHP 8.4/8.5, stable/lowest dependencies and E_ALL.
 3. Build the Sphinx documentation with warnings as errors; validate the
    Runwire host and intermediary code examples.
-4. **Partially verified:** SQLite package tests and independent bound
-   candidate parity tests passed on PostgreSQL 18.6 and MySQL 8.4.11 on
-   PHP 8.4/8.5 (11 mixed candidates, exists and unique) in hosted run
-   37867942309. Re-run representative MySQL 9.x, restricted SQL policy,
-   parameter limits and application-specific collation workloads before
-   final release acceptance.
+4. **Cross-engine parity partly complete:** independent batched candidate parity passed
+   on PostgreSQL 18, MySQL 8.4 and MySQL 9.7 on PHP 8.4/8.5 in run
+   ``37873605970``. Restricted SQL policies, constrained parameter counts,
+   and application-specific collations are not certified by this probe.
 5. Repeated median successful host RPM against the 3.2 reference with
    representative passing and failing flat/nested/wildcard work,
    sanitizers/casts, distinct, compiled reuse, and indexed SQL queries.
@@ -39,10 +37,11 @@ Unverified Final Gates
    query/binding counts and database pool occupancy. Cold and warm cache
    series must be measured separately. Investigate sustained regressions
    above the PHPForge 2% acceptance budget.
-6. At least 300 seconds of a real host-owned persistent-worker soak with
-   two interleaved requests, cancellation, tenant/worker switching,
-   failures, fresh scopes and connection-binding cleanup. Require bounded
-   memory/resource use and zero unexpected errors or retained bindings.
+6. **Runwire persistent-worker soak verified:** 300 seconds, 28,774 request
+   cycles, 1,515 cancellation checks, stable bounded PHP allocation, no
+   retained scopes or DBLayer bindings (run ``37873606070``). Actual
+   application worker replacement and framework integration still need
+   deployment-side validation.
 7. Final CI and release guard on the exact PR head SHA after package and
    documentation updates. Record the SHA and all acceptance artifacts.
    Do not merge, tag or publish until remaining gates have passed.
