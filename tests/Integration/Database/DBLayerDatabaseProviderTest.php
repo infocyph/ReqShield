@@ -547,3 +547,54 @@ test('DBLayer provider honors restricted raw SQL policies without changing compa
     [['raw_sql_policy' => 'deny']],
     [['raw_sql_policy' => 'allowlist', 'raw_sql_allowlist' => ['/^COUNT/']]],
 ]);
+
+
+test('batched mixed-type exists comparisons match independent bound candidates', function () {
+    $this->connection->insert(
+        'INSERT INTO edge_values (id, token, deleted_at) VALUES (?, ?, ?)',
+        [5, '001', null],
+    );
+
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+    $checks = [
+        ['id' => 50, 'field' => 'token', 'column' => 'token', 'value' => '001'],
+        ['id' => 51, 'field' => 'token', 'column' => 'token', 'value' => 1],
+        ['id' => 52, 'field' => 'token', 'column' => 'token', 'value' => '0'],
+    ];
+
+    $individual = [];
+    foreach ($checks as $check) {
+        array_push($individual, ...$provider->batchExists('edge_values', [$check]));
+    }
+
+    $batched = $provider->batchExists('edge_values', $checks);
+    sort($individual);
+    sort($batched);
+
+    expect($batched)->toBe($individual);
+});
+
+test('batched unique mixed comparisons retain original ignore predicate bindings', function () {
+    $this->connection->insert(
+        'INSERT INTO edge_values (id, token, deleted_at) VALUES (?, ?, ?)',
+        [5, '001', null],
+    );
+
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+    $checks = [
+        ['id' => 50, 'field' => 'token', 'column' => 'token', 'value' => '001', 'ignore' => 1],
+        ['id' => 51, 'field' => 'token', 'column' => 'token', 'value' => 1, 'ignore' => 1],
+        ['id' => 52, 'field' => 'token', 'column' => 'token', 'value' => '0', 'ignore' => 1],
+    ];
+
+    $individual = [];
+    foreach ($checks as $check) {
+        array_push($individual, ...$provider->batchUnique('edge_values', [$check]));
+    }
+
+    $batched = $provider->batchUnique('edge_values', $checks);
+    sort($individual);
+    sort($batched);
+
+    expect($batched)->toBe($individual);
+});
