@@ -43,7 +43,13 @@ trait HasValidatorExecution
         $execution?->checkpoint();
         $this->executeAfterValidationCallbacks($data, $context);
         $execution?->checkpoint();
-        $this->purgeValidatedDescendants($context['validated'], $plan->fields, $context['errors']);
+        if (!$plan->hasExplicitAncestorFields && $this->afterCallbacks === []) {
+            foreach (array_keys($context['errors']) as $field) {
+                unset($context['validated'][(string) $field]);
+            }
+        } else {
+            $this->purgeValidatedDescendants($context['validated'], $plan->fields, $context['errors']);
+        }
         $result = $this->buildValidationResult($context);
         $this->throwIfValidationShouldFail($result, $context['errors']);
 

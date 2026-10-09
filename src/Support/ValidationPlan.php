@@ -18,6 +18,8 @@ readonly class ValidationPlan
     /** @var array<int,string> */
     public array $fields;
 
+    public bool $hasExplicitAncestorFields;
+
     public bool $hasNestedRules;
 
     public bool $hasWildcardRules;
@@ -75,6 +77,7 @@ readonly class ValidationPlan
         $this->requiredPaths = $requiredPaths;
         $this->dependencyPaths = array_values(array_unique($dependencyPaths));
         $this->inputPaths = array_values(array_unique([...$this->fields, ...$this->dependencyPaths]));
+        $this->hasExplicitAncestorFields = self::containsExplicitAncestors($this->schema);
         $this->wildcardPatterns = $wildcardPatterns;
         $this->wildcardRegexes = array_map(WildcardPath::toRegex(...), $wildcardPatterns);
         $allowedPaths = array_values(array_unique([...$this->fields, ...$this->dependencyPaths]));
@@ -88,6 +91,25 @@ readonly class ValidationPlan
         $this->hasNestedRules = $hasNestedRules;
         $this->hasWildcardRules = $hasWildcardRules;
         $this->requiresDatabase = $requiresDatabase;
+    }
+
+    /** @param array<string,FieldPlan> $schema */
+    private static function containsExplicitAncestors(array $schema): bool
+    {
+        foreach (array_keys($schema) as $field) {
+            $segments = explode('.', $field);
+            array_pop($segments);
+
+            while ($segments !== []) {
+                if (isset($schema[implode('.', $segments)])) {
+                    return true;
+                }
+
+                array_pop($segments);
+            }
+        }
+
+        return false;
     }
 
     /**
