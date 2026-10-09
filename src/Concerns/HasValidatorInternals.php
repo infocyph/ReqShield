@@ -381,16 +381,6 @@ trait HasValidatorInternals
             || (is_countable($value) && count($value) === 0);
     }
 
-    /** @param array<int|string, mixed> $definition */
-    protected function isSchemaRuleDefinition(array $definition): bool
-    {
-        return array_key_exists('rules', $definition)
-            || array_key_exists('sanitize', $definition)
-            || array_key_exists('sanitizers', $definition)
-            || array_key_exists('cast', $definition)
-            || array_key_exists('alias', $definition);
-    }
-
     /** @param array<int|string,mixed> $rules */
     protected function isProcessCacheSafeSchema(array $rules): bool
     {
@@ -411,6 +401,16 @@ trait HasValidatorInternals
         }
 
         return true;
+    }
+
+    /** @param array<int|string, mixed> $definition */
+    protected function isSchemaRuleDefinition(array $definition): bool
+    {
+        return array_key_exists('rules', $definition)
+            || array_key_exists('sanitize', $definition)
+            || array_key_exists('sanitizers', $definition)
+            || array_key_exists('cast', $definition)
+            || array_key_exists('alias', $definition);
     }
 
     /** @return list<string> */

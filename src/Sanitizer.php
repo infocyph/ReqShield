@@ -581,20 +581,10 @@ class Sanitizer
         return $allowed === [] ? '' : '<' . implode('><', $allowed) . '>';
     }
 
-    /** @param array<int, mixed> $sanitizers */
+    /** @param array<int,mixed> $sanitizers */
     protected static function pipelineCacheKey(array $sanitizers): ?string
     {
-        $parts = [];
-
-        foreach ($sanitizers as $sanitizer) {
-            if (!is_string($sanitizer)) {
-                return null;
-            }
-
-            $parts[] = $sanitizer;
-        }
-
-        return serialize($parts);
+        return \Infocyph\ReqShield\Support\SanitizerCallableResolver::cacheKey($sanitizers);
     }
 
     protected static function pregReplace(
@@ -641,24 +631,9 @@ class Sanitizer
         return $resolved;
     }
 
-    protected static function resolveSanitizerCallable(
-        mixed $sanitizer,
-    ): ?callable {
-        if (is_string($sanitizer)) {
-            if (method_exists(self::class, $sanitizer)) {
-                return static fn(mixed $input): mixed => self::{$sanitizer}($input);
-            }
-
-            if (is_callable($sanitizer)) {
-                return static fn(mixed $input): mixed => $sanitizer($input);
-            }
-
-            return null;
-        }
-
-        return is_callable($sanitizer)
-            ? static fn(mixed $input): mixed => $sanitizer($input)
-            : null;
+    protected static function resolveSanitizerCallable(mixed $sanitizer): ?callable
+    {
+        return \Infocyph\ReqShield\Support\SanitizerCallableResolver::resolve($sanitizer);
     }
 
     // ============================================
