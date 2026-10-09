@@ -19,6 +19,10 @@ trait HasValidatorExecution
      */
     protected function finalizeValidatedProjection(array &$context, \Infocyph\ReqShield\Support\ValidationPlan $plan): void
     {
+        if (!$plan->hasExplicitAncestorFields && $this->afterCallbacks === [] && $context['errors'] === []) {
+            return;
+        }
+
         if (!$plan->hasExplicitAncestorFields && $this->afterCallbacks === []) {
             foreach (array_keys($context['errors']) as $field) {
                 unset($context['validated'][(string) $field]);
@@ -64,9 +68,7 @@ trait HasValidatorExecution
         $execution?->checkpoint();
         $this->executeAfterValidationCallbacks($data, $context);
         $execution?->checkpoint();
-        if ($plan->hasExplicitAncestorFields || $this->afterCallbacks !== [] || $context['errors'] !== []) {
-            $this->finalizeValidatedProjection($context, $plan);
-        }
+        $this->finalizeValidatedProjection($context, $plan);
         $result = $this->buildValidationResult($context);
         $this->throwIfValidationShouldFail($result, $context['errors']);
 
