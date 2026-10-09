@@ -48,7 +48,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
     /**
      * Bind only host-provided Runwire context for one logical database batch.
      *
-     * @param list<array<string,mixed>> $checks
+     * @param list<Check> $checks
      * @return list<int>
      */
     public function batchWithRunwire(
@@ -62,13 +62,15 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         }
 
         $connection = $this->resolveConnection();
-        if (!method_exists($connection, 'withRunwire')) {
-            throw new \LogicException('DBLayer 6 withRunwire() is required for cooperative database validation.');
-        }
-
         $callback = fn(): array => $operation === 'unique'
             ? $this->batchUniqueOn($connection, $table, $checks)
             : $this->batchExistsOn($connection, $table, $checks);
+
+        // DBLayer 5.1 is still a supported optional provider. It cannot
+        // borrow query cancellation; ReqShield checkpoints remain in force.
+        if (!in_array('withRunwire', get_class_methods($connection), true)) {
+            return $callback();
+        }
 
         return $connection->withRunwire(
             $execution->runtime,
@@ -76,45 +78,6 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             $execution->request,
             $execution->scope,
         );
-    }
-
-    private function batchExistsOn(Connection $connection, string $table, array $checks): array
-    {
-        $table = $this->sqlIdentifier($table, 'table');
-        $failed = [];
-
-        foreach ($this->groupChecks($checks, ['column']) as $group) {
-            $found = $this->matchedValues($connection, $table, $group, false);
-
-            foreach ($group as $check) {
-                if (!isset($found[$this->valueKey($check['value'])])) {
-                    $failed[] = $check['id'];
-                }
-            }
-        }
-
-        return $failed;
-    }
-
-    private function batchUniqueOn(Connection $connection, string $table, array $checks): array
-    {
-        $table = $this->sqlIdentifier($table, 'table');
-        $failed = [];
-
-        foreach ($this->groupChecks(
-            $checks,
-            ['column', 'ignore', 'id_column', 'include_trashed', 'soft_delete_column'],
-        ) as $group) {
-            $found = $this->matchedValues($connection, $table, $group, true);
-
-            foreach ($group as $check) {
-                if (isset($found[$this->valueKey($check['value'])])) {
-                    $failed[] = $check['id'];
-                }
-            }
-        }
-
-        return $failed;
     }
 
     /**
@@ -144,6 +107,53 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         }
 
         return $query;
+    }
+
+    /**
+     * @param list<Check> $checks
+     * @return list<int>
+     */
+    private function batchExistsOn(Connection $connection, string $table, array $checks): array
+    {
+        $table = $this->sqlIdentifier($table, 'table');
+        $failed = [];
+
+        foreach ($this->groupChecks($checks, ['column']) as $group) {
+            $found = $this->matchedValues($connection, $table, $group, false);
+
+            foreach ($group as $check) {
+                if (!isset($found[$this->valueKey($check['value'])])) {
+                    $failed[] = $check['id'];
+                }
+            }
+        }
+
+        return $failed;
+    }
+
+    /**
+     * @param list<Check> $checks
+     * @return list<int>
+     */
+    private function batchUniqueOn(Connection $connection, string $table, array $checks): array
+    {
+        $table = $this->sqlIdentifier($table, 'table');
+        $failed = [];
+
+        foreach ($this->groupChecks(
+            $checks,
+            ['column', 'ignore', 'id_column', 'include_trashed', 'soft_delete_column'],
+        ) as $group) {
+            $found = $this->matchedValues($connection, $table, $group, true);
+
+            foreach ($group as $check) {
+                if (isset($found[$this->valueKey($check['value'])])) {
+                    $failed[] = $check['id'];
+                }
+            }
+        }
+
+        return $failed;
     }
 
     /**

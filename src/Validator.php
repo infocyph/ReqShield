@@ -748,9 +748,10 @@ class Validator
         ?\Infocyph\Runwire\RequestContext $request = null,
         ?\Infocyph\Runwire\Coroutine\CoroutineScope $scope = null,
     ): ValidationResult {
-        return $this->validateInternal($data, new \Infocyph\ReqShield\Support\RunwireExecution(
-            $runtime, $request, $scope,
-        ));
+        return $this->validateInternal(
+            $data,
+            new \Infocyph\ReqShield\Support\RunwireExecution($runtime, $request, $scope),
+        );
     }
 
     public function when(

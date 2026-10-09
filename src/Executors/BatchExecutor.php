@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Executors;
 
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Contracts\DatabaseBatchRule;
 use Infocyph\ReqShield\Contracts\DatabaseProvider;
-use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
-use Infocyph\ReqShield\Support\RunwireExecution;
 use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Exceptions\DatabaseProviderRequiredException;
 use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
+use Infocyph\ReqShield\Support\RunwireExecution;
 
 /**
  * @phpstan-type BatchItem array{
@@ -91,6 +91,36 @@ final class BatchExecutor
     public function setDatabaseProvider(DatabaseProvider $db): void
     {
         $this->db = $db;
+    }
+
+    /**
+     * @param list<ProviderCheck> $payload
+     * @return list<int>
+     */
+    private function executeGroup(
+        DatabaseProvider $db,
+        DatabaseBatchRule $rule,
+        array $payload,
+        ?RunwireExecution $execution,
+    ): array {
+        try {
+            $execution?->checkpoint();
+            $result = $execution !== null && $db instanceof DBLayerDatabaseProvider
+                ? $db->batchWithRunwire($rule->operation(), $rule->table(), $payload, $execution)
+                : ($rule->operation() === 'unique'
+                    ? $db->batchUnique($rule->table(), $payload)
+                    : $db->batchExists($rule->table(), $payload));
+            $execution?->checkpoint();
+
+            return $result;
+        } catch (\Infocyph\Runwire\Exception\CancelledException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw new DatabaseValidationException(
+                "Database validation failed for table '{$rule->table()}'.",
+                previous: $exception,
+            );
+        }
     }
 
     /**
@@ -203,22 +233,7 @@ final class BatchExecutor
             $rule = $checks[0]['rule'];
             $payload = array_column($checks, 'payload');
 
-            try {
-                $execution?->checkpoint();
-                $returned = $execution !== null && $db instanceof DBLayerDatabaseProvider
-                    ? $db->batchWithRunwire($rule->operation(), $rule->table(), $payload, $execution)
-                    : ($rule->operation() === 'unique'
-                        ? $db->batchUnique($rule->table(), $payload)
-                        : $db->batchExists($rule->table(), $payload));
-                $execution?->checkpoint();
-            } catch (\Infocyph\Runwire\Exception\CancelledException $exception) {
-                throw $exception;
-            } catch (\Throwable $exception) {
-                throw new DatabaseValidationException(
-                    "Database validation failed for table '{$rule->table()}'.",
-                    previous: $exception,
-                );
-            }
+            $returned = $this->executeGroup($db, $rule, $payload, $execution);
 
             $known = array_fill_keys(array_column($checks, 'id'), true);
             $seen = [];
