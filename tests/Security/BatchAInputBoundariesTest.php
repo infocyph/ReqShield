@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Infocyph\ReqShield\Exceptions\InputLimitException;
+use Infocyph\ReqShield\Support\HashAlgorithm;
 use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Validator;
 
@@ -150,4 +151,21 @@ test('canonical shape digest remains byte-identical across bounded hash buffer f
 
     expect(NestedValidator::shapeSignature($payload))
         ->toBe(hash('sha256', $encode($payload)));
+});
+
+test('wildcard cache shape keys preserve byte-exact key types and large inputs', function () {
+    $left = ['items' => ['k;{s:' => 7]];
+    $right = ['items' => ['k' => ['s:' => 7]]];
+
+    expect(HashAlgorithm::shapeCacheKey($left))
+        ->toStartWith('raw:')
+        ->not->toBe(HashAlgorithm::shapeCacheKey($right));
+
+    $large = ['items' => []];
+    for ($index = 0; $index < 1_500; ++$index) {
+        $large['items']['key_' . $index] = $index;
+    }
+
+    expect(HashAlgorithm::shapeCacheKey($large))
+        ->toBe('sha256:' . HashAlgorithm::shapeSignature($large));
 });
