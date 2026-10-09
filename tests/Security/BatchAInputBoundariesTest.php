@@ -129,3 +129,25 @@ test('distinct works with an object rule definition', function () {
         ],
     ])->passes())->toBeTrue();
 });
+
+
+test('canonical shape digest remains byte-identical across bounded hash buffer flushes', function () {
+    $payload = [];
+    for ($index = 0; $index < 1_200; ++$index) {
+        $payload['element_' . $index] = ['value' => $index];
+    }
+
+    $encode = static function (array $data) use (&$encode): string {
+        $bytes = '{';
+        foreach ($data as $key => $value) {
+            $keyString = (string) $key;
+            $bytes .= (is_int($key) ? 'i' : 's') . strlen($keyString) . ':' . $keyString;
+            $bytes .= is_array($value) ? $encode($value) : 's;';
+        }
+
+        return $bytes . '}';
+    };
+
+    expect(NestedValidator::shapeSignature($payload))
+        ->toBe(hash('sha256', $encode($payload)));
+});
