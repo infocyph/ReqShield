@@ -64,13 +64,11 @@ try {
                         'token' => 'tenant_a',
                     ], $runtime, $request, $scope)->passes();
                 });
-                $second = $scope->spawn(static function () use ($scope, $validators, $runtime, $request): bool {
-                    return $validators['tenant_b']->validateWithRunwire([
-                        'user' => ['id' => 'bad'],
-                        'values' => [['id' => 3]],
-                        'token' => 'tenant_b',
-                    ], $runtime, $request, $scope)->fails();
-                });
+                $second = $scope->spawn(static fn(): bool => $validators['tenant_b']->validateWithRunwire([
+                    'user' => ['id' => 'bad'],
+                    'values' => [['id' => 3]],
+                    'token' => 'tenant_b',
+                ], $runtime, $request, $scope)->fails());
 
                 $results = [$first->await(), $second->await()];
                 $scope->sleep(0.01);
