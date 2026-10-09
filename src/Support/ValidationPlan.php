@@ -93,25 +93,6 @@ readonly class ValidationPlan
         $this->requiresDatabase = $requiresDatabase;
     }
 
-    /** @param array<string,FieldPlan> $schema */
-    private static function containsExplicitAncestors(array $schema): bool
-    {
-        foreach (array_keys($schema) as $field) {
-            $segments = explode('.', $field);
-            array_pop($segments);
-
-            while ($segments !== []) {
-                if (isset($schema[implode('.', $segments)])) {
-                    return true;
-                }
-
-                array_pop($segments);
-            }
-        }
-
-        return false;
-    }
-
     /**
      * @param list<string> $paths
      * @return array{array<string,true>,array<string,true>}
@@ -138,4 +119,24 @@ readonly class ValidationPlan
 
         return [$prefixes, $wildcards];
     }
+    /** @param array<string,FieldPlan> $schema */
+    private static function containsExplicitAncestors(array $schema): bool
+    {
+        foreach (array_keys($schema) as $field) {
+            $segments = explode('.', $field);
+            array_pop($segments);
+
+            while ($segments !== []) {
+                if (isset($schema[implode('.', $segments)])) {
+                    return true;
+                }
+
+                array_pop($segments);
+            }
+        }
+
+        return false;
+    }
+
+
 }
