@@ -298,7 +298,10 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         $bindings = [];
         foreach ($values as $index => $value) {
             $sourceParts[] = 'SELECT ' . $index . ' AS candidate_key WHERE EXISTS (' . $candidateSql . ')';
-            array_push($bindings, ...$fixedBindings, $value);
+            foreach ($fixedBindings as $binding) {
+                $bindings[] = $binding;
+            }
+            $bindings[] = $value;
         }
 
         $rows = $connection->query()
