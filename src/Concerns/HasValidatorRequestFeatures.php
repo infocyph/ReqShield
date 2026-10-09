@@ -226,12 +226,24 @@ trait HasValidatorRequestFeatures
      */
     protected function purgeValidatedDescendants(array &$validated, array $fields, array $errors): void
     {
+        $hasValidatedParents = false;
+        foreach ($validated as $value) {
+            if (is_array($value)) {
+                $hasValidatedParents = true;
+                break;
+            }
+        }
+
         foreach (array_keys($errors) as $field) {
             $field = (string) $field;
             unset($validated[$field]);
-            if (str_contains($field, '.')) {
+            if ($hasValidatedParents && str_contains($field, '.')) {
                 $this->pruneParentPath($validated, $field);
             }
+        }
+
+        if (!$hasValidatedParents) {
+            return;
         }
 
         foreach ($fields as $field) {
