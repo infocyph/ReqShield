@@ -122,5 +122,4 @@ readonly class ValidationPlan
 
         return [$prefixes, $wildcards];
     }
-
 }
