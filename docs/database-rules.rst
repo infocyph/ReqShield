@@ -127,8 +127,9 @@ resolves the connection only once per provider operation.
 When the caller uses ``validateWithRunwire()``, ReqShield borrows the
 host runtime/request/scope through DBLayer 6's ``Connection::withRunwire()``
 for a complete logical provider batch and restores the prior binding on
-exit. DBLayer 5.1 can still execute the ordinary provider path; it cannot
-promise DBLayer 6's scoped query cancellation. See
+exit. DBLayer 5.x is **not supported**; there is no bridge fallback.
+The package requires an installed DBLayer 6 when native bridge functionality
+is used, and rejects older ArrayKit versions through Composer constraints. See
 :doc:`runwire-integration`.
 
 The deterministic SQLite integration matrix covers flat, nested, wildcard,
