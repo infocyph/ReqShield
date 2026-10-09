@@ -89,7 +89,11 @@ final class InputCaster
         }
 
         if (is_float($value)) {
-            return is_finite($value) && floor($value) === $value ? (int) $value : null;
+            return is_finite($value) && floor($value) === $value
+                && $value >= (float) PHP_INT_MIN
+                && $value < (float) PHP_INT_MAX + 1.0
+                ? (int) $value
+                : null;
         }
 
         if (is_string($value) && preg_match('/^[+-]?\d+$/D', $value) === 1) {

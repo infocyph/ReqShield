@@ -176,18 +176,14 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             $sampleValue,
         );
         $sql = $candidate->toSql();
-        $position = strrpos($sql, '?');
-        if ($position === false) {
+        if (!str_contains($sql, '?')) {
             throw new \LogicException('Database candidate query must contain a value binding.');
         }
 
         $bindings = $candidate->getBindings();
         array_pop($bindings);
 
-        return [
-            substr_replace($sql, 'c.candidate_value', $position, 1),
-            $bindings,
-        ];
+        return [$sql, $bindings];
     }
 
     /** @param non-empty-string $idColumn */
@@ -272,8 +268,8 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             $values[0],
         );
         $chunkSize = $connection->safeBatchSize(
-            parametersPerRow: 1,
-            fixedBindings: count($fixedBindings),
+            parametersPerRow: count($fixedBindings) + 1,
+            fixedBindings: 0,
             requested: min(count($values), $this->maxBatchValues),
         );
         $found = [];
@@ -299,17 +295,15 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         array $values,
     ): array {
         $sourceParts = [];
+        $bindings = [];
         foreach ($values as $index => $value) {
-            unset($value);
-            $sourceParts[] = $index === 0
-                ? 'SELECT ' . $index . ' AS candidate_key, ? AS candidate_value'
-                : 'SELECT ' . $index . ', ?';
+            $sourceParts[] = 'SELECT ' . $index . ' AS candidate_key WHERE EXISTS (' . $candidateSql . ')';
+            array_push($bindings, ...$fixedBindings, $value);
         }
 
         $rows = $connection->query()
-            ->fromSub(implode(' UNION ALL ', $sourceParts), 'c', $values)
+            ->fromSub(implode(' UNION ALL ', $sourceParts), 'c', $bindings)
             ->addSelectAs('c.candidate_key', 'candidate_key')
-            ->whereRaw('EXISTS (' . $candidateSql . ')', $fixedBindings)
             ->get();
 
         $matched = [];

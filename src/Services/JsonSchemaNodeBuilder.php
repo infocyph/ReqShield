@@ -196,6 +196,12 @@ final class JsonSchemaNodeBuilder
 
         if ($segment === '*') {
             $items = &$this->ensureItemsNode($node);
+            if ($isLast) {
+                $items = $property;
+
+                return;
+            }
+
             $this->addPropertyAtPath($items, $segments, $index + 1, $property, $required);
 
             return;

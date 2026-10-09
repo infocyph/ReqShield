@@ -22,6 +22,12 @@ class SecureFile extends BaseRule
         $this->uploadMetaRule = new UploadMeta($this->mode, $maxFilenameLength);
     }
 
+    public function __clone()
+    {
+        $this->fileRule = clone $this->fileRule;
+        $this->uploadMetaRule = clone $this->uploadMetaRule;
+    }
+
     public function cost(): int
     {
         return 65;
