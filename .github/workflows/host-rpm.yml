@@ -33,10 +33,10 @@ jobs:
           tools: composer:v2
           coverage: none
 
-      - name: Install PHP-FPM, nginx, wrk, and system metrics
+      - name: Install nginx, wrk, and system metrics
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y php8.4-fpm nginx wrk
+          sudo apt-get install -y nginx wrk
           python3 -m pip install --break-system-packages psutil
 
       - name: Install production-only dependencies in both trees
@@ -46,27 +46,22 @@ jobs:
           cp candidate/probes/host-http/endpoint.php baseline/endpoint.php
           cp candidate/probes/host-http/endpoint.php candidate/endpoint.php
 
-      - name: Start one real PHP-FPM pool behind nginx on two ports
+      - name: Start real PHP 8.4 FPM container and nginx on two ports
         run: |
-          cat > /tmp/reqshield-fpm.conf <<EOF
-          [global]
-          pid = /tmp/reqshield-fpm.pid
-          error_log = /tmp/reqshield-php-fpm-error.log
-          daemonize = yes
-          [www]
-          user = runner
-          group = runner
-          listen = 127.0.0.1:9123
-          pm = static
-          pm.max_children = 10
-          request_terminate_timeout = 20s
-          catch_workers_output = yes
-          clear_env = no
-          php_admin_value[memory_limit] = 256M
-          php_admin_value[opcache.enable] = 1
+          mkdir -p /tmp/reqshield-fpm-context
+          cat > /tmp/reqshield-fpm-context/Dockerfile <<'EOF'
+          FROM php:8.4-fpm
+          RUN apt-get update -qq \
+              && apt-get install -y --no-install-recommends libonig-dev \
+              && docker-php-ext-install -j2 mbstring opcache \
+              && rm -rf /var/lib/apt/lists/*
           EOF
-          sudo php-fpm8.4 -y /tmp/reqshield-fpm.conf -t
-          sudo php-fpm8.4 -y /tmp/reqshield-fpm.conf
+          docker build -t reqshield-php84-fpm /tmp/reqshield-fpm-context
+          docker run -d --name reqshield-fpm \
+            --publish 127.0.0.1:9123:9000 \
+            --volume "$PWD:/workspace:ro" \
+            reqshield-php84-fpm
+          docker inspect --format '{{.State.Pid}}' reqshield-fpm > /tmp/reqshield-fpm.pid
 
           cat > /tmp/reqshield-nginx.conf <<'EOF'
           worker_processes 2;
@@ -81,7 +76,7 @@ jobs:
               root REQSHIELD_BASELINE;
               location = /endpoint.php {
                 include /etc/nginx/fastcgi_params;
-                fastcgi_param SCRIPT_FILENAME REQSHIELD_BASELINE/endpoint.php;
+                fastcgi_param SCRIPT_FILENAME /workspace/baseline/endpoint.php;
                 fastcgi_pass 127.0.0.1:9123;
               }
             }
@@ -90,7 +85,7 @@ jobs:
               root REQSHIELD_CANDIDATE;
               location = /endpoint.php {
                 include /etc/nginx/fastcgi_params;
-                fastcgi_param SCRIPT_FILENAME REQSHIELD_CANDIDATE/endpoint.php;
+                fastcgi_param SCRIPT_FILENAME /workspace/candidate/endpoint.php;
                 fastcgi_pass 127.0.0.1:9123;
               }
             }
@@ -100,8 +95,16 @@ jobs:
           sudo nginx -t -c /tmp/reqshield-nginx.conf
           sudo nginx -c /tmp/reqshield-nginx.conf
           for port in 8091 8092; do
-            response="$(curl -sS --fail -X POST --header 'Content-Type: application/json' --data '{"seed":42}' "http://127.0.0.1:$port/endpoint.php")"
-            test "$response" = 'ok'
+            for attempt in $(seq 1 30); do
+              response="$(curl -sS --fail -X POST --header 'Content-Type: application/json' --data '{"seed":42}' "http://127.0.0.1:$port/endpoint.php" || true)"
+              if [ "$response" = 'ok' ]; then break; fi
+              sleep 1
+            done
+            test "$response" = 'ok' || {
+              docker logs reqshield-fpm
+              cat /tmp/reqshield-nginx-error.log
+              exit 1
+            }
           done
           echo "Both baseline and candidate return correct HTTP 200 validation results."
 
