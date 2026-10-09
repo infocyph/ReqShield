@@ -838,7 +838,6 @@ class Validator
         if (!empty($this->sanitizers) || !empty($this->schemaSanitizers)) {
             $data = $this->applySanitizers($data);
             $this->assertInputWithinLimits($data);
-            NestedValidator::assertNoConflictingPaths($data);
         }
 
         $activeRules = $this->prepareRuntimeRules($data);

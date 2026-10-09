@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Concerns;
 
-use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\RunwireExecution;
 use Infocyph\ReqShield\Support\ValidationResult;
 
@@ -15,7 +14,6 @@ trait HasValidatorExecution
     {
         $execution?->checkpoint();
         $this->assertInputWithinLimits($data);
-        NestedValidator::assertNoConflictingPaths($data);
         $originalData = $data;
         [$data, $plan] = $this->prepareValidationDataAndSchema($data);
         $context = $this->initializeValidationContext();

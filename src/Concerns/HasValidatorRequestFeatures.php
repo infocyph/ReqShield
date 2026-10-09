@@ -73,6 +73,7 @@ trait HasValidatorRequestFeatures
     protected function assertInputWithinLimits(array $data): void
     {
         $fields = 0;
+        $hasDottedKey = false;
         /** @var list<array{array<int|string,mixed>,int}> $stack */
         $stack = [[$data, 1]];
 
@@ -82,7 +83,11 @@ trait HasValidatorRequestFeatures
                 throw new InputLimitException("Maximum input depth of {$this->maxDepth} exceeded.");
             }
 
-            foreach ($current as $value) {
+            foreach ($current as $key => $value) {
+                if (is_string($key) && str_contains($key, '.')) {
+                    $hasDottedKey = true;
+                }
+
                 ++$fields;
                 if ($fields > $this->maxInputFields) {
                     throw new InputLimitException("Maximum input field count of {$this->maxInputFields} exceeded.");
@@ -92,6 +97,10 @@ trait HasValidatorRequestFeatures
                     $stack[] = [$value, $depth + 1];
                 }
             }
+        }
+
+        if ($hasDottedKey) {
+            NestedValidator::assertNoConflictingPaths($data);
         }
     }
 
