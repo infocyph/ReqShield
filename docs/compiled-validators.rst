@@ -63,3 +63,16 @@ Database providers are snapshotted by reference because provider lifetime and
 execution-scoped connection resolution belong to the provider/caller contract.
 For persistent runtimes, prefer the resolver-first DBLayer bridge documented in
 :doc:`database-rules`.
+
+Optional Runwire Execution
+--------------------------
+
+``CompiledValidator::validateWithRunwire($data, $runtime, $request, $scope)``
+borrows valid host-owned Runwire 2.1.1 execution contexts for one call.
+The frozen compiled snapshot does not retain a request or coroutine
+scope between calls. Without Runwire, use ``validate($data)``.
+
+Cancellation is propagated to the caller rather than converted to
+field-validation errors. DBLayer 6 can borrow the same host context
+during an optional database check, restoring its prior binding on exit.
+See :doc:`runwire-integration`.
