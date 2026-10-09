@@ -235,6 +235,7 @@ trait HasValidatorRequestFeatures
         foreach ($validated as $value) {
             if (is_array($value)) {
                 $hasValidatedParents = true;
+
                 break;
             }
         }
