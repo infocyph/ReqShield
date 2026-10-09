@@ -107,6 +107,6 @@ abstract class AbstractImageFileRule extends BaseRule
             $bytes .= $chunk;
         }
 
-        return $bytes !== '' && $eof() ? $bytes : null;
+        return $bytes === '' || strlen($bytes) >= self::MAX_STREAM_BYTES ? null : $bytes;
     }
 }
