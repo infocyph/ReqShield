@@ -74,4 +74,5 @@ Table of Contents
    upgrading-3.2
    upgrading-3.3
    release-3.3-verification
+   plans/reqshield-3.3-audit-and-development-plan
    development
