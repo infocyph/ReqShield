@@ -54,4 +54,44 @@ states, and do not count skipped validation as a successful request.
 Also require a real host-owned Runwire persistent worker soak lasting
 at least 300 seconds with cancellations, multiple request contexts,
 worker replacement and verified zero retained database bindings.
-Keep the acceptance record in :doc:`release-3.3-verification`.
+
+Release Checks
+--------------
+
+Before releasing a new revision:
+
+* Verify clean production-only installs both without optional packages and
+  with the supported DBLayer/Runwire chain, including a live advisory audit.
+* Run PHPForge processing, detailed checks and the release guard with all
+  configured detectors and thresholds active. Check native PHP 8.4/8.5,
+  stable/lowest dependencies and ``E_ALL``.
+* Build Sphinx with warnings treated as errors and run the documented host
+  and intermediary integration examples.
+* Compare batched and direct SQL predicates on PostgreSQL and MySQL,
+  including type coercion, collation, ignored IDs and binding limits.
+* Verify matched HTTP throughput and a persistent host-owned Runwire soak.
+  Hosted fixtures do not replace deployment-specific application checks,
+  worker replacement or actual driver/resource policies.
+* Confirm all hosted checks on the exact final revision after code,
+  dependency and documentation changes. Retain the workflow artifacts;
+  earlier certificates cannot certify subsequent changes.
+
+The final 3.3 code and documentation candidate
+``35ea2efa5440aa22021d64dcedb50a2afc5cbde7`` passed all six hosted workflows.
+The `HTTP comparison
+<https://github.com/infocyph/ReqShield/actions/runs/37887599338>`_ measured
+stable median successful RPM changes of +0.53%, +0.49% and +0.94% versus
+the exact 3.2 tag at concurrency 1, 4 and 8, within the unchanged 2%
+regression and 5% sample-variation limits. It used native PHP-FPM 8.4.26,
+OPcache and production-only authoritative autoloaders. The fixture covers
+repeated passing/failing nested and wildcard validation with mutable and
+compiled validators; it does not certify sanitizer, cast, distinct or SQL
+workloads.
+
+The `300-second Runwire/DBLayer soak
+<https://github.com/infocyph/ReqShield/actions/runs/37887599317>`_ passed
+28,450 request cycles and 1,498 cancellation checks with 10 MiB peak PHP
+allocation and zero retained active tasks or database bindings. It covers
+interleaved tenant validations and pre-cancelled requests. Callback/deadline
+cancellation and cooperative yielding are covered separately by regressions.
+Consult the current revision's GitHub checks for new acceptance evidence.

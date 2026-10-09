@@ -75,5 +75,5 @@ Before Release
 
 Validate strict-field behavior, safe results, SQL type parity, custom
 mutable-rule cloning, and host cancellation paths in your application.
-Use :doc:`release-3.3-verification` for the remaining production-host
+Use :doc:`benchmark` for the production-host
 throughput, engine matrix, soak and final-commit acceptance requirements.
