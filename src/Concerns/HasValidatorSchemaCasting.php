@@ -6,6 +6,7 @@ namespace Infocyph\ReqShield\Concerns;
 
 use Infocyph\ReqShield\Exceptions\CastException;
 use Infocyph\ReqShield\Sanitizer;
+use Infocyph\ReqShield\Support\RunwireExecution;
 
 /**
  * @phpstan-type JsonNode array<int|string, mixed>
@@ -44,7 +45,11 @@ trait HasValidatorSchemaCasting
     protected function applyCastDefinition(
         mixed $value,
         array $castDefinition,
+        ?RunwireExecution $execution = null,
     ): mixed {
+        if ($execution !== null) {
+            return $execution->applyPipeline($value, $castDefinition);
+        }
         foreach ($castDefinition as $cast) {
             $value = $cast($value);
         }
@@ -56,7 +61,7 @@ trait HasValidatorSchemaCasting
      * @param DataMap $validated
      * @return DataMap
      */
-    protected function applyCasts(array $validated): array
+    protected function applyCasts(array $validated, ?RunwireExecution $execution = null): array
     {
         $castMap = $this->mergeCastMaps();
         if (empty($castMap)) {
@@ -77,6 +82,7 @@ trait HasValidatorSchemaCasting
             $typed[$field] = $this->applyCastDefinition(
                 $typed[$field],
                 $castDefinition,
+                $execution,
             );
         }
 
@@ -94,7 +100,7 @@ trait HasValidatorSchemaCasting
                     continue;
                 }
 
-                $typed[$field] = $this->applyCastDefinition($value, $castDefinition);
+                $typed[$field] = $this->applyCastDefinition($value, $castDefinition, $execution);
             }
         }
 
@@ -288,8 +294,12 @@ trait HasValidatorSchemaCasting
     }
 
     /** @param list<callable(mixed):mixed> $pipeline */
-    protected function applySanitizerPipeline(mixed $value, array $pipeline): mixed
+    protected function applySanitizerPipeline(mixed $value, array $pipeline, ?RunwireExecution $execution = null): mixed
     {
+        if ($execution !== null) {
+            return $execution->applyPipeline($value, $pipeline);
+        }
+
         return Sanitizer::applyCompiled($value, $pipeline);
     }
 
@@ -297,13 +307,16 @@ trait HasValidatorSchemaCasting
      * @param DataMap $data
      * @return DataMap
      */
-    protected function applySanitizers(array $data): array
+    protected function applySanitizers(array $data, ?RunwireExecution $execution = null): array
     {
         return $this->sanitizerMapApplier->apply(
             $data,
             $this->effectiveSanitizers,
-            fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, $pipeline),
+            fn(mixed $value, array $pipeline): mixed => $this->applySanitizerPipeline($value, $pipeline, $execution),
             fn(string $pattern): string => $this->sanitizerWildcardRegexes[$pattern],
+            function (array $candidate): void {
+                $this->assertInputWithinLimits($candidate);
+            },
         );
     }
 

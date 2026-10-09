@@ -31,9 +31,9 @@ if ($result->passes()) {
 ## Features
 
 -  **108 Built-in Rules** - Basic types, conditional rules, files, database checks, enums, and more
--  **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
+-  **Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
 -  **Intelligent Batching** - Expensive DB checks are batched automatically
--  **Native DBLayer 5.1 Bridge** - Optional resolver-first `exists` / `unique` integration
+-  **Native DBLayer 6 Bridge** - Optional resolver-first `exists` / `unique` integration
 -  **Frozen Compiled Validators** - Reusable snapshots for persistent runtimes and Fiber-interleaved execution
 -  **Schema Registry + Validator Profiles** - Instance-owned frozen schema topology and immutable reusable configuration
 -  **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
@@ -165,9 +165,9 @@ payload validity and safe upload metadata in one rule.
 
 ---
 
-## Available Sanitizers (46 Built-in)
+## Available Sanitizers
 
-ReqShield includes 46 built-in sanitizers covering several common scenarios:
+ReqShield includes built-in sanitizers covering several common scenarios:
 
 - Basic Types
 - Case Conversions
@@ -179,6 +179,11 @@ ReqShield includes 46 built-in sanitizers covering several common scenarios:
 - Array Operations
 
 **[View Complete Sanitizer Reference](https://docs.infocyph.com/projects/reqshield/en/latest/sanitization.html)**
+
+Slug transliteration supports glibc/libiconv or optional Intl, with a separator
+fallback when neither is available. Generated libiconv accent markers no longer
+add extra hyphens: `Café déjà vu` becomes `cafe-deja-vu` when transliteration is
+available. Caller punctuation is preserved before the normal slug filter.
 
 ---
 
@@ -209,6 +214,11 @@ $validator = Validator::make($rules)
     ->stripUnknown();      // remove unknown fields instead of failing
 ```
 
+These policies inspect both original and sanitized input, including nested
+fields introduced by JSON decoding. Unknown descendants are removed from
+validated parent arrays under either policy. See the
+[sanitization guide](docs/sanitization.rst) for a complete example.
+
 ### Enum Validation and Casting
 
 ```php
@@ -218,7 +228,7 @@ $validator = Validator::make($rules)
 ```php
 'status' => [
     'rules' => 'required|enum:App\\Enums\\OrderStatus',
-    'cast' => App\\Enums\\OrderStatus::class,
+    'cast' => App\Enums\OrderStatus::class,
 ]
 ```
 
@@ -278,6 +288,11 @@ $result = $validator->validate($data);
 
 Nested paths are detected automatically and optimized targeted traversal is the default.
 Use `setNestedFlattenMode('all')` only when full flattening is required.
+
+Associative wildcard keys are supported, but keys containing `.`, `,` or `|`
+throw `InvalidArgumentException` before rule evaluation because those delimiters
+cannot safely represent a captured dependency path. This applies to mutable
+and compiled validators. See [nested validation](docs/nested-validation.rst).
 
 ### Custom Field Names
 
@@ -468,7 +483,7 @@ when it is absent. The contract contains only `batchExists()` and `batchUnique()
 ReqShield owns logical validation batching, while providers own query construction
 and driver-safe physical chunking. ReqShield is database-library agnostic: a
 provider may use PDO, DBLayer, Laravel, Doctrine, or another database layer.
-DBLayer 5.1 is the development/reference integration and remains optional for normal consumers. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
+DBLayer **6.0** is the minimum supported native integration and remains optional for consumers. **DBLayer 5.x and ArrayKit versions below 5.3 are unsupported**; Composer rejects those versions if present. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
 
 ```php
 use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
@@ -484,12 +499,47 @@ $validator = Validator::make([
 ], $provider);
 ```
 
-The resolver is invoked only when database rules execute. ReqShield owns logical validation batching; DBLayer 5.1 owns physical bind-limit sizing and query execution.
+The resolver is invoked once per logical database operation. DBLayer 6 owns physical query limits, security policy and binding; typed candidate comparisons may require smaller query chunks.
 
 **Benefits:**
 - **Automatic batching** - Multiple checks become bounded DB-native match queries; restricted raw-SQL policies use query-builder-only lookups
 - **Update support** - `Rule::unique('users', 'email')->ignore(5)` ignores ID 5
 - **Explicit object syntax** - `Rule::unique('users', 'email')->ignore($id)->withoutTrashed()`
+
+### Optional Runwire 2.1.1 integration
+
+DBLayer **6.0** is the intended optional database bridge, and Runwire
+**2.1.1** supplies opt-in host-owned cancellation/deadline integration.
+Neither package is required for ordinary ReqShield validation.
+
+```php
+use Infocyph\ReqShield\Validator;
+
+$compiled = Validator::compile(['items.*.id' => 'required|integer']);
+
+// The active host, not ReqShield, supplies these execution objects.
+$result = $compiled->validateWithRunwire(
+    $payload, $hostRuntime, $hostRequest, $hostScope,
+);
+
+// No Runwire installation is required for the normal path.
+$ordinary = $compiled->validate($payload);
+```
+
+The native DBLayer bridge borrows the host context around one logical
+batch and restores the previous connection binding, including after errors.
+Cancellation and deadlines are checked around sanitizer, condition, rule,
+after-callback and cast invocations, and before result delivery. Host
+cancellation propagates as Runwire's `CancelledException`; ordinary provider
+failures retain the sanitized database exception boundary.
+
+Cooperative yielding requires both the host's advertised coroutine capability
+and a live scope from its current task. Without that capability or scope,
+validation remains synchronous. When no active Runwire runtime is available,
+use `validate()`; intermediary libraries can forward optional host contexts
+and select the same normal path. ReqShield creates no workers or event loops. See
+[Runwire integration](docs/runwire-integration.rst) and
+[upgrading to 3.3](docs/upgrading-3.3.rst).
 
 ### Schema Export / Introspection
 
@@ -527,9 +577,8 @@ Database rules are automatically batched:
 'email' => 'unique:users,email',
 'category_id' => 'exists:categories,id',
 
-// ...become just 2 queries (50x faster!)
-// - One batch for exists checks
-// - One batch for unique checks
+// ...are grouped into logical batches with bounded physical queries.
+// Query counts depend on distinct columns, SQL policy and bind/SQL limits.
 ```
 
 ### 3. **Fail-Fast Execution**
@@ -539,8 +588,8 @@ Stops validating a field on first rule failure:
 // If empty → fails on 'required', skips 'email' and 'max:255'
 ```
 
-### 4. **Zero Overhead for Simple Cases**
-Nested validation only activates if you use dot notation. No performance cost for simple flat arrays.
+### 4. **Fast Ordinary Validation**
+Flat validation does not construct a Runwire context. Use matched-environment, end-to-end host RPM testing to assess production throughput; package microbenchmarks are not a substitute.
 
 
 ## Security

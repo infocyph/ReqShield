@@ -32,11 +32,17 @@
         "ext-mbstring": "*"
     },
     "require-dev": {
-        "infocyph/dblayer": "^5.1",
-        "infocyph/phpforge": "dev-main@dev"
+        "infocyph/dblayer": "^6.0",
+        "infocyph/phpforge": "dev-main@dev",
+        "infocyph/runwire": "2.1.1"
+    },
+    "conflict": {
+        "infocyph/arraykit": "<5.3",
+        "infocyph/dblayer": "<6.0"
     },
     "suggest": {
-        "infocyph/dblayer": "Provides the optional native DBLayer 5.1 exists/unique database-rule bridge."
+        "infocyph/dblayer": "Optional DBLayer 6 exists/unique provider, including host-owned Runwire forwarding.",
+        "infocyph/runwire": "Optional host-owned cancellation/deadline and coroutine integration via validateWithRunwire()."
     },
     "minimum-stability": "stable",
     "prefer-stable": true,

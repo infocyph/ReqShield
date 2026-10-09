@@ -1,0 +1,123 @@
+name: PHP-FPM 3.2-to-3.3 RPM Regression
+
+on:
+  pull_request:
+    branches: [main, master, develop, development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  http-rpm:
+    name: Comparable PHP-FPM HTTP throughput and correctness
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          path: candidate
+
+      - name: Checkout exact baseline tag 3.2
+        uses: actions/checkout@v4
+        with:
+          ref: '3.2'
+          path: baseline
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: fileinfo, hash, mbstring, opcache
+          tools: composer:v2
+          coverage: none
+
+      - name: Install nginx, wrk, and system metrics
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y nginx wrk
+          python3 -m pip install --break-system-packages psutil
+
+      - name: Install production-only dependencies in both trees
+        run: |
+          (cd baseline && composer install --no-dev --prefer-dist --no-interaction --no-progress)
+          (cd candidate && composer install --no-dev --prefer-dist --no-interaction --no-progress)
+          cp candidate/probes/host-http/endpoint.php baseline/endpoint.php
+          cp candidate/probes/host-http/endpoint.php candidate/endpoint.php
+
+      - name: Start real PHP 8.4 FPM container and nginx on two ports
+        run: |
+          mkdir -p /tmp/reqshield-fpm-context
+          cat > /tmp/reqshield-fpm-context/Dockerfile <<'EOF'
+          FROM php:8.4-fpm
+          RUN apt-get update -qq \
+              && apt-get install -y --no-install-recommends libonig-dev \
+              && docker-php-ext-install -j2 mbstring opcache \
+              && rm -rf /var/lib/apt/lists/*
+          EOF
+          docker build -t reqshield-php84-fpm /tmp/reqshield-fpm-context
+          docker run -d --name reqshield-fpm \
+            --publish 127.0.0.1:9123:9000 \
+            --volume "$PWD:/workspace:ro" \
+            reqshield-php84-fpm
+          docker inspect --format '{{.State.Pid}}' reqshield-fpm > /tmp/reqshield-fpm.pid
+
+          cat > /tmp/reqshield-nginx.conf <<'EOF'
+          worker_processes 2;
+          pid /tmp/reqshield-nginx.pid;
+          error_log /tmp/reqshield-nginx-error.log notice;
+          events { worker_connections 2048; }
+          http {
+            access_log off;
+            keepalive_timeout 10;
+            server {
+              listen 127.0.0.1:8091;
+              root REQSHIELD_BASELINE;
+              location = /endpoint.php {
+                include /etc/nginx/fastcgi_params;
+                fastcgi_param SCRIPT_FILENAME /workspace/baseline/endpoint.php;
+                fastcgi_pass 127.0.0.1:9123;
+              }
+            }
+            server {
+              listen 127.0.0.1:8092;
+              root REQSHIELD_CANDIDATE;
+              location = /endpoint.php {
+                include /etc/nginx/fastcgi_params;
+                fastcgi_param SCRIPT_FILENAME /workspace/candidate/endpoint.php;
+                fastcgi_pass 127.0.0.1:9123;
+              }
+            }
+          }
+          EOF
+          sed -i "s|REQSHIELD_BASELINE|$PWD/baseline|g; s|REQSHIELD_CANDIDATE|$PWD/candidate|g" /tmp/reqshield-nginx.conf
+          sudo nginx -t -c /tmp/reqshield-nginx.conf
+          sudo nginx -c /tmp/reqshield-nginx.conf
+          for port in 8091 8092; do
+            for attempt in $(seq 1 30); do
+              response="$(curl -sS --fail -X POST --header 'Content-Type: application/json' --data '{"seed":42}' "http://127.0.0.1:$port/endpoint.php" || true)"
+              if [ "$response" = 'ok' ]; then break; fi
+              sleep 1
+            done
+            test "$response" = 'ok' || {
+              docker logs reqshield-fpm
+              cat /tmp/reqshield-nginx-error.log
+              exit 1
+            }
+          done
+          echo "Both baseline and candidate return correct HTTP 200 validation results."
+
+      - name: Repeated paired successful host RPM measurements
+        env:
+          REQSHIELD_BENCH_WINDOW_SECONDS: '10'
+          REQSHIELD_BENCH_TRIALS: '3'
+        run: python3 candidate/probes/host-http/compare.py
+
+      - name: Save comparable throughput and resource metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reqshield-3.2-vs-3.3-fpm-rpm
+          path: reqshield-host-rpm-report.json
+          if-no-files-found: ignore

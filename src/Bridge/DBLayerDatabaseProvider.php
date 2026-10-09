@@ -37,43 +37,42 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
 
     public function batchExists(string $table, array $checks): array
     {
-        $connection = $this->resolveConnection();
-        $table = $this->sqlIdentifier($table, 'table');
-        $failed = [];
-
-        foreach ($this->groupChecks($checks, ['column']) as $group) {
-            $found = $this->matchedValues($connection, $table, $group, false);
-
-            foreach ($group as $check) {
-                if (!isset($found[$this->valueKey($check['value'])])) {
-                    $failed[] = $check['id'];
-                }
-            }
-        }
-
-        return $failed;
+        return $this->batchExistsOn($this->resolveConnection(), $table, $checks);
     }
 
     public function batchUnique(string $table, array $checks): array
     {
-        $connection = $this->resolveConnection();
-        $table = $this->sqlIdentifier($table, 'table');
-        $failed = [];
+        return $this->batchUniqueOn($this->resolveConnection(), $table, $checks);
+    }
 
-        foreach ($this->groupChecks(
-            $checks,
-            ['column', 'ignore', 'id_column', 'include_trashed', 'soft_delete_column'],
-        ) as $group) {
-            $found = $this->matchedValues($connection, $table, $group, true);
-
-            foreach ($group as $check) {
-                if (isset($found[$this->valueKey($check['value'])])) {
-                    $failed[] = $check['id'];
-                }
-            }
+    /**
+     * Bind only host-provided Runwire context for one logical database batch.
+     *
+     * @param list<Check> $checks
+     * @return list<int>
+     */
+    public function batchWithRunwire(
+        string $operation,
+        string $table,
+        array $checks,
+        \Infocyph\ReqShield\Support\RunwireExecution $execution,
+    ): array {
+        if (!in_array($operation, ['exists', 'unique'], true)) {
+            throw new \InvalidArgumentException('Unsupported database check operation.');
         }
 
-        return $failed;
+        $connection = $this->resolveConnection();
+        $execution->checkpoint();
+        $callback = fn(): array => $operation === 'unique'
+            ? $this->batchUniqueOn($connection, $table, $checks)
+            : $this->batchExistsOn($connection, $table, $checks);
+
+        return $connection->withRunwire(
+            $execution->runtime,
+            $callback,
+            $execution->request,
+            $execution->scope,
+        );
     }
 
     /**
@@ -103,6 +102,53 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         }
 
         return $query;
+    }
+
+    /**
+     * @param list<Check> $checks
+     * @return list<int>
+     */
+    private function batchExistsOn(Connection $connection, string $table, array $checks): array
+    {
+        $table = $this->sqlIdentifier($table, 'table');
+        $failed = [];
+
+        foreach ($this->groupChecks($checks, ['column']) as $group) {
+            $found = $this->matchedValues($connection, $table, $group, false);
+
+            foreach ($group as $check) {
+                if (!isset($found[$this->valueKey($check['value'])])) {
+                    $failed[] = $check['id'];
+                }
+            }
+        }
+
+        return $failed;
+    }
+
+    /**
+     * @param list<Check> $checks
+     * @return list<int>
+     */
+    private function batchUniqueOn(Connection $connection, string $table, array $checks): array
+    {
+        $table = $this->sqlIdentifier($table, 'table');
+        $failed = [];
+
+        foreach ($this->groupChecks(
+            $checks,
+            ['column', 'ignore', 'id_column', 'include_trashed', 'soft_delete_column'],
+        ) as $group) {
+            $found = $this->matchedValues($connection, $table, $group, true);
+
+            foreach ($group as $check) {
+                if (isset($found[$this->valueKey($check['value'])])) {
+                    $failed[] = $check['id'];
+                }
+            }
+        }
+
+        return $failed;
     }
 
     /**
@@ -176,18 +222,14 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             $sampleValue,
         );
         $sql = $candidate->toSql();
-        $position = strrpos($sql, '?');
-        if ($position === false) {
+        if (!str_contains($sql, '?')) {
             throw new \LogicException('Database candidate query must contain a value binding.');
         }
 
         $bindings = $candidate->getBindings();
         array_pop($bindings);
 
-        return [
-            substr_replace($sql, 'c.candidate_value', $position, 1),
-            $bindings,
-        ];
+        return [$sql, $bindings];
     }
 
     /** @param non-empty-string $idColumn */
@@ -271,10 +313,18 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             $unique,
             $values[0],
         );
-        $chunkSize = $connection->safeBatchSize(
-            parametersPerRow: 1,
-            fixedBindings: count($fixedBindings),
-            requested: min(count($values), $this->maxBatchValues),
+        $security = $connection->getConfig()->securityConfig();
+        $maxSqlLength = $security['max_sql_length'] ?? 16_384;
+        $sqlBudget = is_int($maxSqlLength) ? $maxSqlLength : 16_384;
+        $maxSqlCandidates = max(1, intdiv(max(0, $sqlBudget - 1_024), strlen($sql) + 160));
+        $chunkSize = min(
+            64,
+            $maxSqlCandidates,
+            $connection->safeBatchSize(
+                parametersPerRow: count($fixedBindings) + 1,
+                fixedBindings: 0,
+                requested: min(count($values), $this->maxBatchValues),
+            ),
         );
         $found = [];
 
@@ -298,25 +348,30 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         array $fixedBindings,
         array $values,
     ): array {
-        $sourceParts = [];
+        $projections = [];
+        $columns = [];
+        $bindings = [];
+
         foreach ($values as $index => $value) {
-            unset($value);
-            $sourceParts[] = $index === 0
-                ? 'SELECT ' . $index . ' AS candidate_key, ? AS candidate_value'
-                : 'SELECT ' . $index . ', ?';
+            $name = 'matched_' . $index;
+            $columns[] = $name;
+            $projections[] = 'CASE WHEN EXISTS (' . $candidateSql . ') THEN 1 ELSE 0 END AS ' . $name;
+            foreach ($fixedBindings as $binding) {
+                $bindings[] = $binding;
+            }
+            $bindings[] = $value;
         }
 
-        $rows = $connection->query()
-            ->fromSub(implode(' UNION ALL ', $sourceParts), 'c', $values)
-            ->addSelectAs('c.candidate_key', 'candidate_key')
-            ->whereRaw('EXISTS (' . $candidateSql . ')', $fixedBindings)
-            ->get();
+        $query = $connection->query()->fromSub('SELECT ' . implode(', ', $projections), 'c', $bindings);
+        foreach ($columns as $column) {
+            $query->addSelectAs('c.' . $column, $column);
+        }
 
+        $row = $query->get()[0] ?? [];
         $matched = [];
-        foreach ($rows as $row) {
-            $index = $row['candidate_key'] ?? null;
-            if (is_int($index) || (is_string($index) && preg_match('/^\d+$/D', $index) === 1)) {
-                $matched[] = (int) $index;
+        foreach ($columns as $index => $column) {
+            if (in_array($row[$column] ?? null, [1, '1', true], true)) {
+                $matched[] = $index;
             }
         }
 

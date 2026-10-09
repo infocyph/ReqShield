@@ -6,13 +6,23 @@ namespace Infocyph\ReqShield\Rules;
 
 /**
  * Distinct Rule - Cost: 10
- * Array values must be unique (no duplicates)
+ * Array values or members of one expanded wildcard group must be unique.
  */
 class Distinct extends BaseRule
 {
+    public function __construct(private ?string $wildcardPattern = null) {}
+
     public function cost(): int
     {
         return 10;
+    }
+
+    public function forPattern(string $pattern): self
+    {
+        $copy = clone $this;
+        $copy->wildcardPattern = $pattern;
+
+        return $copy;
     }
 
     public function message(string $field): string
@@ -28,67 +38,68 @@ class Distinct extends BaseRule
             return count($value) === count(array_unique($value, SORT_REGULAR));
         }
 
-        $segments = explode('.', $field);
-        $wildcardIndexes = $this->wildcardIndexes($segments);
-        if ($wildcardIndexes === []) {
+        return $this->wildcardPattern !== null
+            && $this->hasUniqueWildcardOccurrence($value, $field, $data, explode('.', $this->wildcardPattern));
+    }
+
+    /**
+     * @param array<int|string,mixed> $data
+     * @param list<string> $pattern
+     */
+    private function hasUniqueWildcardOccurrence(mixed $value, string $field, array $data, array $pattern): bool
+    {
+        $fieldParts = explode('.', $field);
+        if (count($fieldParts) !== count($pattern)) {
             return false;
         }
 
+        $wildcards = array_keys(array_filter($pattern, static fn(string $segment): bool => $segment === '*'));
+        if ($wildcards === []) {
+            return false;
+        }
+
+        $lastWildcard = $wildcards[count($wildcards) - 1];
         $occurrences = 0;
+
         foreach ($data as $candidateField => $candidate) {
-            if (!$this->matchesWildcardValue($candidateField, $candidate, $value, $segments, $wildcardIndexes)) {
+            if (!is_string($candidateField) || $candidate !== $value
+                || !$this->matchesDistinctGroup($candidateField, $fieldParts, $pattern, $lastWildcard)) {
                 continue;
             }
 
-            ++$occurrences;
+            if (++$occurrences > 1) {
+                return false;
+            }
         }
 
         return $occurrences === 1;
     }
 
     /**
-     * @param list<string> $segments
-     * @param list<int> $wildcardIndexes
+     * @param list<string> $fieldParts
+     * @param list<string> $pattern
      */
-    private function matchesWildcardValue(
-        int|string $candidateField,
-        mixed $candidate,
-        mixed $value,
-        array $segments,
-        array $wildcardIndexes,
+    private function matchesDistinctGroup(
+        string $candidateField,
+        array $fieldParts,
+        array $pattern,
+        int $lastWildcard,
     ): bool {
-        if (!is_string($candidateField) || $candidate !== $value) {
+        $candidateParts = explode('.', $candidateField);
+        if (count($candidateParts) !== count($pattern)) {
             return false;
         }
 
-        $candidateSegments = explode('.', $candidateField);
-        if (count($candidateSegments) !== count($segments)) {
-            return false;
-        }
-
-        foreach ($segments as $index => $segment) {
-            if (in_array($index, $wildcardIndexes, true)) {
-                if (!ctype_digit($candidateSegments[$index])) {
-                    return false;
-                }
-
+        foreach ($pattern as $index => $segment) {
+            if ($segment === '*' && $index === $lastWildcard) {
                 continue;
             }
 
-            if ($candidateSegments[$index] !== $segment) {
+            if ($candidateParts[$index] !== ($segment === '*' ? $fieldParts[$index] : $segment)) {
                 return false;
             }
         }
 
         return true;
-    }
-
-    /**
-     * @param list<string> $segments
-     * @return list<int>
-     */
-    private function wildcardIndexes(array $segments): array
-    {
-        return array_keys(array_filter($segments, ctype_digit(...)));
     }
 }

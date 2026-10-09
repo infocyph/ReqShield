@@ -1,0 +1,78 @@
+name: DBLayer 6 Cross-Engine Parity
+
+on:
+  pull_request:
+    branches: [main, master, develop, development]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typed-candidates:
+    name: Typed SQL parity - ${{ matrix.php }} - ${{ matrix.driver }} - ${{ matrix.mysql_image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {php: '8.4', driver: mysql, mysql_image: 'mysql:8.4'}
+          - {php: '8.5', driver: mysql, mysql_image: 'mysql:8.4'}
+          - {php: '8.4', driver: mysql, mysql_image: 'mysql:9.7'}
+          - {php: '8.5', driver: mysql, mysql_image: 'mysql:9.7'}
+          - {php: '8.4', driver: pgsql, mysql_image: 'mysql:8.4'}
+          - {php: '8.5', driver: pgsql, mysql_image: 'mysql:8.4'}
+    services:
+      mysql:
+        image: ${{ matrix.mysql_image }}
+        env:
+          MYSQL_DATABASE: reqshield
+          MYSQL_USER: reqshield
+          MYSQL_PASSWORD: reqshield_test_pw
+          MYSQL_ROOT_PASSWORD: reqshield_root_pw
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: reqshield
+          POSTGRES_USER: reqshield
+          POSTGRES_PASSWORD: reqshield_test_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U reqshield -d reqshield"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install PHP and native database drivers
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, fileinfo, pdo_mysql, pdo_pgsql, pdo_sqlite
+          tools: composer:v2
+          coverage: none
+
+      - name: Resolve DBLayer 6 development dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run independent candidate SQL parity
+        env:
+          REQSHIELD_DB_DRIVER: ${{ matrix.driver }}
+          REQSHIELD_DB_HOST: 127.0.0.1
+          REQSHIELD_DB_PORT: ${{ matrix.driver == 'mysql' && '3306' || '5432' }}
+          REQSHIELD_DB_NAME: reqshield
+          REQSHIELD_DB_USER: reqshield
+          REQSHIELD_DB_PASSWORD: reqshield_test_pw
+        run: php -d error_reporting=-1 probes/db-cross-engine-parity.php

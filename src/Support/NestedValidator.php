@@ -4,10 +4,27 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Support;
 
-use Infocyph\ReqShield\Exceptions\InputLimitException;
-
 final class NestedValidator
 {
+    /** @param array<int|string,mixed> $data */
+    public static function assertNoConflictingPaths(array $data): void
+    {
+        $stack = [[$data, '']];
+        $seen = [];
+
+        while ($stack !== []) {
+            [$current, $prefix] = array_pop($stack);
+
+            foreach ($current as $key => $value) {
+                $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
+                static::rememberInputPath($seen, $path, $value);
+                if (is_array($value)) {
+                    $stack[] = [$value, $path];
+                }
+            }
+        }
+    }
+
     /**
      * @param array<int|string,mixed> $data
      * @param array<string,array{path:string,segments:list<string>,rule:mixed,is_wildcard:bool}> $parsedRules
@@ -28,11 +45,12 @@ final class NestedValidator
                 continue;
             }
 
-            static::expandWildcardSegments(
+            WildcardPath::expandWildcardSegments(
                 $expanded,
                 $data,
                 $ruleData['segments'],
                 [],
+                $ruleData['segments'],
                 $ruleData['rule'],
                 $maxExpansions,
             );
@@ -100,10 +118,11 @@ final class NestedValidator
     /**
      * @param array<int|string,mixed> $data
      * @param array<int,string> $paths
+     * @param array<string,list<string>>|null $pathSegments
      *
      * @return array<string,mixed>
      */
-    public static function flattenForPaths(array $data, array $paths): array
+    public static function flattenForPaths(array $data, array $paths, ?array $pathSegments = null): array
     {
         $flattened = [];
 
@@ -119,7 +138,7 @@ final class NestedValidator
                 continue;
             }
 
-            [$found, $value] = static::findValue($data, $path);
+            [$found, $value] = static::findValue($data, $pathSegments[$path] ?? explode('.', $path));
             if (!$found) {
                 continue;
             }
@@ -257,10 +276,7 @@ final class NestedValidator
     /** @param array<int|string,mixed> $data */
     public static function shapeSignature(array $data): string
     {
-        $context = hash_init(static::resolveShapeHashAlgorithm());
-        static::updateShapeHash($context, $data);
-
-        return hash_final($context);
+        return HashAlgorithm::shapeSignature($data);
     }
 
     /**
@@ -279,125 +295,6 @@ final class NestedValidator
         return $result;
     }
 
-    /** @param list<string> $captures */
-    protected static function bindRuleToken(string $token, array $captures): string
-    {
-        [$name, $params] = RuleExpressionParser::parse($token);
-        if ($params === [] || in_array($name, ['regex', 'not_regex'], true)) {
-            return $token;
-        }
-
-        foreach ($params as &$parameter) {
-            $captureIndex = 0;
-            $parameter = preg_replace_callback(
-                '/(^|\.)\*(?=\.|$)/',
-                static function (array $match) use ($captures, &$captureIndex): string {
-                    $capture = $captures[$captureIndex] ?? end($captures);
-                    ++$captureIndex;
-
-                    return $match[1] . $capture;
-                },
-                $parameter,
-            ) ?? $parameter;
-        }
-        unset($parameter);
-
-        return $name . ':' . implode(',', $params);
-    }
-
-    /** @param list<string> $targetSegments */
-    protected static function bindWildcardDependencies(mixed $definition, string $targetPath, array $targetSegments): mixed
-    {
-        $captures = [];
-        $targetParts = explode('.', $targetPath);
-        foreach ($targetSegments as $index => $segment) {
-            if (ctype_digit($segment) && isset($targetParts[$index])) {
-                $captures[] = $targetParts[$index];
-            }
-        }
-
-        if ($captures === []) {
-            return $definition;
-        }
-
-        if (is_string($definition)) {
-            $tokens = RuleExpressionParser::splitRules($definition);
-            $bound = array_map(
-                static fn(string $token): string => static::bindRuleToken($token, $captures),
-                $tokens,
-            );
-
-            return implode('|', $bound);
-        }
-
-        if (!is_array($definition)) {
-            return $definition;
-        }
-
-        return array_map(
-            static fn(mixed $rule): mixed => is_string($rule)
-                ? static::bindRuleToken($rule, $captures)
-                : $rule,
-            $definition,
-        );
-    }
-
-    /**
-     * @param array<string,mixed> $expanded
-     * @param list<string> $segments
-     * @param list<string> $path
-     */
-    protected static function expandWildcardSegments(
-        array &$expanded,
-        mixed $data,
-        array $segments,
-        array $path,
-        mixed $rule,
-        int $maxExpansions,
-    ): void {
-        if ($segments === []) {
-            if (count($expanded) >= $maxExpansions) {
-                throw new InputLimitException("Maximum wildcard expansion limit of {$maxExpansions} exceeded.");
-            }
-
-            $targetPath = implode('.', $path);
-            $expanded[$targetPath] = static::bindWildcardDependencies($rule, $targetPath, $path);
-
-            return;
-        }
-
-        $segment = $segments[0];
-        $remaining = array_slice($segments, 1);
-
-        if ($segment === '*') {
-            if (!is_array($data)) {
-                return;
-            }
-
-            foreach ($data as $key => $value) {
-                static::expandWildcardSegments(
-                    $expanded,
-                    $value,
-                    $remaining,
-                    [...$path, (string) $key],
-                    $rule,
-                    $maxExpansions,
-                );
-            }
-
-            return;
-        }
-
-        static::expandWildcardSegments(
-            $expanded,
-            is_array($data) && array_key_exists($segment, $data) ? $data[$segment] : null,
-            $remaining,
-            [...$path, $segment],
-            $rule,
-            $maxExpansions,
-        );
-    }
-
     /** @param array<int|string,mixed> $array */
     protected static function isAssociativeArray(array $array): bool
     {
@@ -409,38 +306,26 @@ final class NestedValidator
         return array_keys($array) !== range(0, count($array) - 1);
     }
 
-    protected static function resolveShapeHashAlgorithm(): string
+    /** @param array<string,mixed> $seen */
+    protected static function rememberInputPath(array &$seen, string $path, mixed $value): void
     {
-        return HashAlgorithm::require('xxh3');
-    }
-
-    /** @param array<int|string,mixed> $data */
-    protected static function updateShapeHash(\HashContext $context, array $data): void
-    {
-        hash_update($context, '{');
-
-        foreach ($data as $key => $value) {
-            hash_update($context, 'k:' . $key . ';');
-
-            if (is_array($value)) {
-                static::updateShapeHash($context, $value);
-            } else {
-                hash_update($context, 's;');
-            }
+        if (array_key_exists($path, $seen) && $seen[$path] !== $value) {
+            throw new \InvalidArgumentException('Conflicting dotted and nested input representations.');
         }
 
-        hash_update($context, '}');
+        $seen[$path] = $value;
     }
 
     /**
      * @param array<int|string,mixed> $data
+     * @param list<string> $segments
      * @return array{0:bool,1:mixed}
      */
-    private static function findValue(array $data, string $path): array
+    private static function findValue(array $data, array $segments): array
     {
         $value = $data;
 
-        foreach (explode('.', $path) as $segment) {
+        foreach ($segments as $segment) {
             if ($segment === '*' || !is_array($value) || !array_key_exists($segment, $value)) {
                 return [false, null];
             }

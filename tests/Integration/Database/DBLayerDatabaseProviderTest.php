@@ -183,7 +183,9 @@ test('DBLayer SQLite provider keeps logical batches intact at representative siz
 })->with([1, 2, 10, 100, 1000]);
 
 test('DBLayer SQLite provider uses connection-derived sizing across representative unique batches', function () {
-    $safeSize = $this->connection->safeBatchSize(requested: 128);
+    // Each independent typed SQL comparison is projected into a bounded CASE EXISTS column.
+    // 64 columns is the projection cap, with DBLayer bindings enforcing any tighter cap.
+    $safeSize = min(64, $this->connection->safeBatchSize(requested: 128));
     $sizes = array_unique([1, 2, 10, $safeSize - 1, $safeSize, $safeSize + 1, 100, 1_000]);
 
     foreach ($sizes as $size) {
@@ -205,7 +207,9 @@ test('DBLayer SQLite provider uses connection-derived sizing across representati
 });
 
 test('DBLayer SQLite provider uses connection-derived sizing across representative exists batches', function () {
-    $safeSize = $this->connection->safeBatchSize(requested: 128);
+    // Each independent typed SQL comparison is projected into a bounded CASE EXISTS column.
+    // 64 columns is the projection cap, with DBLayer bindings enforcing any tighter cap.
+    $safeSize = min(64, $this->connection->safeBatchSize(requested: 128));
     $sizes = array_unique([1, 2, 10, $safeSize - 1, $safeSize, $safeSize + 1, 100, 1_000]);
 
     foreach ($sizes as $size) {
@@ -241,16 +245,18 @@ test('DBLayer SQLite provider honors constrained bind limits with one fixed igno
     $result = Validator::make([
         'contacts.*.email' => Rule::unique('users', 'email')->ignore('1'),
     ], $provider)->validate(['contacts' => $contacts]);
+    // Typed per-candidate EXISTS now binds the ignored ID as well as each value.
+    // The old fixed-once binding budget was 31; the correct per-row budget is 16.
     $safeSize = $connection->safeBatchSize(
-        parametersPerRow: 1,
-        fixedBindings: 1,
+        parametersPerRow: 2,
+        fixedBindings: 0,
         requested: 100,
     );
 
     expect($result->passes())->toBeTrue()
-        ->and($safeSize)->toBe(31)
+        ->and($safeSize)->toBe(16)
         ->and($connection->getStats()['queries'])->toBe((int) ceil(100 / $safeSize))
-        ->and($safeSize + 1)->toBeLessThanOrEqual($connection->effectiveMaxBindParameters());
+        ->and($safeSize * 2)->toBeLessThanOrEqual($connection->effectiveMaxBindParameters());
 });
 
 test('DBLayer SQLite provider groups duplicate values and separate columns correctly', function () {
@@ -547,3 +553,54 @@ test('DBLayer provider honors restricted raw SQL policies without changing compa
     [['raw_sql_policy' => 'deny']],
     [['raw_sql_policy' => 'allowlist', 'raw_sql_allowlist' => ['/^COUNT/']]],
 ]);
+
+
+test('batched mixed-type exists comparisons match independent bound candidates', function () {
+    $this->connection->insert(
+        'INSERT INTO edge_values (id, token, deleted_at) VALUES (?, ?, ?)',
+        [5, '001', null],
+    );
+
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+    $checks = [
+        ['id' => 50, 'field' => 'token', 'column' => 'token', 'value' => '001'],
+        ['id' => 51, 'field' => 'token', 'column' => 'token', 'value' => 1],
+        ['id' => 52, 'field' => 'token', 'column' => 'token', 'value' => '0'],
+    ];
+
+    $individual = [];
+    foreach ($checks as $check) {
+        array_push($individual, ...$provider->batchExists('edge_values', [$check]));
+    }
+
+    $batched = $provider->batchExists('edge_values', $checks);
+    sort($individual);
+    sort($batched);
+
+    expect($batched)->toBe($individual);
+});
+
+test('batched unique mixed comparisons retain original ignore predicate bindings', function () {
+    $this->connection->insert(
+        'INSERT INTO edge_values (id, token, deleted_at) VALUES (?, ?, ?)',
+        [5, '001', null],
+    );
+
+    $provider = DBLayerDatabaseProvider::fromConnection($this->connection);
+    $checks = [
+        ['id' => 50, 'field' => 'token', 'column' => 'token', 'value' => '001', 'ignore' => 1],
+        ['id' => 51, 'field' => 'token', 'column' => 'token', 'value' => 1, 'ignore' => 1],
+        ['id' => 52, 'field' => 'token', 'column' => 'token', 'value' => '0', 'ignore' => 1],
+    ];
+
+    $individual = [];
+    foreach ($checks as $check) {
+        array_push($individual, ...$provider->batchUnique('edge_values', [$check]));
+    }
+
+    $batched = $provider->batchUnique('edge_values', $checks);
+    sort($individual);
+    sort($batched);
+
+    expect($batched)->toBe($individual);
+});

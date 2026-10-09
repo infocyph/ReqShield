@@ -30,4 +30,70 @@ final class HashAlgorithm
 
         return $algorithm;
     }
+
+    /**
+     * Returns a byte-exact structural cache key for small inputs. Large inputs
+     * use bounded, cryptographically hashed shape encoding.
+     *
+     * @param array<int|string,mixed> $data
+     */
+    public static function shapeCacheKey(array $data): string
+    {
+        $context = null;
+        $buffer = '';
+        static::updateShapeHash($context, $data, $buffer);
+
+        if ($context === null) {
+            return 'raw:' . $buffer;
+        }
+
+        if ($buffer !== '') {
+            hash_update($context, $buffer);
+        }
+
+        return 'sha256:' . hash_final($context);
+    }
+
+    /** @param array<int|string,mixed> $data */
+    public static function shapeSignature(array $data): string
+    {
+        $context = null;
+        $buffer = '';
+        static::updateShapeHash($context, $data, $buffer);
+
+        if ($context === null) {
+            return hash('sha256', $buffer);
+        }
+
+        if ($buffer !== '') {
+            hash_update($context, $buffer);
+        }
+
+        return hash_final($context);
+    }
+
+    /** @param array<int|string,mixed> $data */
+    protected static function updateShapeHash(?\HashContext &$context, array $data, string &$buffer): void
+    {
+        $buffer .= '{';
+
+        foreach ($data as $key => $value) {
+            $keyBytes = (string) $key;
+            $buffer .= (is_int($key) ? 'i' : 's') . strlen($keyBytes) . ':' . $keyBytes;
+
+            if (strlen($buffer) >= 8_192) {
+                $context ??= hash_init('sha256');
+                hash_update($context, $buffer);
+                $buffer = '';
+            }
+
+            if (is_array($value)) {
+                static::updateShapeHash($context, $value, $buffer);
+            } else {
+                $buffer .= 's;';
+            }
+        }
+
+        $buffer .= '}';
+    }
 }

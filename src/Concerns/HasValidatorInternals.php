@@ -10,6 +10,7 @@ use Infocyph\ReqShield\Support\FieldPlan;
 use Infocyph\ReqShield\Support\HashAlgorithm;
 use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\RuleExpressionParser;
+use Infocyph\ReqShield\Support\RunwireExecution;
 use Infocyph\ReqShield\Support\ValidationPlan;
 use Infocyph\ReqShield\Support\WildcardPath;
 
@@ -37,7 +38,8 @@ use Infocyph\ReqShield\Support\WildcardPath;
  *   errors:array<string, array<int, string>>,
  *   failures:array<int, ValidationFailure>,
  *   validated:array<string, mixed>,
- *   expensiveBatch:array<int, ExpensiveBatchItem>
+ *   expensiveBatch:array<int, ExpensiveBatchItem>,
+ *   execution?:RunwireExecution|null
  * }
  */
 trait HasValidatorInternals
@@ -196,10 +198,11 @@ trait HasValidatorInternals
     protected function applyConditionalRuntimeRules(
         array $activeRules,
         array $data,
+        ?RunwireExecution $execution = null,
     ): array {
         foreach ($this->conditionalRules as $conditionalRule) {
             $condition = $conditionalRule['condition'];
-            if (!$this->evaluateCondition($condition, $data, $activeRules)) {
+            if (!$this->evaluateCondition($condition, $data, $activeRules, $execution)) {
                 continue;
             }
 
@@ -220,9 +223,10 @@ trait HasValidatorInternals
     protected function applyWhenRuntimeRules(
         array $activeRules,
         array $data,
+        ?RunwireExecution $execution = null,
     ): array {
         foreach ($this->whenCallbacks as $whenCallback) {
-            $callback = $this->resolveWhenCallback($whenCallback, $data, $activeRules);
+            $callback = $this->resolveWhenCallback($whenCallback, $data, $activeRules, $execution);
             if (!is_callable($callback)) {
                 continue;
             }
@@ -231,6 +235,7 @@ trait HasValidatorInternals
                 $callback,
                 $data,
                 $activeRules,
+                $execution,
             );
             if ($result === null) {
                 continue;
@@ -323,6 +328,16 @@ trait HasValidatorInternals
         return $compiled;
     }
 
+    /** @param ValidationContext $context */
+    protected function finishNullableField(array &$context, string $field, bool $hasError): bool
+    {
+        if (!$hasError) {
+            $context['validated'][$field] = null;
+        }
+
+        return !$hasError;
+    }
+
     protected function getCachedWildcardPlan(string $cacheKey): ?ValidationPlan
     {
         if (!isset($this->wildcardSchemaCache[$cacheKey])) {
@@ -340,11 +355,16 @@ trait HasValidatorInternals
     protected function invokeCallbackWithSupportedArity(
         callable $callback,
         array $args,
+        ?RunwireExecution $execution = null,
     ): mixed {
         $maxArity = $this->resolveCallableMaxArity($callback);
         $invokeArgs = $maxArity === null || $maxArity >= count($args)
             ? $args
             : array_slice($args, 0, $maxArity);
+
+        if ($execution !== null) {
+            return $execution->invoke(static fn(): mixed => $callback(...$invokeArgs));
+        }
 
         return $callback(...$invokeArgs);
     }
@@ -357,10 +377,12 @@ trait HasValidatorInternals
         callable $callback,
         array $data,
         array $rules,
+        ?RunwireExecution $execution = null,
     ): mixed {
         return $this->invokeCallbackWithSupportedArity(
             $callback,
             [$data, $rules, $this],
+            $execution,
         );
     }
 
@@ -369,6 +391,28 @@ trait HasValidatorInternals
         return $value === null
             || (is_string($value) && trim($value) === '')
             || (is_countable($value) && count($value) === 0);
+    }
+
+    /** @param array<int|string,mixed> $rules */
+    protected function isProcessCacheSafeSchema(array $rules): bool
+    {
+        foreach ($rules as $definition) {
+            if (is_string($definition)) {
+                continue;
+            }
+
+            if (!is_array($definition)) {
+                return false;
+            }
+
+            foreach ($definition as $rule) {
+                if (!is_string($rule)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /** @param array<int|string, mixed> $definition */
@@ -755,7 +799,7 @@ trait HasValidatorInternals
                 [
                     $rulesCacheKey,
                     $this->nestedFlattenMode,
-                    NestedValidator::shapeSignature($data),
+                    HashAlgorithm::shapeCacheKey($data),
                 ],
             );
 
@@ -777,7 +821,7 @@ trait HasValidatorInternals
         }
 
         if ($this->nestedFlattenMode === 'targeted') {
-            $flattened = NestedValidator::flattenForPaths($data, $plan->inputPaths);
+            $flattened = NestedValidator::flattenForPaths($data, $plan->inputPaths, $plan->inputPathSegments);
             if (count($flattened) > $this->maxFlattenedPaths) {
                 throw new \Infocyph\ReqShield\Exceptions\InputLimitException(
                     "Maximum flattened path count of {$this->maxFlattenedPaths} exceeded.",
@@ -802,16 +846,16 @@ trait HasValidatorInternals
      *
      * @return array<int|string,mixed>
      */
-    protected function prepareRuntimeRules(array $data): array
+    protected function prepareRuntimeRules(array $data, ?RunwireExecution $execution = null): array
     {
         if (empty($this->conditionalRules) && empty($this->whenCallbacks)) {
             return $this->rules;
         }
 
         $activeRules = $this->rules;
-        $activeRules = $this->applyConditionalRuntimeRules($activeRules, $data);
+        $activeRules = $this->applyConditionalRuntimeRules($activeRules, $data, $execution);
 
-        return $this->applyWhenRuntimeRules($activeRules, $data);
+        return $this->applyWhenRuntimeRules($activeRules, $data, $execution);
     }
 
     /** @param string|array<int, string> $type */
@@ -861,6 +905,7 @@ trait HasValidatorInternals
                 $context['errors'],
                 $context['failures'],
                 $fieldFailFast,
+                $context['execution'] ?? null,
             )
         ) {
             $hasError = true;
@@ -895,7 +940,7 @@ trait HasValidatorInternals
         array &$context,
     ): bool {
         $fieldLabel = $this->fieldAliasResolver->get($field);
-        if ($this->shouldBypassExcludedField($node, $field, $value, $data)) {
+        if ($this->shouldBypassExcludedField($node, $field, $value, $data, $context['execution'] ?? null)) {
             return true;
         }
 
@@ -917,11 +962,7 @@ trait HasValidatorInternals
         }
 
         if ($value === null && $node->nullable) {
-            if (!$hasError) {
-                $context['validated'][$field] = null;
-            }
-
-            return !$hasError;
+            return $this->finishNullableField($context, $field, $hasError);
         }
 
         if ($node->isOptional && !$node->hasFilledRule && $this->isEmptyValidationValue($value)) {
@@ -1168,11 +1209,13 @@ trait HasValidatorInternals
         array $whenCallback,
         array $data,
         array $activeRules,
+        ?RunwireExecution $execution = null,
     ): ?callable {
         $conditionMet = $this->evaluateCondition(
             $whenCallback['condition'],
             $data,
             $activeRules,
+            $execution,
         );
 
         $callback = $conditionMet
@@ -1188,15 +1231,16 @@ trait HasValidatorInternals
         string $field,
         mixed $value,
         array $data,
+        ?RunwireExecution $execution = null,
     ): bool {
         return $node->hasExcludeRules
-            && $this->shouldExcludeField($node, $field, $value, $data);
+            && $this->shouldExcludeField($node, $field, $value, $data, $execution);
     }
 
     /** @param array<int|string, mixed> $data */
-    protected function shouldExcludeField(FieldPlan $node, string $field, mixed $value, array $data): bool
+    protected function shouldExcludeField(FieldPlan $node, string $field, mixed $value, array $data, ?RunwireExecution $execution = null): bool
     {
-        return array_any($node->excludeRules, fn($rule) => !$rule->passes($value, $field, $data));
+        return array_any($node->excludeRules, fn($rule) => !($execution?->invoke(static fn(): bool => $rule->passes($value, $field, $data)) ?? $rule->passes($value, $field, $data)));
     }
 
     protected function shouldSkipOptionalField(
@@ -1266,7 +1310,7 @@ trait HasValidatorInternals
         array &$context,
         bool $fieldFailFast,
     ): bool {
-        $hasError = !$this->validatePhase(
+        $hasError = $node->cheapRules !== [] && !$this->validatePhase(
             $node->cheapRules,
             $node->cheapRuleNames,
             $node->cheapRulePlaceholders,
@@ -1277,6 +1321,7 @@ trait HasValidatorInternals
             $context['errors'],
             $context['failures'],
             $fieldFailFast,
+            $context['execution'] ?? null,
         );
 
         if ($hasError && $fieldFailFast) {
@@ -1284,7 +1329,7 @@ trait HasValidatorInternals
         }
 
         if (
-            !$this->validatePhase(
+            $node->mediumRules !== [] && !$this->validatePhase(
                 $node->mediumRules,
                 $node->mediumRuleNames,
                 $node->mediumRulePlaceholders,
@@ -1295,6 +1340,7 @@ trait HasValidatorInternals
                 $context['errors'],
                 $context['failures'],
                 $fieldFailFast,
+                $context['execution'] ?? null,
             )
         ) {
             return true;
@@ -1317,19 +1363,25 @@ trait HasValidatorInternals
         bool $fieldFailFast,
         bool $fieldExists,
     ): bool {
-        $rules = [];
-        $names = [];
-        $placeholders = [];
+        $rules = $node->implicitRules;
+        $names = $node->implicitRuleNames;
+        $placeholders = $node->implicitRulePlaceholders;
 
-        foreach ($node->implicitRules as $index => $rule) {
-            $name = $node->implicitRuleNames[$index];
-            if (!$fieldExists && $name === 'filled') {
-                continue;
+        if (!$fieldExists && $node->hasFilledRule) {
+            $rules = [];
+            $names = [];
+            $placeholders = [];
+
+            foreach ($node->implicitRules as $index => $rule) {
+                $name = $node->implicitRuleNames[$index];
+                if ($name === 'filled') {
+                    continue;
+                }
+
+                $rules[] = $rule;
+                $names[] = $name;
+                $placeholders[] = $node->implicitRulePlaceholders[$index];
             }
-
-            $rules[] = $rule;
-            $names[] = $name;
-            $placeholders[] = $node->implicitRulePlaceholders[$index];
         }
 
         return $rules !== [] && !$this->validatePhase(
@@ -1343,6 +1395,7 @@ trait HasValidatorInternals
             $context['errors'],
             $context['failures'],
             $fieldFailFast,
+            $context['execution'] ?? null,
         );
     }
 
@@ -1365,6 +1418,7 @@ trait HasValidatorInternals
         array &$errors,
         array &$failures,
         bool $stopOnFirstFailure,
+        ?RunwireExecution $execution = null,
     ): bool {
         if (empty($rules)) {
             return true;
@@ -1375,7 +1429,7 @@ trait HasValidatorInternals
         foreach ($rules as $index => $rule) {
             $ruleName = $ruleNames[$index] ?? $this->compiler->getRuleNameForRule($rule);
 
-            if ($rule->passes($value, $field, $data)) {
+            if ($execution?->invoke(static fn(): bool => $rule->passes($value, $field, $data)) ?? $rule->passes($value, $field, $data)) {
                 continue;
             }
 
@@ -1388,6 +1442,7 @@ trait HasValidatorInternals
                 $data,
                 $rulePlaceholders[$index] ?? [],
             );
+            $execution?->checkpoint();
 
             $errors[$field][] = $message;
             $failures[] = [

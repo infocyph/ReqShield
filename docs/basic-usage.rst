@@ -121,6 +121,12 @@ Unknown Field Handling
     $validator->strict();      // alias of allowUnknown(false)
     $validator->stripUnknown(); // drop unknown fields instead of failing
 
+These policies inspect both the original input and the sanitized structure,
+including nested fields introduced by ``jsonDecode`` or custom sanitizers.
+They apply in both ``targeted`` and ``all`` nested traversal modes. Unknown
+descendants are removed from validated parent arrays even when strict mode
+returns an error. See :doc:`sanitization` for a complete example.
+
 Throw on Failure
 ----------------
 

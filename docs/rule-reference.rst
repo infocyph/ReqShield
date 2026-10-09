@@ -4,6 +4,8 @@ Complete Rule Reference
 ReqShield supports 108 validation rules, covering a vast range of validation scenarios from basic type checks to complex database and conditional logic.
 
 This page serves as a complete reference, categorized for easy lookup.
+PHP examples show entries to include in a schema array. When several examples
+use the same field name, choose the variant appropriate to your schema.
 
 Basic Type Rules (9)
 --------------------
@@ -113,11 +115,11 @@ The field under validation must be an IP address. You can specify version (``v4`
 
 .. code-block:: php
 
-    'server_ip' => 'ip'              // Any IP
-    'ipv4_addr' => 'ip:v4'           // IPv4 only
-    'ipv6_addr' => 'ip:v6'           // IPv6 only
-    'public_ip' => 'ip:v4,public'    // Public IPv4
-    'private_ip' => 'ip:v4,private'  // Private IPv4
+    'server_ip' => 'ip',              // Any IP
+    'ipv4_addr' => 'ip:v4',           // IPv4 only
+    'ipv6_addr' => 'ip:v6',           // IPv6 only
+    'public_ip' => 'ip:v4,public',    // Public IPv4
+    'private_ip' => 'ip:v4,private',  // Private IPv4
 
 json
 ~~~~
@@ -133,8 +135,8 @@ The field under validation must be a valid RFC 4122 universally unique identifie
 
 .. code-block:: php
 
-    'id' => 'uuid'       // Any version
-    'id' => 'uuid:4'     // Version 4 only
+    'id' => 'uuid',       // Any version
+    'id' => 'uuid:4',     // Version 4 only
 
 ulid
 ~~~~
@@ -286,9 +288,9 @@ The field under validation must have a minimum value. For strings, it validates 
 
 .. code-block:: php
 
-    'age' => 'min:18'           // Minimum value 18
-    'name' => 'string|min:3'    // Minimum 3 characters
-    'items' => 'array|min:2'    // Minimum 2 items
+    'age' => 'min:18',           // Minimum value 18
+    'name' => 'string|min:3',    // Minimum 3 characters
+    'items' => 'array|min:2',    // Minimum 2 items
 
 max
 ~~~
@@ -296,9 +298,9 @@ The field under validation must not exceed the maximum value.
 
 .. code-block:: php
 
-    'age' => 'max:120'          // Maximum value 120
-    'name' => 'string|max:255'  // Maximum 255 characters
-    'items' => 'array|max:10'   // Maximum 10 items
+    'age' => 'max:120',          // Maximum value 120
+    'name' => 'string|max:255',  // Maximum 255 characters
+    'items' => 'array|max:10',   // Maximum 10 items
 
 between
 ~~~~~~~
@@ -306,8 +308,8 @@ The field under validation must have a size between the given min and max.
 
 .. code-block:: php
 
-    'age' => 'between:18,65'
-    'name' => 'string|between:3,50'
+    'age' => 'between:18,65',
+    'name' => 'string|between:3,50',
 
 size
 ~~~~
@@ -315,8 +317,8 @@ The field under validation must have a size matching the given value.
 
 .. code-block:: php
 
-    'pin' => 'size:4'           // Exactly 4 digits
-    'name' => 'string|size:10'  // Exactly 10 characters
+    'pin' => 'size:4',           // Exactly 4 digits
+    'name' => 'string|size:10',  // Exactly 10 characters
 
 digits
 ~~~~~~
@@ -360,8 +362,8 @@ accepts integer forms; negative or reversed precision configuration is rejected.
 
 .. code-block:: php
 
-    'price' => 'decimal:2'      // e.g., 19.99
-    'rate' => 'decimal:0,4'     // 0 to 4 decimal places
+    'price' => 'decimal:2',      // e.g., 19.99
+    'rate' => 'decimal:0,4',     // 0 to 4 decimal places
 
 multiple_of
 ~~~~~~~~~~~
@@ -377,8 +379,8 @@ The field under validation must be greater than the given field.
 
 .. code-block:: php
 
-    'end_date' => 'gt:start_date'
-    'max_price' => 'gt:min_price'
+    'end_date' => 'gt:start_date',
+    'max_price' => 'gt:min_price',
 
 gte (Greater Than or Equal)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -421,8 +423,8 @@ The field under validation must match the given date format.
 
 .. code-block:: php
 
-    'date' => 'date_format:Y-m-d'       // e.g., 2025-01-15
-    'time' => 'date_format:H:i:s'       // e.g., 14:30:00
+    'date' => 'date_format:Y-m-d',       // e.g., 2025-01-15
+    'time' => 'date_format:H:i:s',       // e.g., 14:30:00
 
 date_equals
 ~~~~~~~~~~~
@@ -438,8 +440,8 @@ The field under validation must be a date before the given date.
 
 .. code-block:: php
 
-    'start_date' => 'before:2025-12-31'
-    'start_date' => 'before:end_date'  // Compare with another field
+    'start_date' => 'before:2025-12-31',
+    'start_date' => 'before:end_date',  // Compare with another field
 
 before_or_equal
 ~~~~~~~~~~~~~~~
@@ -455,8 +457,8 @@ The field under validation must be a date after the given date.
 
 .. code-block:: php
 
-    'end_date' => 'after:2025-01-01'
-    'end_date' => 'after:start_date'   // Compare with another field
+    'end_date' => 'after:2025-01-01',
+    'end_date' => 'after:start_date',   // Compare with another field
 
 after_or_equal
 ~~~~~~~~~~~~~~
@@ -678,9 +680,9 @@ The field under validation must not exist within the given database table.
 
 .. code-block:: php
 
-    'email' => 'unique:users,email'
-    'username' => Rule::unique('users', 'username')->ignore(5)
-    'email' => Rule::unique('users', 'email')->withoutTrashed()
+    'email' => 'unique:users,email',
+    'username' => Rule::unique('users', 'username')->ignore(5),
+    'email' => Rule::unique('users', 'email')->withoutTrashed(),
 
 **Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`database-rules`.
 
@@ -690,8 +692,8 @@ The field under validation must exist within the given database table.
 
 .. code-block:: php
 
-    'category_id' => 'exists:categories,id'
-    'user_id' => 'exists:users,id'
+    'category_id' => 'exists:categories,id',
+    'user_id' => 'exists:users,id',
 
 **Note:** Requires a ``DatabaseProvider`` implementation. See :doc:`database-rules`.
 
@@ -716,9 +718,9 @@ Pathwise 4.1 owns canonical filesystem containment/trust decisions.
 
 .. code-block:: php
 
-    'log_path' => 'path'               // Any non-empty valid path string
-    'root_path' => 'path:absolute'     // Must be absolute (/var/... or C:\...)
-    'cache_dir' => 'path:relative'     // Must be relative (storage/cache)
+    'log_path' => 'path',               // Any non-empty valid path string
+    'root_path' => 'path:absolute',     // Must be absolute (/var/... or C:\...)
+    'cache_dir' => 'path:relative',     // Must be relative (storage/cache)
 
 image
 ~~~~~
@@ -767,8 +769,8 @@ The file under validation must be an image meeting the dimension constraints.
 
 .. code-block:: php
 
-    'avatar' => 'dimensions:100,100,1000,1000' // minWidth,minHeight,maxWidth,maxHeight
-    'logo' => 'dimensions:200,200,200,200'      // exact 200x200
+    'avatar' => 'dimensions:100,100,1000,1000', // minWidth,minHeight,maxWidth,maxHeight
+    'logo' => 'dimensions:200,200,200,200',      // exact 200x200
 
 safe_filename
 ~~~~~~~~~~~~~
@@ -788,8 +790,8 @@ Allowed characters are letters, numbers, ``-`` and ``_``.
 
 .. code-block:: php
 
-    'upload_id' => 'upload_id'
-    'upload_id' => 'upload_id:64'  // Optional max length override
+    'upload_id' => 'upload_id',
+    'upload_id' => 'upload_id:64',  // Optional max length override
 
 upload_meta
 ~~~~~~~~~~~
@@ -806,8 +808,8 @@ Modes:
 
 .. code-block:: php
 
-    'upload' => 'upload_meta'
-    'upload' => 'upload_meta:success'
+    'upload' => 'upload_meta',
+    'upload' => 'upload_meta:success',
 
 secure_file
 ~~~~~~~~~~~
@@ -818,8 +820,8 @@ containment/storage trust or application-owned malware/quarantine policy.
 
 .. code-block:: php
 
-    'upload' => 'secure_file'
-    'upload' => 'secure_file:success,255' // mode, max filename length
+    'upload' => 'secure_file',
+    'upload' => 'secure_file:success,255', // mode, max filename length
 
 Array Rules (5)
 ---------------
@@ -830,8 +832,8 @@ The field under validation must be included in the given list of values.
 
 .. code-block:: php
 
-    'status' => 'in:pending,active,completed'
-    'role' => 'in:admin,user,guest'
+    'status' => 'in:pending,active,completed',
+    'role' => 'in:admin,user,guest',
 
 not_in
 ~~~~~~
@@ -857,8 +859,8 @@ level, including nested and multiple-wildcard paths.
 
 .. code-block:: php
 
-    'tags' => 'array|distinct'
-    'emails.*' => 'distinct'  // Each email must be unique
+    'tags' => 'array|distinct',
+    'emails.*' => 'distinct',  // Each email must be unique
 
 is_list
 ~~~~~~~
@@ -877,8 +879,8 @@ The field under validation must match the given field.
 
 .. code-block:: php
 
-    'password_confirmation' => 'same:password'
-    'email_confirmation' => 'same:email'
+    'password_confirmation' => 'same:password',
+    'email_confirmation' => 'same:email',
 
 different
 ~~~~~~~~~
@@ -905,8 +907,8 @@ The field under validation must match the given regular expression.
 
 .. code-block:: php
 
-    'postal_code' => 'regex:/^\d{5}(-\d{4})?$/'  // US ZIP code
-    'color' => 'regex:/^#[0-9A-F]{6}$/i'         // Hex color
+    'postal_code' => 'regex:/^\d{5}(-\d{4})?$/',  // US ZIP code
+    'color' => 'regex:/^#[0-9A-F]{6}$/i',         // Hex color
 
 **Note:** Use any valid PHP regex delimiter.
 

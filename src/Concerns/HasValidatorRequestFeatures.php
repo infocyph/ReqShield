@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield\Concerns;
 
+use Infocyph\ReqShield\Exceptions\InputLimitException;
 use Infocyph\ReqShield\Exceptions\UnsupportedRequestObjectException;
 use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\ValidationContext;
@@ -68,13 +69,52 @@ trait HasValidatorRequestFeatures
         return $payload;
     }
 
+    protected function assertInputDepthAllowed(int $depth): void
+    {
+        if ($depth > $this->maxDepth) {
+            throw new InputLimitException("Maximum input depth of {$this->maxDepth} exceeded.");
+        }
+    }
+
+    /** @param array<int|string,mixed> $data */
+    protected function assertInputWithinLimits(array $data): void
+    {
+        $fields = 0;
+        $hasDottedKey = false;
+        /** @var list<array{array<int|string,mixed>,int}> $stack */
+        $stack = [[$data, 1]];
+
+        while ($stack !== []) {
+            [$current, $depth] = array_pop($stack);
+            $this->assertInputDepthAllowed($depth);
+
+            foreach ($current as $key => $value) {
+                $hasDottedKey = $hasDottedKey || str_contains((string) $key, '.');
+
+                ++$fields;
+                if ($fields > $this->maxInputFields) {
+                    throw new InputLimitException("Maximum input field count of {$this->maxInputFields} exceeded.");
+                }
+
+                if (is_array($value) && $value !== []) {
+                    $stack[] = [$value, $depth + 1];
+                }
+            }
+        }
+
+        if ($hasDottedKey) {
+            NestedValidator::assertNoConflictingPaths($data);
+        }
+    }
+
     /**
      * @param array<int|string,mixed> $data
      * @param array{
      *   errors:array<string,array<int,string>>,
      *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
      *   validated:array<string,mixed>,
-     *   expensiveBatch:array<int,mixed>
+     *   expensiveBatch:array<int,mixed>,
+     *   execution?:\Infocyph\ReqShield\Support\RunwireExecution|null
      * } $context
      */
     protected function executeAfterValidationCallbacks(
@@ -99,6 +139,7 @@ trait HasValidatorRequestFeatures
             $this->invokeCallbackWithSupportedArity(
                 $callback,
                 [$validationContext, $this, $data],
+                $context['execution'] ?? null,
             );
         }
 
@@ -116,6 +157,7 @@ trait HasValidatorRequestFeatures
     /**
      * @param array<int|string,mixed> $originalData
      * @param array<int|string,mixed> $preparedData
+     * @param array<int|string,mixed>|null $effectiveInput
      * @param array{
      *   errors:array<string,array<int,string>>,
      *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
@@ -135,19 +177,26 @@ trait HasValidatorRequestFeatures
         array &$preparedData,
         ValidationPlan $plan,
         array &$context,
+        ?array $effectiveInput = null,
     ): void {
         if ($this->allowUnknownFields) {
             return;
         }
 
         $unknownFields = $this->unknownFields($originalData, $plan);
+        if ($effectiveInput !== null) {
+            $unknownFields = array_values(array_unique([
+                ...$unknownFields,
+                ...$this->unknownFields($effectiveInput, $plan),
+            ]));
+        }
         if ($unknownFields === []) {
             return;
         }
 
         if ($this->stripUnknownFields) {
             foreach ($unknownFields as $field) {
-                unset($preparedData[$field]);
+                $this->removeNestedPath($preparedData, $field);
             }
 
             return;
@@ -160,12 +209,75 @@ trait HasValidatorRequestFeatures
                 'field' => $field,
                 'rule' => 'unknown',
                 'message' => $message,
-                'value' => $this->unknownFieldValue($originalData, $field),
+                'value' => $this->unknownFieldValue($effectiveInput ?? $originalData, $field),
             ];
 
             if ($this->stopOnFirstError) {
                 break;
             }
+        }
+    }
+
+    /** @param array<string,mixed> $validated */
+    protected function pruneParentPath(array &$validated, string $field): void
+    {
+        $segments = explode('.', $field);
+        $count = count($segments);
+
+        for ($index = 1; $index < $count; ++$index) {
+            $parent = implode('.', array_slice($segments, 0, $index));
+            if (!isset($validated[$parent]) || !is_array($validated[$parent])) {
+                continue;
+            }
+
+            $this->removeNestedPath($validated[$parent], implode('.', array_slice($segments, $index)));
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $validated
+     * @param array<int,string> $fields
+     * @param array<string,array<int,string>> $errors
+     */
+    protected function purgeValidatedDescendants(array &$validated, array $fields, array $errors): void
+    {
+        $hasValidatedParents = array_any($validated, static fn(mixed $value): bool => is_array($value));
+
+        foreach (array_keys($errors) as $field) {
+            $field = (string) $field;
+            unset($validated[$field]);
+            if ($hasValidatedParents && str_contains($field, '.')) {
+                $this->pruneParentPath($validated, $field);
+            }
+        }
+
+        if (!$hasValidatedParents) {
+            return;
+        }
+
+        foreach ($fields as $field) {
+            if (!str_contains($field, '.') || array_key_exists($field, $validated)) {
+                continue;
+            }
+
+            $this->pruneParentPath($validated, $field);
+        }
+    }
+
+    /** @param array<int|string,mixed> $data */
+    protected function removeNestedPath(array &$data, string $path): void
+    {
+        $segments = explode('.', $path);
+        $current = &$data;
+
+        foreach ($segments as $index => $segment) {
+            unset($current[implode('.', array_slice($segments, $index))]);
+
+            if (!isset($current[$segment]) || !is_array($current[$segment])) {
+                return;
+            }
+
+            $current = &$current[$segment];
         }
     }
 
@@ -181,9 +293,7 @@ trait HasValidatorRequestFeatures
         $unknown = [];
 
         foreach ($fields as $field) {
-            if (!is_string($field)) {
-                continue;
-            }
+            $field = (string) $field;
 
             if (isset($plan->allowedFieldLookup[$field])
                 || isset($plan->allowedPrefixLookup[$field])

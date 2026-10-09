@@ -119,6 +119,14 @@ class SchemaCompiler
         $this->reverseCustomRuleMap = null;
     }
 
+    /** @param list<string> $supported */
+    protected static function firstDependency(string $name, mixed $value, array $supported): ?string
+    {
+        return in_array($name, $supported, true) && is_string($value) && $value !== ''
+            ? $value
+            : null;
+    }
+
     /**
      * @param array<string,mixed> $placeholders
      * @param array<int,mixed> $params
@@ -513,8 +521,8 @@ class SchemaCompiler
             'present_if', 'present_unless', 'prohibited_if', 'prohibited_unless',
             'required_if', 'required_if_accepted', 'required_if_declined', 'required_unless', 'same',
         ];
-        $dependency = $params[0] ?? null;
-        if (!in_array($name, $firstParameter, true) || !is_string($dependency) || $dependency === '') {
+        $dependency = static::firstDependency($name, $params[0] ?? null, $firstParameter);
+        if ($dependency === null) {
             return [];
         }
 

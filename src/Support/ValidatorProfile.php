@@ -296,6 +296,25 @@ final readonly class ValidatorProfile
         return $normalized;
     }
 
+    /** @return SanitizerPipeline|null */
+    private static function normalizeSanitizerPipeline(mixed $pipeline): mixed
+    {
+        if (is_string($pipeline) || is_callable($pipeline)) {
+            return $pipeline;
+        }
+
+        if (!is_array($pipeline)) {
+            return null;
+        }
+
+        $steps = array_values(array_filter(
+            $pipeline,
+            static fn(mixed $step): bool => is_string($step) || is_callable($step),
+        ));
+
+        return $steps === [] ? null : $steps;
+    }
+
     private static function nullableString(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
@@ -333,20 +352,9 @@ final readonly class ValidatorProfile
             if (!is_string($key) || $key === '') {
                 continue;
             }
-            if (is_string($pipeline) || is_callable($pipeline)) {
-                $normalized[$key] = $pipeline;
 
-                continue;
-            }
-            if (!is_array($pipeline)) {
-                continue;
-            }
-
-            $steps = array_values(array_filter(
-                $pipeline,
-                static fn(mixed $step): bool => is_string($step) || is_callable($step),
-            ));
-            if ($steps !== []) {
+            $steps = self::normalizeSanitizerPipeline($pipeline);
+            if ($steps !== null) {
                 $normalized[$key] = $steps;
             }
         }

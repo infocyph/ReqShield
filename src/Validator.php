@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield;
 
+use Infocyph\ReqShield\Concerns\HasValidatorExecution;
 use Infocyph\ReqShield\Concerns\HasValidatorInternals;
 use Infocyph\ReqShield\Concerns\HasValidatorRequestFeatures;
 use Infocyph\ReqShield\Concerns\HasValidatorRuntime;
@@ -12,7 +13,6 @@ use Infocyph\ReqShield\Contracts\DatabaseProvider;
 use Infocyph\ReqShield\Contracts\Rule as RuleContract;
 use Infocyph\ReqShield\Exceptions\DatabaseProviderRequiredException;
 use Infocyph\ReqShield\Exceptions\FrozenValidatorException;
-use Infocyph\ReqShield\Exceptions\InputLimitException;
 use Infocyph\ReqShield\Exceptions\InvalidSchemaException;
 use Infocyph\ReqShield\Exceptions\ValidationException;
 use Infocyph\ReqShield\Executors\BatchExecutor;
@@ -32,6 +32,7 @@ use Infocyph\ReqShield\Support\WildcardPath;
  */
 class Validator
 {
+    use HasValidatorExecution;
     use HasValidatorInternals;
     use HasValidatorRequestFeatures;
     use HasValidatorRuntime;
@@ -734,33 +735,22 @@ class Validator
     /** @param array<int|string,mixed> $data */
     public function validate(array $data): ValidationResult
     {
-        $this->assertInputWithinLimits($data);
-        $originalData = $data;
-        [$data, $plan] = $this->prepareValidationDataAndSchema($data);
-        $context = $this->initializeValidationContext();
-        $this->processUnknownFields($originalData, $data, $plan, $context);
+        return $this->validateInternal($data, null);
+    }
 
-        if (!empty($context['errors']) && $this->stopOnFirstError) {
-            $result = $this->buildValidationResult($context);
-            $this->throwIfValidationShouldFail($result, $context['errors']);
-
-            return $result;
-        }
-
-        foreach ($plan->fields as $field) {
-            $fieldPlan = $plan->schema[$field];
-            $value = array_key_exists($field, $data) ? $data[$field] : null;
-            if (!$this->processFieldValidation($field, $value, $fieldPlan, $data, $context)
-                && $this->stopOnFirstError) {
-                break;
-            }
-        }
-        $this->executeBatchedRules($context);
-        $this->executeAfterValidationCallbacks($data, $context);
-        $result = $this->buildValidationResult($context);
-        $this->throwIfValidationShouldFail($result, $context['errors']);
-
-        return $result;
+    /**
+     * @param array<int|string,mixed> $data
+     */
+    public function validateWithRunwire(
+        array $data,
+        \Infocyph\Runwire\RuntimeContext $runtime,
+        ?\Infocyph\Runwire\RequestContext $request = null,
+        ?\Infocyph\Runwire\Coroutine\CoroutineScope $scope = null,
+    ): ValidationResult {
+        return $this->validateInternal(
+            $data,
+            new \Infocyph\ReqShield\Support\RunwireExecution($runtime, $request, $scope),
+        );
     }
 
     public function when(
@@ -791,32 +781,6 @@ class Validator
         }
     }
 
-    /** @param array<int|string,mixed> $data */
-    protected function assertInputWithinLimits(array $data): void
-    {
-        $fields = 0;
-        /** @var list<array{array<int|string,mixed>,int}> $stack */
-        $stack = [[$data, 1]];
-
-        while ($stack !== []) {
-            [$current, $depth] = array_pop($stack);
-            if ($depth > $this->maxDepth) {
-                throw new InputLimitException("Maximum input depth of {$this->maxDepth} exceeded.");
-            }
-
-            foreach ($current as $value) {
-                ++$fields;
-                if ($fields > $this->maxInputFields) {
-                    throw new InputLimitException("Maximum input field count of {$this->maxInputFields} exceeded.");
-                }
-
-                if (is_array($value) && $value !== []) {
-                    $stack[] = [$value, $depth + 1];
-                }
-            }
-        }
-    }
-
     protected function assertMutable(string $operation): void
     {
         if ($this->frozen) {
@@ -829,7 +793,8 @@ class Validator
      *   errors:array<string,array<int,string>>,
      *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
      *   validated:array<string,mixed>,
-     *   expensiveBatch:array<int,mixed>
+     *   expensiveBatch:array<int,mixed>,
+     *   execution?:\Infocyph\ReqShield\Support\RunwireExecution|null
      * } $context
      */
     protected function buildValidationResult(array $context): ValidationResult
@@ -838,31 +803,9 @@ class Validator
             $context['errors'],
             $context['validated'],
             $context['failures'],
-            $this->applyCasts($context['validated']),
+            $this->applyCasts($context['validated'], $context['execution'] ?? null),
             $this->dtoClass,
         );
-    }
-
-    /** @param array<int|string,mixed> $rules */
-    protected function isProcessCacheSafeSchema(array $rules): bool
-    {
-        foreach ($rules as $definition) {
-            if (is_string($definition)) {
-                continue;
-            }
-
-            if (!is_array($definition)) {
-                return false;
-            }
-
-            foreach ($definition as $rule) {
-                if (!is_string($rule)) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
     }
 
     /**
@@ -888,15 +831,18 @@ class Validator
     /**
      * @param array<int|string,mixed> $data
      *
-     * @return array{0:array<int|string,mixed>,1:ValidationPlan}
+     * @return array{0:array<int|string,mixed>,1:ValidationPlan,2:array<int|string,mixed>|null}
      */
-    protected function prepareValidationDataAndSchema(array $data): array
+    protected function prepareValidationDataAndSchema(array $data, ?\Infocyph\ReqShield\Support\RunwireExecution $execution = null): array
     {
+        $effectiveInput = null;
         if (!empty($this->sanitizers) || !empty($this->schemaSanitizers)) {
-            $data = $this->applySanitizers($data);
+            $data = $this->applySanitizers($data, $execution);
+            $this->assertInputWithinLimits($data);
+            $effectiveInput = $data;
         }
 
-        $activeRules = $this->prepareRuntimeRules($data);
+        $activeRules = $this->prepareRuntimeRules($data, $execution);
         $activeRulesCacheKey = $activeRules === $this->rules
             ? $this->rulesCacheKey
             : $this->buildRulesCacheKey($activeRules);
@@ -916,7 +862,7 @@ class Validator
             );
         }
 
-        return [$data, $plan];
+        return [$data, $plan, $effectiveInput];
     }
 
     /**

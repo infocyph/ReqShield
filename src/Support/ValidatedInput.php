@@ -81,12 +81,10 @@ final readonly class ValidatedInput
             return $value;
         }
 
-        if (is_subclass_of($enumClass, \BackedEnum::class)) {
-            if (is_int($value) || is_string($value)) {
-                $case = $enumClass::tryFrom($value);
-                if ($case instanceof \UnitEnum) {
-                    return $case;
-                }
+        if (is_subclass_of($enumClass, \BackedEnum::class) && (is_int($value) || is_string($value))) {
+            $case = $enumClass::tryFrom($value);
+            if ($case instanceof \UnitEnum) {
+                return $case;
             }
         }
 

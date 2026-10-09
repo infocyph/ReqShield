@@ -7,6 +7,7 @@ namespace Infocyph\ReqShield\Concerns;
 use Infocyph\ReqShield\Contracts\Rule;
 use Infocyph\ReqShield\Support\InputCaster;
 use Infocyph\ReqShield\Support\JsonSchemaTypeHelper;
+use Infocyph\ReqShield\Support\RunwireExecution;
 use Infocyph\ReqShield\Support\ValueStringifier;
 
 /**
@@ -358,6 +359,7 @@ trait HasValidatorRuntime
         mixed $condition,
         array $data,
         array $rules,
+        ?RunwireExecution $execution = null,
     ): bool {
         if (is_bool($condition)) {
             return $condition;
@@ -370,6 +372,7 @@ trait HasValidatorRuntime
         return (bool) $this->invokeCallbackWithSupportedArity(
             $condition,
             [$data, $rules, $this],
+            $execution,
         );
     }
 
@@ -388,7 +391,7 @@ trait HasValidatorRuntime
      *   }>
      * } $context
      */
-    protected function executeBatchedRules(array &$context): void
+    protected function executeBatchedRules(array &$context, ?RunwireExecution $execution = null): void
     {
         if (
             $context['expensiveBatch'] === []
@@ -402,6 +405,7 @@ trait HasValidatorRuntime
             $context['errors'],
             $context['failures'],
             $this->stopOnFirstError,
+            $execution,
         );
 
         if ($context['errors'] !== []) {
