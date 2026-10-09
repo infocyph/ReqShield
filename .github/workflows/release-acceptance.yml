@@ -1,0 +1,31 @@
+name: Release Acceptance Guard
+
+on:
+  pull_request:
+    branches: [main, master, develop, development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: PHPForge release guard - PHP 8.5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: fileinfo, hash, mbstring, pdo_sqlite
+          tools: composer:v2
+          coverage: none
+
+      - name: Install released dependency chain
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run strict PHPForge release acceptance
+        run: composer ic:release:guard
