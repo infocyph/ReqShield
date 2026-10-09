@@ -48,10 +48,12 @@ $validator = Validator::make($rules);
 for ($index = 0; $index < 6; ++$index) {
     if (!$compiled->validate($valid)->passes() || !$validator->validate($valid)->passes()) {
         http_response_code(500);
+
         throw new \RuntimeException('The HTTP benchmark request or validation failed.');
     }
     if (!$compiled->validate($invalid)->fails() || !$validator->validate($invalid)->fails()) {
         http_response_code(500);
+
         throw new \RuntimeException('The HTTP benchmark request or validation failed.');
     }
 }
