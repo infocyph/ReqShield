@@ -1,0 +1,34 @@
+name: Runwire Persistent Worker Soak
+
+on:
+  pull_request:
+    branches: [main, master, develop, development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-runwire-soak:
+    name: 300-second Runwire host / DBLayer 6 soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout ReqShield
+        uses: actions/checkout@v4
+
+      - name: Install PHP 8.5 and SQLite
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: fileinfo, hash, mbstring, pdo_sqlite
+          tools: composer:v2
+          coverage: none
+
+      - name: Install released Runwire 2.1.1 and DBLayer 6 chain
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run persistent host-owned coroutine soak and binding-isolation checks
+        env:
+          REQSHIELD_SOAK_SECONDS: '300'
+        run: php -d error_reporting=-1 probes/runwire-persistent-soak.php
