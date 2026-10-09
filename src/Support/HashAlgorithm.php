@@ -34,9 +34,13 @@ final class HashAlgorithm
     /** @param array<int|string,mixed> $data */
     public static function shapeSignature(array $data): string
     {
-        $context = hash_init('sha256');
+        $context = null;
         $buffer = '';
         static::updateShapeHash($context, $data, $buffer);
+
+        if ($context === null) {
+            return hash('sha256', $buffer);
+        }
 
         if ($buffer !== '') {
             hash_update($context, $buffer);
@@ -46,7 +50,7 @@ final class HashAlgorithm
     }
 
     /** @param array<int|string,mixed> $data */
-    protected static function updateShapeHash(\HashContext $context, array $data, string &$buffer): void
+    protected static function updateShapeHash(?\HashContext &$context, array $data, string &$buffer): void
     {
         $buffer .= '{';
 
@@ -55,6 +59,7 @@ final class HashAlgorithm
             $buffer .= (is_int($key) ? 'i' : 's') . strlen($keyBytes) . ':' . $keyBytes;
 
             if (strlen($buffer) >= 8_192) {
+                $context ??= hash_init('sha256');
                 hash_update($context, $buffer);
                 $buffer = '';
             }
