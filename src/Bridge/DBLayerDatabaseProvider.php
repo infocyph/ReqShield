@@ -66,12 +66,6 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             ? $this->batchUniqueOn($connection, $table, $checks)
             : $this->batchExistsOn($connection, $table, $checks);
 
-        // DBLayer 5.1 is still a supported optional provider. It cannot
-        // borrow query cancellation; ReqShield checkpoints remain in force.
-        if (!in_array('withRunwire', get_class_methods($connection), true)) {
-            return $callback();
-        }
-
         return $connection->withRunwire(
             $execution->runtime,
             $callback,
