@@ -231,14 +231,7 @@ trait HasValidatorRequestFeatures
      */
     protected function purgeValidatedDescendants(array &$validated, array $fields, array $errors): void
     {
-        $hasValidatedParents = false;
-        foreach ($validated as $value) {
-            if (is_array($value)) {
-                $hasValidatedParents = true;
-
-                break;
-            }
-        }
+        $hasValidatedParents = array_any($validated, static fn(mixed $value): bool => is_array($value));
 
         foreach (array_keys($errors) as $field) {
             $field = (string) $field;
