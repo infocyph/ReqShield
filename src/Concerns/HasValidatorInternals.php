@@ -809,7 +809,7 @@ trait HasValidatorInternals
         }
 
         if ($this->nestedFlattenMode === 'targeted') {
-            $flattened = NestedValidator::flattenForPaths($data, $plan->inputPaths);
+            $flattened = NestedValidator::flattenForPaths($data, $plan->inputPaths, $plan->inputPathSegments);
             if (count($flattened) > $this->maxFlattenedPaths) {
                 throw new \Infocyph\ReqShield\Exceptions\InputLimitException(
                     "Maximum flattened path count of {$this->maxFlattenedPaths} exceeded.",

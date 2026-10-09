@@ -118,10 +118,11 @@ final class NestedValidator
     /**
      * @param array<int|string,mixed> $data
      * @param array<int,string> $paths
+     * @param array<string,list<string>>|null $pathSegments
      *
      * @return array<string,mixed>
      */
-    public static function flattenForPaths(array $data, array $paths): array
+    public static function flattenForPaths(array $data, array $paths, ?array $pathSegments = null): array
     {
         $flattened = [];
 
@@ -137,7 +138,7 @@ final class NestedValidator
                 continue;
             }
 
-            [$found, $value] = static::findValue($data, $path);
+            [$found, $value] = static::findValue($data, $pathSegments[$path] ?? explode('.', $path));
             if (!$found) {
                 continue;
             }
@@ -317,13 +318,14 @@ final class NestedValidator
 
     /**
      * @param array<int|string,mixed> $data
+     * @param list<string> $segments
      * @return array{0:bool,1:mixed}
      */
-    private static function findValue(array $data, string $path): array
+    private static function findValue(array $data, array $segments): array
     {
         $value = $data;
 
-        foreach (explode('.', $path) as $segment) {
+        foreach ($segments as $segment) {
             if ($segment === '*' || !is_array($value) || !array_key_exists($segment, $value)) {
                 return [false, null];
             }

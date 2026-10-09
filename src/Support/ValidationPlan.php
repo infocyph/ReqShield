@@ -27,6 +27,9 @@ readonly class ValidationPlan
     /** @var list<string> */
     public array $inputPaths;
 
+    /** @var array<string,list<string>> */
+    public array $inputPathSegments;
+
     /** @var list<string> */
     public array $requiredPaths;
 
@@ -77,6 +80,11 @@ readonly class ValidationPlan
         $this->requiredPaths = $requiredPaths;
         $this->dependencyPaths = array_values(array_unique($dependencyPaths));
         $this->inputPaths = array_values(array_unique([...$this->fields, ...$this->dependencyPaths]));
+        $inputPathSegments = [];
+        foreach ($this->inputPaths as $path) {
+            $inputPathSegments[$path] = explode('.', $path);
+        }
+        $this->inputPathSegments = $inputPathSegments;
         $this->wildcardPatterns = $wildcardPatterns;
         $this->wildcardRegexes = array_map(WildcardPath::toRegex(...), $wildcardPatterns);
         $allowedPaths = array_values(array_unique([...$this->fields, ...$this->dependencyPaths]));
