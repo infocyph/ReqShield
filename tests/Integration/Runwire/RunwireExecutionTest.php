@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-use Infocyph\ReqShield\Support\RunwireExecution;
 use Infocyph\ReqShield\Validator;
+use Infocyph\Runwire\Coroutine\CoroutineRuntime;
+use Infocyph\Runwire\Coroutine\CoroutineScope;
 use Infocyph\Runwire\Exception\CancelledException;
 use Infocyph\Runwire\RequestContext;
 use Infocyph\Runwire\Runtime\Enum\CancellationReason;
@@ -77,4 +78,48 @@ test('sequential compiled executions do not retain cancelled request state', fun
     expect($compiled->validateWithRunwire(
         ['data' => [['id' => 2]]], $other->runtime(), $other,
     )->passes())->toBeTrue();
+});
+
+
+test('host owned scope remains usable and closed scope fails without mutation', function () {
+    $host = new CoroutineRuntime();
+    $runtime = RuntimeContext::standalone();
+    $scopeAfterClose = null;
+
+    $success = $host->run(function (CoroutineScope $scope) use ($runtime, &$scopeAfterClose): bool {
+        $scopeAfterClose = $scope;
+
+        return Validator::make(['value' => 'integer'])
+            ->validateWithRunwire(['value' => 3], $runtime, scope: $scope)->passes();
+    });
+
+    expect($success)->toBeTrue();
+    expect(fn() => Validator::make(['value' => 'integer'])
+        ->validateWithRunwire(['value' => 3], $runtime, scope: $scopeAfterClose))
+        ->toThrow(LogicException::class);
+});
+
+test('compiled validator does not share execution state between interleaved coroutines', function () {
+    $host = new CoroutineRuntime();
+    $runtime = RuntimeContext::standalone();
+    $compiled = Validator::compile(['data.*.id' => 'required|integer']);
+
+    $results = $host->run(function (CoroutineScope $scope) use ($compiled, $runtime): array {
+        $left = $scope->spawn(function () use ($compiled, $runtime, $scope): bool {
+            $scope->yieldNow();
+
+            return $compiled->validateWithRunwire(
+                ['data' => [['id' => 1]]], $runtime, scope: $scope,
+            )->passes();
+        });
+        $right = $scope->spawn(function () use ($compiled, $runtime, $scope): bool {
+            return $compiled->validateWithRunwire(
+                ['data' => [['id' => 'bad']]], $runtime, scope: $scope,
+            )->fails();
+        });
+
+        return [$left->await(), $right->await()];
+    });
+
+    expect($results)->toBe([true, true]);
 });
