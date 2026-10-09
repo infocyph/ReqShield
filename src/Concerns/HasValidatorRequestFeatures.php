@@ -69,6 +69,13 @@ trait HasValidatorRequestFeatures
         return $payload;
     }
 
+    protected function assertInputDepthAllowed(int $depth): void
+    {
+        if ($depth > $this->maxDepth) {
+            throw new InputLimitException("Maximum input depth of {$this->maxDepth} exceeded.");
+        }
+    }
+
     /** @param array<int|string,mixed> $data */
     protected function assertInputWithinLimits(array $data): void
     {
@@ -79,9 +86,7 @@ trait HasValidatorRequestFeatures
 
         while ($stack !== []) {
             [$current, $depth] = array_pop($stack);
-            if ($depth > $this->maxDepth) {
-                throw new InputLimitException("Maximum input depth of {$this->maxDepth} exceeded.");
-            }
+            $this->assertInputDepthAllowed($depth);
 
             foreach ($current as $key => $value) {
                 $hasDottedKey = $hasDottedKey || str_contains((string) $key, '.');
