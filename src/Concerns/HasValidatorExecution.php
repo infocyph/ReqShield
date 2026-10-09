@@ -64,7 +64,9 @@ trait HasValidatorExecution
         $execution?->checkpoint();
         $this->executeAfterValidationCallbacks($data, $context);
         $execution?->checkpoint();
-        $this->finalizeValidatedProjection($context, $plan);
+        if ($plan->hasExplicitAncestorFields || $this->afterCallbacks !== [] || $context['errors'] !== []) {
+            $this->finalizeValidatedProjection($context, $plan);
+        }
         $result = $this->buildValidationResult($context);
         $this->throwIfValidationShouldFail($result, $context['errors']);
 
