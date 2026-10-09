@@ -74,12 +74,17 @@ try {
         }
     }
 
-    echo sprintf(
-        "PASS %s SQL comparison parity (%d candidates, exists and unique). Engine: %s\n",
+    $engineVersion = $connection->scalar('SELECT VERSION()');
+    if (!is_scalar($engineVersion)) {
+        throw new RuntimeException('Engine version query did not return a scalar.');
+    }
+
+    fwrite(STDOUT, sprintf(
+        "PASS %s SQL comparison parity (%d candidates, exists and unique). Engine: %s\\n",
         $driver,
         count($checks),
-        (string) $connection->scalar('SELECT VERSION()'),
-    );
+        (string) $engineVersion,
+    ));
 } finally {
     try {
         $connection->statement('DROP TABLE IF EXISTS ' . $table);
