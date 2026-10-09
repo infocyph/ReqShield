@@ -33,7 +33,7 @@ if ($result->passes()) {
 -  **108 Built-in Rules** - Basic types, conditional rules, files, database checks, enums, and more
 -  **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
 -  **Intelligent Batching** - Expensive DB checks are batched automatically
--  **Native DBLayer 5.1 Bridge** - Optional resolver-first `exists` / `unique` integration
+-  **Native DBLayer 6 Bridge** - Optional resolver-first `exists` / `unique` integration
 -  **Frozen Compiled Validators** - Reusable snapshots for persistent runtimes and Fiber-interleaved execution
 -  **Schema Registry + Validator Profiles** - Instance-owned frozen schema topology and immutable reusable configuration
 -  **Fail-Fast + Full Collection Modes** - Per-field fail-fast with configurable behavior
@@ -468,7 +468,7 @@ when it is absent. The contract contains only `batchExists()` and `batchUnique()
 ReqShield owns logical validation batching, while providers own query construction
 and driver-safe physical chunking. ReqShield is database-library agnostic: a
 provider may use PDO, DBLayer, Laravel, Doctrine, or another database layer.
-DBLayer **6.0** is the 3.3 reference integration and remains optional for consumers; existing DBLayer 5.1 providers still work on the ordinary validation path. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
+DBLayer **6.0** is the minimum supported native integration and remains optional for consumers. **DBLayer 5.x and ArrayKit versions below 5.3 are unsupported**; Composer rejects those versions if present. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
 
 ```php
 use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
