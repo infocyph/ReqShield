@@ -267,10 +267,18 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
             $unique,
             $values[0],
         );
-        $chunkSize = $connection->safeBatchSize(
-            parametersPerRow: count($fixedBindings) + 1,
-            fixedBindings: 0,
-            requested: min(count($values), $this->maxBatchValues),
+        $security = $connection->getConfig()->securityConfig();
+        $maxSqlLength = $security['max_sql_length'] ?? 16_384;
+        $sqlBudget = is_int($maxSqlLength) ? $maxSqlLength : 16_384;
+        $maxSqlCandidates = max(1, intdiv(max(0, $sqlBudget - 1_024), strlen($sql) + 160));
+        $chunkSize = min(
+            64,
+            $maxSqlCandidates,
+            $connection->safeBatchSize(
+                parametersPerRow: count($fixedBindings) + 1,
+                fixedBindings: 0,
+                requested: min(count($values), $this->maxBatchValues),
+            ),
         );
         $found = [];
 
@@ -316,7 +324,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         $row = $query->get()[0] ?? [];
         $matched = [];
         foreach ($columns as $index => $column) {
-            if ((int) ($row[$column] ?? 0) === 1) {
+            if (in_array($row[$column] ?? null, [1, '1', true], true)) {
                 $matched[] = $index;
             }
         }
