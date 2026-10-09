@@ -77,12 +77,15 @@ readonly class ValidationPlan
         $this->requiredPaths = $requiredPaths;
         $this->dependencyPaths = array_values(array_unique($dependencyPaths));
         $this->inputPaths = array_values(array_unique([...$this->fields, ...$this->dependencyPaths]));
-        $this->hasExplicitAncestorFields = self::containsExplicitAncestors($this->schema);
         $this->wildcardPatterns = $wildcardPatterns;
         $this->wildcardRegexes = array_map(WildcardPath::toRegex(...), $wildcardPatterns);
         $allowedPaths = array_values(array_unique([...$this->fields, ...$this->dependencyPaths]));
         $this->allowedFieldLookup = array_fill_keys($allowedPaths, true);
         [$prefixes, $wildcardPrefixPatterns] = self::allowedPrefixes($allowedPaths);
+        $this->hasExplicitAncestorFields = array_any(
+            $this->fields,
+            static fn(string $field): bool => isset($prefixes[$field]) || isset($wildcardPrefixPatterns[$field]),
+        );
         $this->allowedPrefixLookup = $prefixes;
         $this->wildcardPrefixRegexes = array_map(
             WildcardPath::toRegex(...),
@@ -120,22 +123,4 @@ readonly class ValidationPlan
         return [$prefixes, $wildcards];
     }
 
-    /** @param array<string,FieldPlan> $schema */
-    private static function containsExplicitAncestors(array $schema): bool
-    {
-        foreach (array_keys($schema) as $field) {
-            $segments = explode('.', $field);
-            array_pop($segments);
-
-            while ($segments !== []) {
-                if (isset($schema[implode('.', $segments)])) {
-                    return true;
-                }
-
-                array_pop($segments);
-            }
-        }
-
-        return false;
-    }
 }
