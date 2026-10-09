@@ -67,3 +67,28 @@ Under Runwire or another persistent runtime, use frozen schema/validator
 topology, execution-scoped database resolvers and application-owned capability
 authorization. ReqShield must not become a substitute for Runwire process
 isolation or Pathwise filesystem trust.
+
+Validated Parents and Image Sources (3.3)
+-----------------------------------------
+
+Validated ancestor arrays are projected against each validated child.
+Unknown, excluded, invalid and callback-rejected descendants must not
+remain accessible through ``validated()``, ``safe()`` or typed output
+merely because a parent array passed. Strict unknown-field handling
+also covers integer root keys.
+
+Image/dimension rules reject remote URL paths, stream wrappers, invalid
+upload status, malformed temporary paths and oversized streamed images.
+Seekable uploaded streams use bounded reads and restore their cursor.
+These checks are not filesystem authorization or malware detection.
+
+Host-owned Runwire Contexts (3.3)
+---------------------------------
+
+The optional Runwire entry point checks runtime PID, request identity,
+completion and cancellation, and live scope state. It does not create
+or retain workers or global runtime bindings. Cancellation propagates
+to the host. Passing Runwire context does not transform synchronous
+PDO/image/DNS work into asynchronous operations.
+
+See :doc:`runwire-integration` and :doc:`release-3.3-verification`.
