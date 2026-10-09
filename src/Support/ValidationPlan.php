@@ -119,6 +119,7 @@ readonly class ValidationPlan
 
         return [$prefixes, $wildcards];
     }
+
     /** @param array<string,FieldPlan> $schema */
     private static function containsExplicitAncestors(array $schema): bool
     {
@@ -137,6 +138,4 @@ readonly class ValidationPlan
 
         return false;
     }
-
-
 }
