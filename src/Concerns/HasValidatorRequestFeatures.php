@@ -84,9 +84,7 @@ trait HasValidatorRequestFeatures
             }
 
             foreach ($current as $key => $value) {
-                if (is_string($key) && str_contains($key, '.')) {
-                    $hasDottedKey = true;
-                }
+                $hasDottedKey = $hasDottedKey || str_contains((string) $key, '.');
 
                 ++$fields;
                 if ($fields > $this->maxInputFields) {

@@ -21,7 +21,6 @@ use Infocyph\ReqShield\Services\MessageTokenBuilder;
 use Infocyph\ReqShield\Services\SanitizerMapApplier;
 use Infocyph\ReqShield\Support\FieldAlias;
 use Infocyph\ReqShield\Support\FieldPlan;
-use Infocyph\ReqShield\Support\NestedValidator;
 use Infocyph\ReqShield\Support\RuleDefinitionSnapshot;
 use Infocyph\ReqShield\Support\SchemaCompiler;
 use Infocyph\ReqShield\Support\ValidationPlan;
