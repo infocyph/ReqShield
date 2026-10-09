@@ -53,7 +53,7 @@ test('after callback failure prunes a previously validated nested member', funct
 });
 
 test('image and dimensions reject every unsafe upload path', function (mixed $path, int $error) {
-    foreach (['image', 'dimensions:min_width=1,min_height=1'] as $rule) {
+    foreach (['image', 'dimensions'] as $rule) {
         $result = Validator::make(['upload' => $rule])->validate([
             'upload' => ['tmp_name' => $path, 'error' => $error],
         ]);
@@ -81,7 +81,7 @@ test('local uploaded image still passes image and dimension validation', functio
     file_put_contents($path, $bytes);
 
     try {
-        foreach (['image', 'dimensions:min_width=1,min_height=1'] as $rule) {
+        foreach (['image', 'dimensions'] as $rule) {
             $result = Validator::make(['upload' => $rule])->validate([
                 'upload' => ['tmp_name' => $path, 'error' => UPLOAD_ERR_OK],
             ]);
@@ -89,5 +89,57 @@ test('local uploaded image still passes image and dimension validation', functio
         }
     } finally {
         unlink($path);
+    }
+});
+
+
+test('uploaded seekable memory stream preserves cursor and ignores remote metadata URI', function () {
+    $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jB3kAAAAASUVORK5CYII=', true);
+    if ($bytes === false) {
+        throw new RuntimeException('Invalid PNG test fixture');
+    }
+
+    $handle = fopen('php://temp', 'w+b');
+    if ($handle === false) {
+        throw new RuntimeException('Unable to create memory stream');
+    }
+
+    fwrite($handle, $bytes);
+    fseek($handle, 5);
+
+    $stream = new class($handle) {
+        public function __construct(private mixed $handle) {}
+
+        public function eof(): bool { return feof($this->handle); }
+
+        public function getMetadata(?string $key = null): mixed { return $key === 'uri' ? 'http://127.0.0.1:65530/should-not-fetch' : null; }
+
+        public function isSeekable(): bool { return true; }
+
+        public function read(int $length): string { return fread($this->handle, $length) ?: ''; }
+
+        public function seek(int $offset): void { fseek($this->handle, $offset); }
+
+        public function tell(): int { return ftell($this->handle); }
+    };
+
+    $upload = new class($stream) {
+        public function __construct(private object $stream) {}
+
+        public function getError(): int { return UPLOAD_ERR_OK; }
+
+        public function getSize(): int { return 67; }
+
+        public function getStream(): object { return $this->stream; }
+    };
+
+    try {
+        foreach (['image', 'dimensions'] as $rule) {
+            $result = Validator::make(['upload' => $rule])->validate(['upload' => $upload]);
+            expect($result->passes())->toBeTrue()
+                ->and($stream->tell())->toBe(5);
+        }
+    } finally {
+        fclose($handle);
     }
 });
