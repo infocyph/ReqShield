@@ -468,7 +468,7 @@ when it is absent. The contract contains only `batchExists()` and `batchUnique()
 ReqShield owns logical validation batching, while providers own query construction
 and driver-safe physical chunking. ReqShield is database-library agnostic: a
 provider may use PDO, DBLayer, Laravel, Doctrine, or another database layer.
-DBLayer 5.1 is the development/reference integration and remains optional for normal consumers. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
+DBLayer **6.0** is the 3.3 reference integration and remains optional for consumers; existing DBLayer 5.1 providers still work on the ordinary validation path. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
 
 ```php
 use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
@@ -484,12 +484,37 @@ $validator = Validator::make([
 ], $provider);
 ```
 
-The resolver is invoked only when database rules execute. ReqShield owns logical validation batching; DBLayer 5.1 owns physical bind-limit sizing and query execution.
+The resolver is invoked once per logical database operation. DBLayer 6 owns physical query limits, security policy and binding; typed candidate comparisons may require smaller query chunks.
 
 **Benefits:**
 - **Automatic batching** - Multiple checks become bounded DB-native match queries; restricted raw-SQL policies use query-builder-only lookups
 - **Update support** - `Rule::unique('users', 'email')->ignore(5)` ignores ID 5
 - **Explicit object syntax** - `Rule::unique('users', 'email')->ignore($id)->withoutTrashed()`
+
+### Optional Runwire 2.1.1 integration
+
+DBLayer **6.0** is the intended optional database bridge, and Runwire
+**2.1.1** supplies opt-in host-owned cancellation/deadline integration.
+Neither package is required for ordinary ReqShield validation.
+
+```php
+use Infocyph\ReqShield\Validator;
+
+$compiled = Validator::compile(['items.*.id' => 'required|integer']);
+
+// The active host, not ReqShield, supplies these execution objects.
+$result = $compiled->validateWithRunwire(
+    $payload, $hostRuntime, $hostRequest, $hostScope,
+);
+
+// No Runwire installation is required for the normal path.
+$ordinary = $compiled->validate($payload);
+```
+
+The native DBLayer bridge borrows the host context around one logical
+batch and restores the previous connection binding. See
+[Runwire integration](docs/runwire-integration.rst) and
+[upgrading to 3.3](docs/upgrading-3.3.rst).
 
 ### Schema Export / Introspection
 
@@ -527,9 +552,8 @@ Database rules are automatically batched:
 'email' => 'unique:users,email',
 'category_id' => 'exists:categories,id',
 
-// ...become just 2 queries (50x faster!)
-// - One batch for exists checks
-// - One batch for unique checks
+// ...are grouped into logical batches with bounded physical queries.
+// Query counts depend on distinct columns, SQL policy and bind/SQL limits.
 ```
 
 ### 3. **Fail-Fast Execution**
@@ -539,8 +563,8 @@ Stops validating a field on first rule failure:
 // If empty → fails on 'required', skips 'email' and 'max:255'
 ```
 
-### 4. **Zero Overhead for Simple Cases**
-Nested validation only activates if you use dot notation. No performance cost for simple flat arrays.
+### 4. **Fast Ordinary Validation**
+Flat validation does not construct a Runwire context. Use matched-environment, end-to-end host RPM testing to assess production throughput; package microbenchmarks are not a substitute.
 
 
 ## Security
