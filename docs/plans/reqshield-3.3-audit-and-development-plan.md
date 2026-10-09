@@ -2,9 +2,9 @@
 
 Audit date: 2026-10-08 (Asia/Dhaka). Audited revision: `dcee175363e678f463fbad9224dcd83e5ad10338`, tagged `3.2`.
 
-**Changes are required.** Existing quality checks pass, but focused adversarial probes reproduce validation bypasses, unsafe output, unintended network access, and database comparison defects. This document records findings and a concrete implementation plan; production code and dependency constraints have not been changed.
+**Changes are required.** Existing quality checks pass, but focused adversarial probes reproduce validation bypasses, unsafe output, unintended network access, and database comparison defects. This section preserves the original audit findings and implementation plan; subsequent PR #17 commits now include remediation, Runwire integration and package updates. Refer to the completion tracker for current status.
 
-This plan follows [PHPForge engineering principles](../../vendor/infocyph/phpforge/resources/engineering-principles.md) and its [agent workflow](../../vendor/infocyph/phpforge/resources/AGENTS.md): preserve security and contracts, change the existing owner, justify new types, separate required fixes from optional improvements, and measure representative successful request throughput before accepting hot-path changes.
+This plan follows [PHPForge engineering principles](https://github.com/infocyph/PHPForge/blob/main/resources/engineering-principles.md) and its [agent workflow](https://github.com/infocyph/PHPForge/blob/main/resources/AGENTS.md): preserve security and contracts, change the existing owner, justify new types, separate required fixes from optional improvements, and measure representative successful request throughput before accepting hot-path changes.
 
 ## Agreed release target
 
