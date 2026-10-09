@@ -294,26 +294,30 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         array $fixedBindings,
         array $values,
     ): array {
-        $sourceParts = [];
+        $projections = [];
+        $columns = [];
         $bindings = [];
+
         foreach ($values as $index => $value) {
-            $sourceParts[] = 'SELECT ' . $index . ' AS candidate_key WHERE EXISTS (' . $candidateSql . ')';
+            $name = 'matched_' . $index;
+            $columns[] = $name;
+            $projections[] = 'CASE WHEN EXISTS (' . $candidateSql . ') THEN 1 ELSE 0 END AS ' . $name;
             foreach ($fixedBindings as $binding) {
                 $bindings[] = $binding;
             }
             $bindings[] = $value;
         }
 
-        $rows = $connection->query()
-            ->fromSub(implode(' UNION ALL ', $sourceParts), 'c', $bindings)
-            ->addSelectAs('c.candidate_key', 'candidate_key')
-            ->get();
+        $query = $connection->query()->fromSub('SELECT ' . implode(', ', $projections), 'c', $bindings);
+        foreach ($columns as $column) {
+            $query->addSelectAs('c.' . $column, $column);
+        }
 
+        $row = $query->get()[0] ?? [];
         $matched = [];
-        foreach ($rows as $row) {
-            $index = $row['candidate_key'] ?? null;
-            if (is_int($index) || (is_string($index) && preg_match('/^\d+$/D', $index) === 1)) {
-                $matched[] = (int) $index;
+        foreach ($columns as $index => $column) {
+            if ((int) ($row[$column] ?? 0) === 1) {
+                $matched[] = $index;
             }
         }
 
