@@ -13,7 +13,7 @@ trait HasValidatorExecution
      * @param array{
      *   errors:array<string,array<int,string>>,
      *   validated:array<string,mixed>,
-     *   failures:array<int,mixed>,
+     *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
      *   expensiveBatch:array<int,mixed>
      * } $context
      */
