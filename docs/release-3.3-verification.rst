@@ -95,6 +95,40 @@ validation with mutable/compiled validators, rather than sanitizer, cast,
 distinct or SQL workloads. The release remains open pending performance
 resolution and fresh hosted gates on the exact repaired final commit.
 
+Hosted Throughput Follow-up (2026-10-09)
+----------------------------------------
+
+The subsequent ``77be83fa18ddf5f810f7f242dc0c60572f106f5b`` revision passed
+the hosted QA, release guard, documentation, SQL parity and persistent-soak
+workflows. The `HTTP throughput job
+<https://github.com/infocyph/ReqShield/actions/runs/37883154305>`_ failed
+with stable median RPM changes of -2.84%, -2.89% and -2.87% at concurrency
+1, 4 and 8 against the exact 3.2 tag. Candidate sample variation was below
+0.4% at every concurrency. This was a consistent regression beyond the
+unchanged 2% allowance, not an unstable-series rejection.
+
+The job checked out PR merge commit ``006eec329cf862862b49b8f3e022f6af5abefc3d``;
+its source tree matches the recorded PR head. Both paths used PHP-FPM
+8.4.26, OPcache and production-only authoritative autoloaders.
+
+The repair skips empty cheap/medium phases and reuses the compiled implicit
+rule, name and placeholder arrays. Only an absent field with a ``filled``
+rule needs filtered arrays. Existing per-callback cancellation guards stay
+in place. New regressions cover missing/present conditional fields across
+validator reuse and cancellation in each non-implicit cost phase, for both
+mutable and compiled validators. Native PHP 8.4/8.5 suites pass with
+383 tests and 4,032 assertions; PHPForge processing, detailed checks and the
+release guard pass with unchanged detectors. The documentation builds with
+Sphinx warnings treated as errors.
+
+Acceptance of this repair requires fresh hosted checks for its exact PR
+revision, including the same HTTP fixture, 2% regression allowance and 5%
+sample-variation limit. Component timing diagnostics are not HTTP acceptance
+evidence. Consult the `PR checks
+<https://github.com/infocyph/ReqShield/pull/17/checks>`_ for the current
+revision's artifacts; the earlier failure and local measurements above
+remain historical records.
+
 The earlier hosted certificates cover their recorded commits. Revalidate
 the repaired final commit before release; do not reuse those certificates
 as evidence for subsequent source changes.

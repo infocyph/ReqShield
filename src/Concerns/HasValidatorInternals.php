@@ -1310,7 +1310,7 @@ trait HasValidatorInternals
         array &$context,
         bool $fieldFailFast,
     ): bool {
-        $hasError = !$this->validatePhase(
+        $hasError = $node->cheapRules !== [] && !$this->validatePhase(
             $node->cheapRules,
             $node->cheapRuleNames,
             $node->cheapRulePlaceholders,
@@ -1329,7 +1329,7 @@ trait HasValidatorInternals
         }
 
         if (
-            !$this->validatePhase(
+            $node->mediumRules !== [] && !$this->validatePhase(
                 $node->mediumRules,
                 $node->mediumRuleNames,
                 $node->mediumRulePlaceholders,
@@ -1363,19 +1363,25 @@ trait HasValidatorInternals
         bool $fieldFailFast,
         bool $fieldExists,
     ): bool {
-        $rules = [];
-        $names = [];
-        $placeholders = [];
+        $rules = $node->implicitRules;
+        $names = $node->implicitRuleNames;
+        $placeholders = $node->implicitRulePlaceholders;
 
-        foreach ($node->implicitRules as $index => $rule) {
-            $name = $node->implicitRuleNames[$index];
-            if (!$fieldExists && $name === 'filled') {
-                continue;
+        if (!$fieldExists && $node->hasFilledRule) {
+            $rules = [];
+            $names = [];
+            $placeholders = [];
+
+            foreach ($node->implicitRules as $index => $rule) {
+                $name = $node->implicitRuleNames[$index];
+                if ($name === 'filled') {
+                    continue;
+                }
+
+                $rules[] = $rule;
+                $names[] = $name;
+                $placeholders[] = $node->implicitRulePlaceholders[$index];
             }
-
-            $rules[] = $rule;
-            $names[] = $name;
-            $placeholders[] = $node->implicitRulePlaceholders[$index];
         }
 
         return $rules !== [] && !$this->validatePhase(

@@ -31,6 +31,12 @@ PhpBench reports timing variance and peak memory. Compare results only on a
 stable environment. PHPForge's benchmark-result validation and comparison
 commands provide the regression-budget gate used for release baselines.
 
+The executor skips empty cost phases and reuses compiled implicit-rule
+metadata, filtering ``filled`` only for missing fields. These optimizations
+preserve rule order, conditional placeholders and cancellation guards around
+every executed callback. Compare the actual HTTP workload after executor
+changes; faster component timings alone do not close the host RPM gate.
+
 Release RPM and Persistent-Worker Acceptance
 --------------------------------------------
 

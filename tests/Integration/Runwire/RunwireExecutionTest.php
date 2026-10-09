@@ -204,6 +204,27 @@ test('cancellation inside a rule prevents the next rule on the same field', func
     expect($events)->toBe(['cancel']);
 });
 
+test('sparse cost phases retain cancellation for mutable and compiled validators', function (int $cost, bool $compiled) {
+    $request = RequestContext::standalone();
+    $events = [];
+    $builder = Validator::make(['value' => [
+        new Callback(static function () use ($request, &$events): bool {
+            $events[] = 'cancel';
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+            return true;
+        }, cost: $cost),
+        new Callback(static function () use (&$events): bool {
+            $events[] = 'later';
+            return true;
+        }, cost: $cost),
+    ]]);
+    $validator = $compiled ? new \Infocyph\ReqShield\CompiledValidator($builder) : $builder;
+
+    expect(fn() => $validator->validateWithRunwire(['value' => 1], $request->runtime(), $request))
+        ->toThrow(CancelledException::class);
+    expect($events)->toBe(['cancel']);
+})->with(['cheap' => 5, 'medium' => 50, 'expensive' => 150])->with([false, true]);
+
 test('cancellation inside an after callback prevents the next after callback', function () {
     $request = RequestContext::standalone();
     $events = [];

@@ -65,6 +65,23 @@ test('missing filled accepted and declined rules distinguish absence from emptin
             ->validate(['mode' => 'active'])->fails())->toBeTrue();
 });
 
+test('implicit filtering preserves conditional metadata across absent and present reuse', function (bool $compiled) {
+    $builder = Validator::make([
+        'mode' => 'string',
+        'value' => 'filled|required_if:mode,active|integer',
+    ])->setFailFast(false);
+    $validator = $compiled ? new \Infocyph\ReqShield\CompiledValidator($builder) : $builder;
+
+    expect($validator->validate(['mode' => 'inactive'])->passes())->toBeTrue();
+    $missing = $validator->validate(['mode' => 'active']);
+    expect($missing->failuresFor('value')[0]['rule'])->toBe('required_if')
+        ->and($missing->errorsFor('value')[0])->toContain('mode', 'active');
+    $empty = $validator->validate(['mode' => 'active', 'value' => '']);
+    expect(array_column($empty->failuresFor('value'), 'rule'))->toBe(['filled', 'required_if', 'integer'])
+        ->and($validator->validate(['mode' => 'active', 'value' => 0])->passes())->toBeTrue()
+        ->and($validator->validate(['mode' => 'inactive'])->passes())->toBeTrue();
+})->with([false, true]);
+
 test('nested and wildcard rules retain and bind dependency paths', function () {
     $nested = Validator::make([
         'profile.value' => 'required_if:profile.status,active|string',
