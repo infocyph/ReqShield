@@ -36,6 +36,10 @@
         "infocyph/phpforge": "dev-main@dev",
         "infocyph/runwire": "2.1.1"
     },
+    "conflict": {
+        "infocyph/arraykit": "<5.3",
+        "infocyph/dblayer": "<6.0"
+    },
     "suggest": {
         "infocyph/dblayer": "Optional DBLayer 6 exists/unique provider, including host-owned Runwire forwarding.",
         "infocyph/runwire": "Optional host-owned cancellation/deadline and coroutine integration via validateWithRunwire()."
