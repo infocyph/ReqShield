@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Infocyph\DBLayer\DB;
+use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
 use Infocyph\ReqShield\Validator;
 use Infocyph\Runwire\Coroutine\CoroutineRuntime;
 use Infocyph\Runwire\Coroutine\CoroutineScope;
@@ -122,4 +124,34 @@ test('compiled validator does not share execution state between interleaved coro
     });
 
     expect($results)->toBe([true, true]);
+});
+
+
+test('DBLayer withRunwire forwards one logical batch and restores host binding', function () {
+    DB::resetRuntimeState();
+
+    try {
+        $connection = DB::addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'reqshield-runwire');
+        $connection->statement('CREATE TABLE records (id INTEGER PRIMARY KEY, token TEXT)');
+        $connection->insert('INSERT INTO records (id, token) VALUES (?, ?)', [1, 'one']);
+
+        $request = RequestContext::standalone();
+        $runtime = $request->runtime();
+        $provider = DBLayerDatabaseProvider::fromConnection($connection);
+        $validator = Validator::make(['items.*' => 'exists:records,token'], $provider);
+
+        expect($connection->runwireBinding())->toBeNull();
+        $result = $validator->validateWithRunwire(
+            ['items' => ['one', 'two']], $runtime, $request,
+        );
+
+        expect($result->fails())->toBeTrue()
+            ->and($result->errors())->toHaveKey('items.1')
+            ->and($connection->runwireBinding())->toBeNull();
+    } finally {
+        DB::resetRuntimeState();
+    }
 });
