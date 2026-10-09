@@ -62,11 +62,11 @@ Unique checks include all rows by default and therefore make no assumption that 
 column name) to opt into soft-delete filtering; ``withTrashed()`` restores the
 default.
 
-Native DBLayer 5.1 Integration
-------------------------------
+Native DBLayer 6 Integration
+----------------------------
 
 ReqShield remains database-library agnostic. DBLayer is an optional suggested
-dependency, not a normal runtime requirement. When DBLayer 5.1 is installed,
+dependency, not a normal runtime requirement. When DBLayer 6.0 is installed,
 ReqShield provides the native bridge
 ``Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider``.
 
@@ -99,19 +99,19 @@ database's collation and numeric comparison rules. It never re-matches returned
 column values using PHP string equality. Qualified column names work without
 relying on the driver's returned column labels.
 
-Physical query sizing uses the exact DBLayer connection's
-``Connection::safeBatchSize()``. Each non-NULL candidate consumes one binding.
-A unique-ignore predicate contributes one fixed binding for the whole correlated
-candidate projection rather than repeating that binding per candidate. DBLayer
-remains authoritative for bind limits. Repeated candidates are deduplicated by
-both type and value.
+Physical query sizing uses the actual DBLayer connection's
+``Connection::safeBatchSize()``, its configured ``max_sql_length``,
+and a physical cap of 64 candidate projections. Each candidate retains
+an independent bound ``CASE WHEN EXISTS`` predicate. For unique-ignore,
+the ignored ID binding repeats per candidate alongside the bound value.
+DBLayer remains authoritative for SQL and parameter limits. Repeated
+candidates are deduplicated by both type and value.
 
-The bridge also bounds query width to 128 candidates by default. This limits
-SQL construction and result-column allocation independently of the driver's
-bind ceiling. Applications may configure a positive ``maxBatchValues`` on the
-constructor or ``fromConnection()``; larger values must fit the deployment's
-SQL/result-column limits. ReqShield's normal input/wildcard limits remain the
-higher-level validation abuse controls.
+The logical ``maxBatchValues`` defaults to 128. Physical batches
+remain capped by 64 columns, SQL length, and the real connection's
+bind budget. Applications may configure a positive ``maxBatchValues``
+on the constructor or ``fromConnection()``, but those physical bounds
+still apply. Normal input/wildcard limits remain separate abuse controls.
 
 Unique-ignore handling preserves SQL NULL semantics with the logical predicate
 ``(id_column != :ignore OR id_column IS NULL)``. Candidate NULL values are
@@ -123,6 +123,13 @@ one query-builder-only lookup per distinct candidate instead of the batched
 ``CASE WHEN EXISTS`` projection. This preserves the connection's security policy
 and SQL comparison behavior at the cost of additional round trips. It still
 resolves the connection only once per provider operation.
+
+When the caller uses ``validateWithRunwire()``, ReqShield borrows the
+host runtime/request/scope through DBLayer 6's ``Connection::withRunwire()``
+for a complete logical provider batch and restores the prior binding on
+exit. DBLayer 5.1 can still execute the ordinary provider path; it cannot
+promise DBLayer 6's scoped query cancellation. See
+:doc:`runwire-integration`.
 
 The deterministic SQLite integration matrix covers flat, nested, wildcard,
 mixed, duplicate and zero-like values, NULLs, ignore IDs, nullable/custom ID
