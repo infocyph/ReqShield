@@ -97,9 +97,9 @@ The host remains responsible for connection and worker lifetimes.
 Compatibility and Boundaries
 ----------------------------
 
-* DBLayer **6.0** is the intended reference integration. Existing DBLayer
-  5.1 providers still execute through the normal contract, without claiming
-  Runwire query-level cancellation.
+* DBLayer **6.0** is the minimum supported native integration.
+  DBLayer 5.x and ArrayKit versions below 5.3 are unsupported, blocked by
+  Composer, and have no compatibility fallback.
 * A mismatched PID, completed or mismatched request, closed scope and
   cancellation reject execution.
 * Long validations perform bounded cooperative checkpoints. Runwire does not
