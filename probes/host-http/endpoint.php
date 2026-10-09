@@ -9,12 +9,14 @@ use Infocyph\ReqShield\Validator;
 $source = file_get_contents('php://input');
 if (!is_string($source) || $source === '') {
     http_response_code(400);
+
     throw new \RuntimeException('The HTTP benchmark request or validation failed.');
 }
 
 $payload = json_decode($source, true, 512, JSON_THROW_ON_ERROR);
 if (!is_array($payload) || !isset($payload['seed']) || !is_int($payload['seed'])) {
     http_response_code(400);
+
     throw new \RuntimeException('The HTTP benchmark request or validation failed.');
 }
 
