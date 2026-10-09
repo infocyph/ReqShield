@@ -37,7 +37,49 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
 
     public function batchExists(string $table, array $checks): array
     {
+        return $this->batchExistsOn($this->resolveConnection(), $table, $checks);
+    }
+
+    public function batchUnique(string $table, array $checks): array
+    {
+        return $this->batchUniqueOn($this->resolveConnection(), $table, $checks);
+    }
+
+    /**
+     * Bind only host-provided Runwire context for one logical database batch.
+     *
+     * @param list<array<string,mixed>> $checks
+     * @return list<int>
+     */
+    public function batchWithRunwire(
+        string $operation,
+        string $table,
+        array $checks,
+        \Infocyph\ReqShield\Support\RunwireExecution $execution,
+    ): array {
+        if (!in_array($operation, ['exists', 'unique'], true)) {
+            throw new \InvalidArgumentException('Unsupported database check operation.');
+        }
+
         $connection = $this->resolveConnection();
+        if (!method_exists($connection, 'withRunwire')) {
+            throw new \LogicException('DBLayer 6 withRunwire() is required for cooperative database validation.');
+        }
+
+        $callback = fn(): array => $operation === 'unique'
+            ? $this->batchUniqueOn($connection, $table, $checks)
+            : $this->batchExistsOn($connection, $table, $checks);
+
+        return $connection->withRunwire(
+            $execution->runtime,
+            $callback,
+            $execution->request,
+            $execution->scope,
+        );
+    }
+
+    private function batchExistsOn(Connection $connection, string $table, array $checks): array
+    {
         $table = $this->sqlIdentifier($table, 'table');
         $failed = [];
 
@@ -54,9 +96,8 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         return $failed;
     }
 
-    public function batchUnique(string $table, array $checks): array
+    private function batchUniqueOn(Connection $connection, string $table, array $checks): array
     {
-        $connection = $this->resolveConnection();
         $table = $this->sqlIdentifier($table, 'table');
         $failed = [];
 
