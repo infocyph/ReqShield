@@ -141,6 +141,59 @@ trait HasValidatorRequestFeatures
     }
 
     /**
+     * @param array<string,mixed> $validated
+     * @param list<string> $fields
+     * @param array<string,array<int,string>> $errors
+     */
+    protected function purgeValidatedDescendants(array &$validated, array $fields, array $errors): void
+    {
+        foreach (array_keys($errors) as $field) {
+            unset($validated[$field]);
+        }
+
+        foreach ($fields as $field) {
+            if (!str_contains($field, '.') || array_key_exists($field, $validated)) {
+                continue;
+            }
+
+            $this->pruneParentPath($validated, $field);
+        }
+    }
+
+    /** @param array<string,mixed> $validated */
+    protected function pruneParentPath(array &$validated, string $field): void
+    {
+        $segments = explode('.', $field);
+        $count = count($segments);
+
+        for ($index = 1; $index < $count; ++$index) {
+            $parent = implode('.', array_slice($segments, 0, $index));
+            if (!isset($validated[$parent]) || !is_array($validated[$parent])) {
+                continue;
+            }
+
+            $this->removeNestedPath($validated[$parent], implode('.', array_slice($segments, $index)));
+        }
+    }
+
+    /** @param array<int|string,mixed> $data */
+    protected function removeNestedPath(array &$data, string $path): void
+    {
+        $segments = explode('.', $path);
+        $current = &$data;
+
+        foreach ($segments as $index => $segment) {
+            unset($current[implode('.', array_slice($segments, $index))]);
+
+            if (!isset($current[$segment]) || !is_array($current[$segment])) {
+                return;
+            }
+
+            $current = &$current[$segment];
+        }
+    }
+
+    /**
      * @param array<int|string,mixed> $originalData
      * @param array<int|string,mixed> $preparedData
      * @param array{
@@ -174,7 +227,7 @@ trait HasValidatorRequestFeatures
 
         if ($this->stripUnknownFields) {
             foreach ($unknownFields as $field) {
-                unset($preparedData[$field]);
+                $this->removeNestedPath($preparedData, $field);
             }
 
             return;
