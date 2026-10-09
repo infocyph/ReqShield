@@ -359,6 +359,7 @@ trait HasValidatorRuntime
         mixed $condition,
         array $data,
         array $rules,
+        ?RunwireExecution $execution = null,
     ): bool {
         if (is_bool($condition)) {
             return $condition;
@@ -371,6 +372,7 @@ trait HasValidatorRuntime
         return (bool) $this->invokeCallbackWithSupportedArity(
             $condition,
             [$data, $rules, $this],
+            $execution,
         );
     }
 

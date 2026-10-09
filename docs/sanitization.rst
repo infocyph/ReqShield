@@ -32,6 +32,40 @@ processing, phone/currency/filename/domain formats, alphanumeric filtering,
 HTML encoding/decoding, ``stripTags``, SQL-LIKE escaping, base64/JSON, and array
 normalization.
 
+Sanitized Structures and Unknown Fields
+---------------------------------------
+
+Sanitizers run before rule evaluation. Input limits are checked again after
+sanitization, and ``strict()`` / ``stripUnknown()`` inspect fields introduced
+by decoding or custom transformations as well as the original input.
+
+.. code-block:: php
+
+    use Infocyph\ReqShield\Validator;
+
+    $validator = Validator::make([
+        'user' => 'array',
+        'user.name' => 'required|string',
+    ])->setSanitizers(['user' => ['jsonDecode']])->stripUnknown();
+
+    $result = $validator->validate([
+        'user' => '{"name":"ok","is_admin":true}',
+    ]);
+
+    $result->passes();           // true
+    $result->safe()['user'];     // ['name' => 'ok']
+    $result->typed()['user'];    // ['name' => 'ok']
+
+With ``strict()`` instead, the result fails with an error for
+``user.is_admin``; that field is still absent from the validated parent.
+Allowing unknown fields explicitly retains the existing permissive policy.
+
+When using ``validateWithRunwire()``, every sanitizer invocation checks
+cancellation and deadline expiry before and after execution. A cancelled
+sanitizer prevents later pipeline callbacks and rule execution. Standalone
+``Sanitizer`` calls have no host execution context; see
+:doc:`runwire-integration`.
+
 HTML and Escaping Utilities
 ---------------------------
 
@@ -56,3 +90,7 @@ Slug Portability
 then falls back to the optional Intl transliterator. Unsupported iconv builds
 (such as musl's) are not called with ``//TRANSLIT``. Without either capability,
 non-ASCII characters are handled by the normal slug separator filter.
+For libiconv, accent punctuation generated while transliterating letters is
+removed without deleting punctuation supplied by the caller. With a supported
+transliterator, ``Café déjà vu`` becomes ``cafe-deja-vu`` and
+``Café's naïve résumé`` becomes ``cafe-s-naive-resume``.

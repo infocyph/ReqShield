@@ -73,6 +73,8 @@ The frozen compiled snapshot does not retain a request or coroutine
 scope between calls. Without Runwire, use ``validate($data)``.
 
 Cancellation is propagated to the caller rather than converted to
-field-validation errors. DBLayer 6 can borrow the same host context
+field-validation errors, including cancellation inside sanitizer, condition,
+rule, after-callback and cast pipelines. No later callback or successful
+result delivery follows a detected cancellation. DBLayer 6 can borrow the same host context
 during an optional database check, restoring its prior binding on exit.
 See :doc:`runwire-integration`.

@@ -169,3 +169,16 @@ test('wildcard cache shape keys preserve byte-exact key types and large inputs',
     expect(HashAlgorithm::shapeCacheKey($large))
         ->toBe('sha256:' . HashAlgorithm::shapeSignature($large));
 });
+
+test('wildcard captures cannot inject rule delimiters into dependency expressions', function (string $key, bool $compiled, bool $arrayRules) {
+    $definition = 'required_if:items.*.enabled,1|integer';
+    $rules = ['items.*.value' => $arrayRules ? explode('|', $definition) : $definition];
+    $validator = $compiled ? Validator::compile($rules) : Validator::make($rules);
+
+    expect($validator->validate(['items' => ['alice' => ['enabled' => '1', 'value' => 1]]])->passes())->toBeTrue();
+    expect(fn() => $validator->validate(['items' => [$key => ['enabled' => '1']]]))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn() => $validator->validate(['items' => [$key => ['enabled' => '1', 'value' => 'INVALID']]]))
+        ->toThrow(InvalidArgumentException::class);
+})->with(['comma' => 'alice,1', 'pipe injection' => 'alice,1|exclude|same:ignored'])
+    ->with([false, true])->with([false, true]);

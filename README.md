@@ -31,7 +31,7 @@ if ($result->passes()) {
 ## Features
 
 -  **108 Built-in Rules** - Basic types, conditional rules, files, database checks, enums, and more
--  **46 Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
+-  **Built-in Sanitizers** - Manual sanitization or built-in sanitize+validate pipeline
 -  **Intelligent Batching** - Expensive DB checks are batched automatically
 -  **Native DBLayer 6 Bridge** - Optional resolver-first `exists` / `unique` integration
 -  **Frozen Compiled Validators** - Reusable snapshots for persistent runtimes and Fiber-interleaved execution
@@ -165,9 +165,9 @@ payload validity and safe upload metadata in one rule.
 
 ---
 
-## Available Sanitizers (46 Built-in)
+## Available Sanitizers
 
-ReqShield includes 46 built-in sanitizers covering several common scenarios:
+ReqShield includes built-in sanitizers covering several common scenarios:
 
 - Basic Types
 - Case Conversions
@@ -179,6 +179,11 @@ ReqShield includes 46 built-in sanitizers covering several common scenarios:
 - Array Operations
 
 **[View Complete Sanitizer Reference](https://docs.infocyph.com/projects/reqshield/en/latest/sanitization.html)**
+
+Slug transliteration supports glibc/libiconv or optional Intl, with a separator
+fallback when neither is available. Generated libiconv accent markers no longer
+add extra hyphens: `Café déjà vu` becomes `cafe-deja-vu` when transliteration is
+available. Caller punctuation is preserved before the normal slug filter.
 
 ---
 
@@ -209,6 +214,11 @@ $validator = Validator::make($rules)
     ->stripUnknown();      // remove unknown fields instead of failing
 ```
 
+These policies inspect both original and sanitized input, including nested
+fields introduced by JSON decoding. Unknown descendants are removed from
+validated parent arrays under either policy. See the
+[sanitization guide](docs/sanitization.rst) for a complete example.
+
 ### Enum Validation and Casting
 
 ```php
@@ -218,7 +228,7 @@ $validator = Validator::make($rules)
 ```php
 'status' => [
     'rules' => 'required|enum:App\\Enums\\OrderStatus',
-    'cast' => App\\Enums\\OrderStatus::class,
+    'cast' => App\Enums\OrderStatus::class,
 ]
 ```
 
@@ -278,6 +288,11 @@ $result = $validator->validate($data);
 
 Nested paths are detected automatically and optimized targeted traversal is the default.
 Use `setNestedFlattenMode('all')` only when full flattening is required.
+
+Associative wildcard keys are supported, but keys containing `.`, `,` or `|`
+throw `InvalidArgumentException` before rule evaluation because those delimiters
+cannot safely represent a captured dependency path. This applies to mutable
+and compiled validators. See [nested validation](docs/nested-validation.rst).
 
 ### Custom Field Names
 
@@ -512,7 +527,17 @@ $ordinary = $compiled->validate($payload);
 ```
 
 The native DBLayer bridge borrows the host context around one logical
-batch and restores the previous connection binding. See
+batch and restores the previous connection binding, including after errors.
+Cancellation and deadlines are checked around sanitizer, condition, rule,
+after-callback and cast invocations, and before result delivery. Host
+cancellation propagates as Runwire's `CancelledException`; ordinary provider
+failures retain the sanitized database exception boundary.
+
+Cooperative yielding requires both the host's advertised coroutine capability
+and a live scope from its current task. Without that capability or scope,
+validation remains synchronous. When no active Runwire runtime is available,
+use `validate()`; intermediary libraries can forward optional host contexts
+and select the same normal path. ReqShield creates no workers or event loops. See
 [Runwire integration](docs/runwire-integration.rst) and
 [upgrading to 3.3](docs/upgrading-3.3.rst).
 

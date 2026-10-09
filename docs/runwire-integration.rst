@@ -40,6 +40,30 @@ The same ``validateWithRunwire()`` signature is available on a normal
 the call. Cancellation and deadline errors propagate to the host as
 Runwire exceptions; they are not ordinary field validation failures.
 
+Automatic Capability Use and Fallback
+-------------------------------------
+
+ReqShield uses the supplied request's cancellation and deadline state. Long
+field loops yield cooperatively at bounded checkpoints only when the supplied
+runtime advertises ``RUNWIRE_COROUTINES`` and a live scope is passed from the
+host's current coroutine task. Without that capability or scope, validation
+stays synchronous while preserving available cancellation checks. ReqShield
+does not create a replacement runtime, scheduler, worker or scope.
+
+When Runwire is not installed, or the caller has no active runtime, call
+``validate()``. Intermediary libraries can accept an optional runtime and select
+that ordinary path, as shown below. The same objects must be forwarded through
+every intermediary; an unrelated standalone context does not share the host's
+cancellation, deadline or task lifetime.
+
+Cancellation checks surround each sanitizer, condition, rule, after-validation
+callback and cast, and run before result delivery. Cancellation or deadline
+expiry throws ``Infocyph\Runwire\Exception\CancelledException`` before the
+next library-dispatched callback. A currently executing synchronous callback
+must return or throw before that check can run; its completed side effects
+cannot be undone. Callback return values, including ``null``, are evaluated
+once.
+
 Execution-owned DBLayer Connection
 ----------------------------------
 
@@ -73,13 +97,17 @@ The intermediary forwards the *same* host-owned runtime objects:
 
         public function check(
             array $input,
-            RuntimeContext $runtime,
+            ?RuntimeContext $runtime = null,
             ?RequestContext $request = null,
             ?CoroutineScope $scope = null,
         ): bool {
-            return $this->validator
-                ->validateWithRunwire($input, $runtime, $request, $scope)
-                ->passes();
+            $result = $runtime === null
+                ? $this->validator->validate($input)
+                : $this->validator->validateWithRunwire(
+                    $input, $runtime, $request, $scope,
+                );
+
+            return $result->passes();
         }
     }
 
@@ -89,10 +117,16 @@ The intermediary forwards the *same* host-owned runtime objects:
         $input, $hostRuntime, $hostRequest, $hostScope,
     );
 
+    // The same service also supports an ordinary caller without Runwire.
+    $ordinaryAccepted = $service->check($input);
+
 The bridge resolves one connection per logical provider operation. DBLayer
 6.0's ``Connection::withRunwire()`` borrows that context for the operation,
 including its physical chunks, and restores the prior binding on exit.
 The host remains responsible for connection and worker lifetimes.
+Host cancellation during resolution/query execution propagates ``CancelledException``,
+including when DBLayer reports a query-cancellation exception. Other provider
+errors retain ReqShield's sanitized ``DatabaseValidationException`` boundary.
 
 Compatibility and Boundaries
 ----------------------------
@@ -102,9 +136,8 @@ Compatibility and Boundaries
   Composer, and have no compatibility fallback.
 * A mismatched PID, completed or mismatched request, closed scope and
   cancellation reject execution.
-* Long validations perform bounded cooperative checkpoints. Runwire does not
-  automatically make synchronous PDO, image decoding or DNS operations
-  asynchronous.
+* Missing coroutine capability or scope uses synchronous validation. Passing
+  context does not make PDO, image decoding or DNS operations asynchronous.
 * The regular ``validate()`` path does not initialize a Runwire runtime.
 * Do not retain an execution's request or coroutine scope across requests;
   the host owns cancellation, disposal, transport mapping and worker resets.

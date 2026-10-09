@@ -4,6 +4,18 @@ Handling the Validation Result
 ``validate()`` returns a final, readonly ``ValidationResult``. Validation is
 complete when the result is created; it cannot be mutated or merged later.
 
+Validated parent arrays are projected against their validated descendants.
+Unknown children rejected or stripped by policy, excluded children, invalid
+children and after-callback-rejected children do not remain
+accessible through a passing parent in ``validated()``, ``safe()`` or
+``typed()``. For unknown-field policy after decoding, see :doc:`sanitization`.
+
+``validateWithRunwire()`` checks cancellation and deadline expiry during
+callbacks and casts, and before delivering a result. It throws the host's
+``CancelledException`` when cancelled; cancellation does not produce a
+passing result or an ordinary field error. The application owns transport
+mapping. See :doc:`runwire-integration`.
+
 .. code-block:: php
 
     $result->passes();

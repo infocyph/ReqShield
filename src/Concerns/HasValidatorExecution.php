@@ -40,12 +40,15 @@ trait HasValidatorExecution
         $execution?->checkpoint();
         $this->assertInputWithinLimits($data);
         $originalData = $data;
-        [$data, $plan] = $this->prepareValidationDataAndSchema($data);
+        [$data, $plan, $effectiveInput] = $this->prepareValidationDataAndSchema($data, $execution);
         $context = $this->initializeValidationContext();
-        $this->processUnknownFields($originalData, $data, $plan, $context);
+        $context['execution'] = $execution;
+        $execution?->checkpoint();
+        $this->processUnknownFields($originalData, $data, $plan, $context, $effectiveInput);
 
         if (!empty($context['errors']) && $this->stopOnFirstError) {
             $result = $this->buildValidationResult($context);
+            $execution?->checkpoint();
             $this->throwIfValidationShouldFail($result, $context['errors']);
 
             return $result;
@@ -70,6 +73,7 @@ trait HasValidatorExecution
         $execution?->checkpoint();
         $this->finalizeValidatedProjection($context, $plan);
         $result = $this->buildValidationResult($context);
+        $execution?->checkpoint();
         $this->throwIfValidationShouldFail($result, $context['errors']);
 
         return $result;

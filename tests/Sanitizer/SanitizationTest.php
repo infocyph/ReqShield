@@ -128,6 +128,7 @@ test('slug sanitization supports optional transliteration without assuming glibc
         || (function_exists('iconv') && defined('ICONV_IMPL') && in_array(ICONV_IMPL, ['glibc', 'libiconv'], true));
 
     expect(Sanitizer::slug('Café déjà vu'))->toBe($canTransliterate ? 'cafe-deja-vu' : 'caf-d-j-vu')
+        ->and(Sanitizer::slug("Café's naïve résumé"))->toBe($canTransliterate ? 'cafe-s-naive-resume' : 'caf-s-na-ve-r-sum')
         ->and(Sanitizer::slug('Hello World!', '_'))->toBe('hello_world')
         ->and(Sanitizer::slug(''))->toBe('');
 });

@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 use Infocyph\DBLayer\DB;
 use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
+use Infocyph\ReqShield\Exceptions\DatabaseValidationException;
+use Infocyph\ReqShield\Rules\Callback;
 use Infocyph\ReqShield\Validator;
 use Infocyph\Runwire\Coroutine\CoroutineRuntime;
 use Infocyph\Runwire\Coroutine\CoroutineScope;
 use Infocyph\Runwire\Exception\CancelledException;
 use Infocyph\Runwire\RequestContext;
 use Infocyph\Runwire\Runtime\Enum\CancellationReason;
+use Infocyph\Runwire\Runtime\Enum\RuntimeDriver;
+use Infocyph\Runwire\Runtime\RequestExecutionPolicy;
+use Infocyph\Runwire\RuntimeCapabilities;
 use Infocyph\Runwire\RuntimeContext;
 
 test('passed host runtime validates without altering the ordinary API', function () {
@@ -155,3 +160,218 @@ test('DBLayer withRunwire forwards one logical batch and restores host binding',
         DB::resetRuntimeState();
     }
 });
+
+test('cancellation inside a sanitizer prevents later sanitizer and rule callbacks', function () {
+    $request = RequestContext::standalone();
+    $events = [];
+    $validator = Validator::make(['value' => new Callback(static function () use (&$events): bool {
+        $events[] = 'rule';
+        return true;
+    })])->setSanitizers(['value' => [
+        static function ($value) use ($request, &$events) {
+            $events[] = 'cancel';
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+            return $value;
+        },
+        static function ($value) use (&$events) {
+            $events[] = 'later sanitizer';
+            return $value;
+        },
+    ]]);
+
+    expect(fn() => $validator->validateWithRunwire(['value' => 1], $request->runtime(), $request))
+        ->toThrow(CancelledException::class);
+    expect($events)->toBe(['cancel']);
+});
+
+test('cancellation inside a rule prevents the next rule on the same field', function () {
+    $request = RequestContext::standalone();
+    $events = [];
+    $validator = Validator::make(['value' => [
+        new Callback(static function () use ($request, &$events): bool {
+            $events[] = 'cancel';
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+            return true;
+        }),
+        new Callback(static function () use (&$events): bool {
+            $events[] = 'later rule';
+            return true;
+        }),
+    ]]);
+
+    expect(fn() => $validator->validateWithRunwire(['value' => 1], $request->runtime(), $request))
+        ->toThrow(CancelledException::class);
+    expect($events)->toBe(['cancel']);
+});
+
+test('cancellation inside an after callback prevents the next after callback', function () {
+    $request = RequestContext::standalone();
+    $events = [];
+    $validator = Validator::make(['value' => 'integer'])
+        ->after(static function () use ($request, &$events): void {
+            $events[] = 'cancel';
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+        })->after(static function () use (&$events): void { $events[] = 'later after'; });
+
+    expect(fn() => $validator->validateWithRunwire(['value' => 1], $request->runtime(), $request))
+        ->toThrow(CancelledException::class);
+    expect($events)->toBe(['cancel']);
+});
+
+test('cancellation inside a cast never returns a successful result or runs later casts', function () {
+    $request = RequestContext::standalone();
+    $events = [];
+    $validator = Validator::make(['value' => 'integer'])->setCasts(['value' => [
+        static function ($value) use ($request, &$events) {
+            $events[] = 'cancel';
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+            return $value;
+        },
+        static function ($value) use (&$events) {
+            $events[] = 'later cast';
+            return $value;
+        },
+    ]]);
+
+    expect(fn() => $validator->validateWithRunwire(['value' => 1], $request->runtime(), $request))
+        ->toThrow(CancelledException::class);
+    expect($events)->toBe(['cancel']);
+});
+
+test('native database resolver cancellation propagates the host exception and restores binding', function () {
+    DB::resetRuntimeState();
+    try {
+        $connection = DB::addConnection(['driver' => 'sqlite', 'database' => ':memory:'], 'resolver-cancel');
+        $connection->statement('CREATE TABLE tokens (code TEXT)');
+        $request = RequestContext::standalone();
+        $provider = new DBLayerDatabaseProvider(static function () use ($request, $connection) {
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+            return $connection;
+        });
+        $validator = Validator::make(['value' => 'exists:tokens,code'], $provider);
+
+        expect(fn() => $validator->validateWithRunwire(['value' => 'one'], $request->runtime(), $request))
+            ->toThrow(CancelledException::class);
+        expect($connection->runwireBinding())->toBeNull();
+    } finally {
+        DB::resetRuntimeState();
+    }
+});
+
+test('ordinary database resolver errors retain the sanitized database exception boundary', function () {
+    $request = RequestContext::standalone();
+    $failure = new RuntimeException('private provider details');
+    $provider = new DBLayerDatabaseProvider(static function () use ($failure) { throw $failure; });
+    $validator = Validator::make(['value' => 'exists:tokens,code'], $provider);
+
+    try {
+        $validator->validateWithRunwire(['value' => 'one'], $request->runtime(), $request);
+        throw new RuntimeException('Expected the database boundary to throw.');
+    } catch (DatabaseValidationException $exception) {
+        expect($exception->getPrevious())->toBe($failure)
+            ->and($exception->getMessage())->not->toContain('private provider details');
+    }
+});
+
+test('cancellation during a database query remains cancellation and clears temporary binding', function () {
+    DB::resetRuntimeState();
+    try {
+        $connection = DB::addConnection(['driver' => 'sqlite', 'database' => ':memory:'], 'query-cancel');
+        $connection->statement('CREATE TABLE tokens (code TEXT)');
+        $request = RequestContext::standalone();
+        $validator = Validator::make(['value' => 'exists:tokens,code'], DBLayerDatabaseProvider::fromConnection($connection));
+        $query = fn() => $validator->validateWithRunwire(['value' => 'one'], $request->runtime(), $request);
+
+        expect(fn() => $connection->withQueryCancellation(static function () use ($request): bool {
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+            return true;
+        }, $query))->toThrow(CancelledException::class);
+        expect($connection->runwireBinding())->toBeNull();
+    } finally {
+        DB::resetRuntimeState();
+    }
+});
+
+test('conditional callbacks stop immediately after host cancellation', function () {
+    $request = RequestContext::standalone();
+    $events = [];
+    $validator = Validator::make(['value' => 'integer'])->when(true,
+        static function () use ($request, &$events): array {
+            $events[] = 'cancel';
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+            return [];
+        },
+    )->when(true, static function () use (&$events): array { $events[] = 'later when'; return []; });
+
+    expect(fn() => $validator->validateWithRunwire(['value' => 1], $request->runtime(), $request))
+        ->toThrow(CancelledException::class);
+    expect($events)->toBe(['cancel']);
+});
+
+test('request deadline expiry during casting cannot return a passing result', function () {
+    $runtime = RuntimeContext::standalone();
+    $request = RequestContext::create($runtime, new RequestExecutionPolicy(maxExecutionSeconds: 1.0));
+    $validator = Validator::make(['value' => 'integer'])->setCasts(['value' => static function ($value) use ($request) {
+        while (!$request->deadline()->expired()) {
+            usleep(1_000);
+        }
+        return $value;
+    }]);
+
+    expect(fn() => $validator->validateWithRunwire(['value' => 1], $runtime, $request))
+        ->toThrow(CancelledException::class);
+    expect($request->cancellation->reason())->toBe(CancellationReason::DEADLINE_EXCEEDED);
+});
+
+test('automatic coroutine checkpoint observes sibling cancellation only with the supplied capability', function (bool $capable) {
+    $host = new CoroutineRuntime();
+    $runtime = RuntimeContext::fromCapabilities(
+        new RuntimeCapabilities(RuntimeDriver::NATIVE, supportsRunwireCoroutines: $capable), 'test-host',
+    );
+    $request = RequestContext::create($runtime);
+    $compiled = Validator::compile(['items.*' => 'required|integer']);
+
+    $result = $host->run(function (CoroutineScope $scope) use ($compiled, $runtime, $request): bool {
+        $validation = $scope->spawn(static function () use ($compiled, $runtime, $request, $scope): bool {
+            try {
+                return $compiled->validateWithRunwire(['items' => range(1, 300)], $runtime, $request, $scope)->passes();
+            } catch (CancelledException) {
+                return false;
+            }
+        });
+        $cancellation = $scope->spawn(static function () use ($request): void {
+            $request->cancel(CancellationReason::HOST_CANCELLED);
+        });
+        $passed = $validation->await();
+        $cancellation->await();
+        return $passed;
+    });
+
+    expect($result)->toBe(!$capable);
+    $next = RequestContext::create($runtime);
+    expect($compiled->validateWithRunwire(['items' => [1]], $runtime, $next)->passes())->toBeTrue();
+})->with([false, true]);
+
+test('null-returning pipelines execute each callback exactly once', function (bool $bound) {
+    $events = [];
+    $validator = Validator::make(['value' => 'nullable|integer'])
+        ->setSanitizers(['value' => static function () use (&$events): mixed {
+            $events[] = 'sanitizer';
+            return null;
+        }])->when(true, static function () use (&$events): mixed {
+            $events[] = 'when';
+            return null;
+        })->after(static function () use (&$events): void {
+            $events[] = 'after';
+        })->setCasts(['value' => static function () use (&$events): mixed {
+            $events[] = 'cast';
+            return null;
+        }]);
+    $result = $bound
+        ? $validator->validateWithRunwire(['value' => 1], RuntimeContext::standalone())
+        : $validator->validate(['value' => 1]);
+
+    expect($result->passes())->toBeTrue()
+        ->and($result->typed()['value'])->toBeNull()
+        ->and($events)->toBe(['sanitizer', 'when', 'after', 'cast']);
+})->with([false, true]);

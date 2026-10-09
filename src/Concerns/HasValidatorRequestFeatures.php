@@ -113,7 +113,8 @@ trait HasValidatorRequestFeatures
      *   errors:array<string,array<int,string>>,
      *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
      *   validated:array<string,mixed>,
-     *   expensiveBatch:array<int,mixed>
+     *   expensiveBatch:array<int,mixed>,
+     *   execution?:\Infocyph\ReqShield\Support\RunwireExecution|null
      * } $context
      */
     protected function executeAfterValidationCallbacks(
@@ -138,6 +139,7 @@ trait HasValidatorRequestFeatures
             $this->invokeCallbackWithSupportedArity(
                 $callback,
                 [$validationContext, $this, $data],
+                $context['execution'] ?? null,
             );
         }
 
@@ -155,6 +157,7 @@ trait HasValidatorRequestFeatures
     /**
      * @param array<int|string,mixed> $originalData
      * @param array<int|string,mixed> $preparedData
+     * @param array<int|string,mixed>|null $effectiveInput
      * @param array{
      *   errors:array<string,array<int,string>>,
      *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
@@ -174,12 +177,19 @@ trait HasValidatorRequestFeatures
         array &$preparedData,
         ValidationPlan $plan,
         array &$context,
+        ?array $effectiveInput = null,
     ): void {
         if ($this->allowUnknownFields) {
             return;
         }
 
         $unknownFields = $this->unknownFields($originalData, $plan);
+        if ($effectiveInput !== null) {
+            $unknownFields = array_values(array_unique([
+                ...$unknownFields,
+                ...$this->unknownFields($effectiveInput, $plan),
+            ]));
+        }
         if ($unknownFields === []) {
             return;
         }
@@ -199,7 +209,7 @@ trait HasValidatorRequestFeatures
                 'field' => $field,
                 'rule' => 'unknown',
                 'message' => $message,
-                'value' => $this->unknownFieldValue($originalData, $field),
+                'value' => $this->unknownFieldValue($effectiveInput ?? $originalData, $field),
             ];
 
             if ($this->stopOnFirstError) {

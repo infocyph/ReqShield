@@ -62,6 +62,7 @@ final readonly class DBLayerDatabaseProvider implements DatabaseProvider
         }
 
         $connection = $this->resolveConnection();
+        $execution->checkpoint();
         $callback = fn(): array => $operation === 'unique'
             ? $this->batchUniqueOn($connection, $table, $checks)
             : $this->batchExistsOn($connection, $table, $checks);

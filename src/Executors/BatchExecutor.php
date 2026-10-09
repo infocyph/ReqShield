@@ -116,6 +116,8 @@ final class BatchExecutor
         } catch (\Infocyph\Runwire\Exception\CancelledException $exception) {
             throw $exception;
         } catch (\Throwable $exception) {
+            $execution?->checkpoint();
+
             throw new DatabaseValidationException(
                 "Database validation failed for table '{$rule->table()}'.",
                 previous: $exception,

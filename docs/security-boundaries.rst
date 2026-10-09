@@ -72,10 +72,15 @@ Validated Parents and Image Sources (3.3)
 -----------------------------------------
 
 Validated ancestor arrays are projected against each validated child.
-Unknown, excluded, invalid and callback-rejected descendants must not
+Unknown descendants rejected or stripped by policy, excluded descendants,
+invalid descendants and callback-rejected descendants must not
 remain accessible through ``validated()``, ``safe()`` or typed output
 merely because a parent array passed. Strict unknown-field handling
 also covers integer root keys.
+Unknown-field policies inspect both original and sanitized structures,
+including fields introduced by JSON decoding. Wildcard member keys cannot
+contain dots, commas or pipes, which would make dependency paths ambiguous
+or change the textual rule grammar.
 
 Image/dimension rules reject remote URL paths, stream wrappers, invalid
 upload status, malformed temporary paths and oversized streamed images.
@@ -90,5 +95,9 @@ completion and cancellation, and live scope state. It does not create
 or retain workers or global runtime bindings. Cancellation propagates
 to the host. Passing Runwire context does not transform synchronous
 PDO/image/DNS work into asynchronous operations.
+Cancellation and deadline guards run before and after individual callbacks
+and before result delivery. They prevent subsequent library-dispatched
+callbacks; they cannot interrupt a running synchronous callback or undo
+its already committed side effects.
 
 See :doc:`runwire-integration` and :doc:`release-3.3-verification`.

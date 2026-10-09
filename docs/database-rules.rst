@@ -52,8 +52,8 @@ Simple string syntax remains available:
 
 .. code-block:: php
 
-    'team_id' => 'required|exists:teams,id'
-    'email' => 'required|email|unique:users,email'
+    'team_id' => 'required|exists:teams,id',
+    'email' => 'required|email|unique:users,email',
 
 Use object syntax for ignore IDs, custom ID columns, or soft-delete behavior.
 Complex positional ``unique`` options are intentionally not part of the 3.0 API.
@@ -127,7 +127,13 @@ resolves the connection only once per provider operation.
 When the caller uses ``validateWithRunwire()``, ReqShield borrows the
 host runtime/request/scope through DBLayer 6's ``Connection::withRunwire()``
 for a complete logical provider batch and restores the prior binding on
-exit. DBLayer 5.x is **not supported**; there is no bridge fallback.
+exit, including exceptional exits. Host cancellation during connection resolution
+or query execution propagates Runwire's ``CancelledException``. A database
+failure observed after host cancellation is also reported as cancellation.
+Other provider failures throw ``DatabaseValidationException`` with a
+sanitized message and the original exception as its previous exception;
+applications should avoid exposing that exception chain to clients.
+DBLayer 5.x is **not supported**; there is no bridge fallback.
 The package requires an installed DBLayer 6 when native bridge functionality
 is used, and rejects older ArrayKit versions through Composer constraints. See
 :doc:`runwire-integration`.
@@ -138,4 +144,3 @@ columns, soft deletes, DBLayer-derived batch boundaries, constrained bind
 limits, multi-chunk operations, resolver lifetime, identifier rejection and
 infrastructure failures. Production bridge code uses DBLayer's instance
 ``Connection``/query-builder APIs only; it does not use the static DB facade.
-

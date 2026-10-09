@@ -211,8 +211,8 @@ final class WildcardPath
         }
 
         foreach ($data as $key => $value) {
-            if (is_string($key) && str_contains($key, '.')) {
-                throw new \InvalidArgumentException('Wildcard input keys cannot contain dots.');
+            if (is_string($key) && strpbrk($key, '.,|') !== false) {
+                throw new \InvalidArgumentException('Wildcard input keys cannot contain dots, commas or pipes.');
             }
 
             static::expandWildcardSegments(

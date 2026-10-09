@@ -156,3 +156,23 @@ test('strict unknown nested errors are absent from parent safe results', functio
     expect($result->fails())->toBeTrue()
         ->and($result->validated()['user'])->toBe(['name' => 'ok']);
 });
+
+test('unknown-field policies apply to decoded input before safe parent projection', function (string $policy, string $mode) {
+    $validator = Validator::make(['user' => 'array', 'user.name' => 'required|string'])
+        ->setNestedFlattenMode($mode)->setSanitizers(['user' => ['jsonDecode']]);
+    $validator->$policy();
+    $result = $validator->validate(['user' => '{"name":"ok","is_admin":true}']);
+
+    expect($result->passes())->toBe($policy === 'stripUnknown')
+        ->and($result->validated()['user'])->toBe(['name' => 'ok'])
+        ->and($result->typed()['user'])->toBe(['name' => 'ok'])
+        ->and($result->safe()['user'])->toBe(['name' => 'ok']);
+})->with(['stripUnknown', 'strict'])->with(['targeted', 'all']);
+
+test('strict policy detects decoded unknowns even without a declared parent rule', function () {
+    $result = Validator::make(['user.name' => 'required|string'])->strict()
+        ->setSanitizers(['user' => ['jsonDecode']])
+        ->validate(['user' => '{"name":"ok","is_admin":true}']);
+
+    expect($result->fails())->toBeTrue()->and($result->errors())->toHaveKey('user.is_admin');
+});

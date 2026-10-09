@@ -17,6 +17,13 @@ Errors use concrete indexed paths such as
 ``groups.0.members.2.email``. Multiple wildcards, wildcard aliases, custom
 messages, sanitizers, casts, and database rules share the same expansion engine.
 
+Associative member keys are supported, for example ``items.alice.value``.
+Wildcard member keys containing ``.``, ``,`` or ``|`` throw
+``InvalidArgumentException`` before rule execution. These delimiters cannot
+be represented safely in a captured dependency expression such as
+``required_if:items.*.enabled,1``. Use delimiter-free identifiers or numeric
+array indexes. The restriction applies to mutable and compiled validators.
+
 Traversal Modes
 ---------------
 

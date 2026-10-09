@@ -27,6 +27,16 @@ final readonly class RunwireExecution
         $this->checkpoint();
     }
 
+    /** @param list<callable(mixed):mixed> $pipeline */
+    public function applyPipeline(mixed $value, array $pipeline): mixed
+    {
+        foreach ($pipeline as $callback) {
+            $value = $this->invoke(static fn(): mixed => $callback($value));
+        }
+
+        return $value;
+    }
+
     public function checkpoint(bool $yield = false): void
     {
         $pid = getmypid();
@@ -51,6 +61,22 @@ final readonly class RunwireExecution
 
         if ($yield && $this->scope !== null && $this->runtime->supports(RuntimeCapability::RUNWIRE_COROUTINES)) {
             $this->scope->yieldNow();
+            $this->checkpoint();
+        }
+    }
+
+    /**
+     * @template T
+     * @param callable():T $callback
+     * @return T
+     */
+    public function invoke(callable $callback): mixed
+    {
+        $this->checkpoint();
+
+        try {
+            return $callback();
+        } finally {
             $this->checkpoint();
         }
     }

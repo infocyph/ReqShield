@@ -793,7 +793,8 @@ class Validator
      *   errors:array<string,array<int,string>>,
      *   failures:array<int,array{field:string,rule:string,message:string,value:mixed}>,
      *   validated:array<string,mixed>,
-     *   expensiveBatch:array<int,mixed>
+     *   expensiveBatch:array<int,mixed>,
+     *   execution?:\Infocyph\ReqShield\Support\RunwireExecution|null
      * } $context
      */
     protected function buildValidationResult(array $context): ValidationResult
@@ -802,7 +803,7 @@ class Validator
             $context['errors'],
             $context['validated'],
             $context['failures'],
-            $this->applyCasts($context['validated']),
+            $this->applyCasts($context['validated'], $context['execution'] ?? null),
             $this->dtoClass,
         );
     }
@@ -830,16 +831,18 @@ class Validator
     /**
      * @param array<int|string,mixed> $data
      *
-     * @return array{0:array<int|string,mixed>,1:ValidationPlan}
+     * @return array{0:array<int|string,mixed>,1:ValidationPlan,2:array<int|string,mixed>|null}
      */
-    protected function prepareValidationDataAndSchema(array $data): array
+    protected function prepareValidationDataAndSchema(array $data, ?\Infocyph\ReqShield\Support\RunwireExecution $execution = null): array
     {
+        $effectiveInput = null;
         if (!empty($this->sanitizers) || !empty($this->schemaSanitizers)) {
-            $data = $this->applySanitizers($data);
+            $data = $this->applySanitizers($data, $execution);
             $this->assertInputWithinLimits($data);
+            $effectiveInput = $data;
         }
 
-        $activeRules = $this->prepareRuntimeRules($data);
+        $activeRules = $this->prepareRuntimeRules($data, $execution);
         $activeRulesCacheKey = $activeRules === $this->rules
             ? $this->rulesCacheKey
             : $this->buildRulesCacheKey($activeRules);
@@ -859,7 +862,7 @@ class Validator
             );
         }
 
-        return [$data, $plan];
+        return [$data, $plan, $effectiveInput];
     }
 
     /**

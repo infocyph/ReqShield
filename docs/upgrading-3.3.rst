@@ -13,8 +13,12 @@ Input and Safe Output
 * Conflicting dotted and nested representations fail closed.
 * Associative wildcard dependencies and distinct groups use schema
   capture positions rather than numeric-key assumptions.
+  Wildcard member keys containing dots, commas or pipes are rejected:
+  those delimiters cannot safely represent a captured dependency path.
 * Strict unknown fields include integer root keys, and resource limits
   are enforced after sanitization expansion.
+  Unknown-field policies also inspect the effective sanitized structure;
+  decoding a JSON field cannot introduce undeclared safe-output fields.
 * Safe validated parent arrays no longer retain unknown, excluded, or
   invalid descendants. Applications that relied on reading those values
   from ``validated()`` must explicitly use unvalidated input when needed.
@@ -40,6 +44,12 @@ Integral floats outside the native signed integer range are rejected.
 Compiled composite secure-file rules detach nested mutable rule objects;
 JSON Schema exports retain terminal wildcard item types.
 
+Slug normalization now handles libiconv's generated accent punctuation while
+preserving caller punctuation. For example, ``Café déjà vu`` becomes
+``cafe-deja-vu`` with a supported transliterator. Intl remains optional;
+unsupported iconv implementations retain the documented fallback. See
+:doc:`sanitization`.
+
 Optional Host-Owned Runwire
 ---------------------------
 
@@ -52,6 +62,11 @@ accepts existing host-owned objects on ``Validator`` and
 ``CompiledValidator``. DBLayer 6's ``withRunwire()`` binding is
 temporary and restored after the complete logical batch. A cancelled
 request propagates cancellation rather than producing a validation error.
+Execution guards surround sanitizer, condition, rule, after-callback and
+cast invocations. Cancellation or deadline expiry prevents later callbacks
+and successful result delivery. A database exception raised while the host
+is cancelled propagates host cancellation; other database failures retain
+the sanitized database exception boundary.
 ReqShield does not own application workers, global runtime bindings or
 database connections. See :doc:`runwire-integration`.
 
