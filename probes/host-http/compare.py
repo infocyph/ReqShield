@@ -27,6 +27,18 @@ def process_usage(master_pid):
         return {"rss_bytes": 0, "cpu_seconds": 0}
 
 
+def cgroup_cpu_seconds():
+    """Use monotonically accumulated container CPU, including recycled workers."""
+    output = subprocess.check_output(
+        ["docker", "exec", "reqshield-fpm", "cat", "/sys/fs/cgroup/cpu.stat"],
+        text=True,
+    )
+    counters = dict(line.split(maxsplit=1) for line in output.splitlines())
+    if "usage_usec" not in counters:
+        raise RuntimeError("The PHP-FPM container does not expose cgroup-v2 CPU counters.")
+    return int(counters["usage_usec"]) / 1_000_000
+
+
 def run_window(name, concurrency, seconds, master_pid):
     port = 8091 if name == "baseline" else 8092
     args = [
@@ -39,6 +51,7 @@ def run_window(name, concurrency, seconds, master_pid):
         f"http://127.0.0.1:{port}/endpoint.php",
     ]
     before = process_usage(master_pid)
+    before_cpu = cgroup_cpu_seconds()
     process = subprocess.Popen(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     max_rss = before["rss_bytes"]
     while process.poll() is None:
@@ -58,7 +71,7 @@ def run_window(name, concurrency, seconds, master_pid):
     sockets = re.search(r"Socket errors:.*", stdout)
     if sockets and re.search(r"(connect|read|write|timeout)\s+[1-9]\d*", sockets.group()):
         raise RuntimeError(f"Transport errors on {name}: {sockets.group()}")
-    after = process_usage(master_pid)
+    after_cpu = cgroup_cpu_seconds()
     return {
         "name": name,
         "concurrency": concurrency,
@@ -67,7 +80,7 @@ def run_window(name, concurrency, seconds, master_pid):
         "p95_us": int(percentiles.group(2)),
         "p99_us": int(percentiles.group(3)),
         "max_fpm_rss_bytes": max_rss,
-        "fpm_cpu_seconds": round(after["cpu_seconds"] - before["cpu_seconds"], 3),
+        "fpm_cpu_seconds": round(after_cpu - before_cpu, 3),
     }
 
 
@@ -120,7 +133,7 @@ def main():
         "baseline": "git tag 3.2",
         "candidate": os.getenv("GITHUB_SHA", "branch checkout"),
         "php": subprocess.check_output(["php", "-v"], text=True).splitlines()[0],
-        "fpm": subprocess.check_output(["php-fpm8.4", "-v"], text=True).splitlines()[0],
+        "fpm": subprocess.check_output(["docker", "exec", "reqshield-fpm", "php-fpm", "-v"], text=True).splitlines()[0],
         "windows": all_results,
         "summary": summary,
     }
