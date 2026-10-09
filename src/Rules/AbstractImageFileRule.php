@@ -16,7 +16,7 @@ abstract class AbstractImageFileRule extends BaseRule
             return false;
         }
 
-        if ($this->isUploadedFileObject($value)) {
+        if (is_object($value) && $this->isUploadedFileObject($value)) {
             return $this->getImageInfoFromStream($value);
         }
 
@@ -30,7 +30,7 @@ abstract class AbstractImageFileRule extends BaseRule
 
         try {
             return getimagesize($path);
-        } catch (\ValueError|\TypeError) {
+        } catch (\ValueError) {
             return false;
         } finally {
             restore_error_handler();
@@ -44,6 +44,10 @@ abstract class AbstractImageFileRule extends BaseRule
         $position = null;
 
         try {
+            if (!method_exists($value, 'getStream')) {
+                return false;
+            }
+
             $stream = $value->getStream();
             if (!is_object($stream) || !method_exists($stream, 'isSeekable')
                 || !method_exists($stream, 'tell') || !method_exists($stream, 'seek')
@@ -53,13 +57,15 @@ abstract class AbstractImageFileRule extends BaseRule
             }
 
             $position = $stream->tell();
-            $stream->seek(0);
+            $seek = [$stream, 'seek'];
+            $seek(0);
             $bytes = $this->readImageStream($stream);
             if ($bytes === null) {
                 return false;
             }
 
             set_error_handler(static fn() => true);
+
             try {
                 return getimagesizefromstring($bytes);
             } finally {
@@ -70,7 +76,10 @@ abstract class AbstractImageFileRule extends BaseRule
         } finally {
             if (is_object($stream) && is_int($position)) {
                 try {
-                    $stream->seek($position);
+                    $restore = [$stream, 'seek'];
+                    if (is_callable($restore)) {
+                        $restore($position);
+                    }
                 } catch (\Throwable) {
                     // A failed host stream cannot guarantee cursor restoration.
                 }
@@ -81,10 +90,16 @@ abstract class AbstractImageFileRule extends BaseRule
     /** @return non-empty-string|null */
     protected function readImageStream(object $stream): ?string
     {
+        $eof = [$stream, 'eof'];
+        $read = [$stream, 'read'];
+        if (!is_callable($eof) || !is_callable($read)) {
+            return null;
+        }
+
         $bytes = '';
-        while (!$stream->eof() && strlen($bytes) < self::MAX_STREAM_BYTES) {
+        while (!$eof() && strlen($bytes) < self::MAX_STREAM_BYTES) {
             $length = min(65536, self::MAX_STREAM_BYTES - strlen($bytes));
-            $chunk = $stream->read($length);
+            $chunk = $read($length);
             if (!is_string($chunk) || $chunk === '') {
                 return null;
             }
@@ -92,6 +107,6 @@ abstract class AbstractImageFileRule extends BaseRule
             $bytes .= $chunk;
         }
 
-        return $bytes !== '' && $stream->eof() ? $bytes : null;
+        return $bytes !== '' && $eof() ? $bytes : null;
     }
 }
