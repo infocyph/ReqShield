@@ -80,7 +80,7 @@ try {
     }
 
     fwrite(STDOUT, sprintf(
-        "PASS %s SQL comparison parity (%d candidates, exists and unique). Engine: %s\\n",
+        "PASS %s SQL comparison parity (%d candidates, exists and unique). Engine: %s\n",
         $driver,
         count($checks),
         (string) $engineVersion,
