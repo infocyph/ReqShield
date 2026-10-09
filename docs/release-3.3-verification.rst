@@ -129,6 +129,26 @@ evidence. Consult the `PR checks
 revision's artifacts; the earlier failure and local measurements above
 remain historical records.
 
+All six hosted workflows subsequently passed for the repaired code candidate
+``d15293a3dc8b2261fedc4965f880d6e7326f2744``:
+`PHPForge QA <https://github.com/infocyph/ReqShield/actions/runs/37887000787>`_,
+`release guard <https://github.com/infocyph/ReqShield/actions/runs/37887000388>`_,
+`documentation <https://github.com/infocyph/ReqShield/actions/runs/37887000270>`_,
+`SQL parity <https://github.com/infocyph/ReqShield/actions/runs/37887000296>`_,
+`persistent soak <https://github.com/infocyph/ReqShield/actions/runs/37887000299>`_
+and `HTTP throughput <https://github.com/infocyph/ReqShield/actions/runs/37887000387>`_.
+The HTTP artifact records merge commit
+``2b01214e0fe4ab37d6268df2cc9ec61f92607a3d``, whose tree matches that PR head.
+Against 3.2, median successful RPM changes were **+1.12%, -0.02% and +1.10%**
+at concurrency 1, 4 and 8. Every series passed the unchanged 2% regression
+and 5% sample-variation gates; candidate variation was at most 0.92%.
+PHP-FPM was 8.4.26 and peak live FPM process-tree RSS was 128 MiB.
+The 300-second soak passed with 28,197 request cycles, 1,485 cancellation
+checks, 10 MiB peak PHP allocation and zero retained active tasks or database
+bindings. These results close the reproduced executor throughput regression
+for the recorded code candidate. Final revision checks and deployment-specific
+application acceptance remain required before a release.
+
 The earlier hosted certificates cover their recorded commits. Revalidate
 the repaired final commit before release; do not reuse those certificates
 as evidence for subsequent source changes.
