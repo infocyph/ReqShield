@@ -9,6 +9,27 @@ use Infocyph\ReqShield\Support\ValidationResult;
 
 trait HasValidatorExecution
 {
+    /**
+     * @param array{
+     *   errors:array<string,array<int,string>>,
+     *   validated:array<string,mixed>,
+     *   failures:array<int,mixed>,
+     *   expensiveBatch:array<int,mixed>
+     * } $context
+     */
+    protected function finalizeValidatedProjection(array &$context, \Infocyph\ReqShield\Support\ValidationPlan $plan): void
+    {
+        if (!$plan->hasExplicitAncestorFields && $this->afterCallbacks === []) {
+            foreach (array_keys($context['errors']) as $field) {
+                unset($context['validated'][(string) $field]);
+            }
+
+            return;
+        }
+
+        $this->purgeValidatedDescendants($context['validated'], $plan->fields, $context['errors']);
+    }
+
     /** @param array<int|string,mixed> $data */
     protected function validateInternal(array $data, ?RunwireExecution $execution): ValidationResult
     {
@@ -43,13 +64,7 @@ trait HasValidatorExecution
         $execution?->checkpoint();
         $this->executeAfterValidationCallbacks($data, $context);
         $execution?->checkpoint();
-        if (!$plan->hasExplicitAncestorFields && $this->afterCallbacks === []) {
-            foreach (array_keys($context['errors']) as $field) {
-                unset($context['validated'][(string) $field]);
-            }
-        } else {
-            $this->purgeValidatedDescendants($context['validated'], $plan->fields, $context['errors']);
-        }
+        $this->finalizeValidatedProjection($context, $plan);
         $result = $this->buildValidationResult($context);
         $this->throwIfValidationShouldFail($result, $context['errors']);
 
