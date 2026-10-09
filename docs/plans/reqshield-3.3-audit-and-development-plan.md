@@ -190,8 +190,8 @@ Rollback criteria: reopen the release gate for any reproduced bypass, source-ind
 | --- | --- | --- |
 | A | Input/cache/wildcard/limit repairs with regressions | **Batch QA passed** at `1c1e18e` (GitHub Actions [37862931807](https://github.com/infocyph/ReqShield/actions/runs/37862931807)): PHP 8.4/8.5, stable/lowest QA, static analysis and configured benchmarks green; final end-to-end host RPM and expanded cross-field performance remain release gates |
 | B | Safe result projection and upload source boundary | **Batch QA passed** at `790f8a9`: [GitHub Actions 37863850902](https://github.com/infocyph/ReqShield/actions/runs/37863850902); PHP 8.4/8.5 stable/lowest QA, static analysis, and benchmarks green. Independent third-party PSR-7 and production-host probes remain final acceptance evidence |
-| C | SQL/cast/snapshot/export repairs for 3.3.0 | **In progress** after passing Batch B hosted QA; add regressions, implement R04/R07/R09/R10, then run dedicated Batch C QA |
-| D | Optional per-execution Runwire support | Planned; downstream feasibility verified |
+| C | SQL/cast/snapshot/export repairs for 3.3.0 | **Batch QA passed** at `9135b8d`: [GitHub Actions 37864826678](https://github.com/infocyph/ReqShield/actions/runs/37864826678); PHP 8.4/8.5 stable/lowest QA, analyzers and configured benchmarks green. Cross-engine parity and production-host performance remain Batch E release evidence |
+| D | Optional per-execution Runwire support | **In progress**, after Batch C hosted QA success. Optional passed-instance interop and cancellation lifecycle regressions are required before Batch D QA |
 | E | All compatible package upgrades, docs, and unified 3.3.0 acceptance | Planned; released DBLayer/Runwire dependencies tested in isolation |
 
 The audit and this plan are complete. Remediation, new integration APIs, and release certification remain separate implementation work.
