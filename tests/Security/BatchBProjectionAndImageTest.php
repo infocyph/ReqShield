@@ -143,3 +143,16 @@ test('uploaded seekable memory stream preserves cursor and ignores remote metada
         fclose($handle);
     }
 });
+
+
+test('strict unknown nested errors are absent from parent safe results', function () {
+    $result = Validator::make([
+        'user' => 'array',
+        'user.name' => 'required|string',
+    ])->strict()->validate([
+        'user' => ['name' => 'ok', 'is_admin' => true],
+    ]);
+
+    expect($result->fails())->toBeTrue()
+        ->and($result->validated()['user'])->toBe(['name' => 'ok']);
+});
