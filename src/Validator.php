@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Infocyph\ReqShield;
 
+use Infocyph\ReqShield\Concerns\HasValidatorExecution;
 use Infocyph\ReqShield\Concerns\HasValidatorInternals;
 use Infocyph\ReqShield\Concerns\HasValidatorRequestFeatures;
 use Infocyph\ReqShield\Concerns\HasValidatorRuntime;
@@ -32,6 +33,7 @@ use Infocyph\ReqShield\Support\WildcardPath;
  */
 class Validator
 {
+    use HasValidatorExecution;
     use HasValidatorInternals;
     use HasValidatorRequestFeatures;
     use HasValidatorRuntime;
@@ -734,35 +736,21 @@ class Validator
     /** @param array<int|string,mixed> $data */
     public function validate(array $data): ValidationResult
     {
-        $this->assertInputWithinLimits($data);
-        NestedValidator::assertNoConflictingPaths($data);
-        $originalData = $data;
-        [$data, $plan] = $this->prepareValidationDataAndSchema($data);
-        $context = $this->initializeValidationContext();
-        $this->processUnknownFields($originalData, $data, $plan, $context);
+        return $this->validateInternal($data, null);
+    }
 
-        if (!empty($context['errors']) && $this->stopOnFirstError) {
-            $result = $this->buildValidationResult($context);
-            $this->throwIfValidationShouldFail($result, $context['errors']);
-
-            return $result;
-        }
-
-        foreach ($plan->fields as $field) {
-            $fieldPlan = $plan->schema[$field];
-            $value = array_key_exists($field, $data) ? $data[$field] : null;
-            if (!$this->processFieldValidation($field, $value, $fieldPlan, $data, $context)
-                && $this->stopOnFirstError) {
-                break;
-            }
-        }
-        $this->executeBatchedRules($context);
-        $this->executeAfterValidationCallbacks($data, $context);
-        $this->purgeValidatedDescendants($context['validated'], $plan->fields, $context['errors']);
-        $result = $this->buildValidationResult($context);
-        $this->throwIfValidationShouldFail($result, $context['errors']);
-
-        return $result;
+    /**
+     * @param array<int|string,mixed> $data
+     */
+    public function validateWithRunwire(
+        array $data,
+        \Infocyph\Runwire\RuntimeContext $runtime,
+        ?\Infocyph\Runwire\RequestContext $request = null,
+        ?\Infocyph\Runwire\Coroutine\CoroutineScope $scope = null,
+    ): ValidationResult {
+        return $this->validateInternal($data, new \Infocyph\ReqShield\Support\RunwireExecution(
+            $runtime, $request, $scope,
+        ));
     }
 
     public function when(

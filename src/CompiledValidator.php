@@ -21,4 +21,14 @@ final readonly class CompiledValidator
     {
         return $this->validator->validate($data);
     }
+
+    /** @param array<int|string,mixed> $data */
+    public function validateWithRunwire(
+        array $data,
+        \Infocyph\Runwire\RuntimeContext $runtime,
+        ?\Infocyph\Runwire\RequestContext $request = null,
+        ?\Infocyph\Runwire\Coroutine\CoroutineScope $scope = null,
+    ): ValidationResult {
+        return $this->validator->validateWithRunwire($data, $runtime, $request, $scope);
+    }
 }
