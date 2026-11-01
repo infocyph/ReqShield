@@ -1,14 +1,14 @@
-Host-owned Runwire 2.1.1 Integration
+Host-owned Runwire 3.0 Integration
 =====================================
 
-ReqShield 3.3 adds an optional passed-instance integration with Runwire 2.1.1.
+ReqShield supports an optional passed-instance integration with Runwire 3.0.
 The application owns the runtime, request and coroutine scope. ReqShield
 neither starts an event loop nor retains host execution bindings.
 
 .. code-block:: bash
 
-    composer require 'infocyph/runwire:2.1.1'
-    composer require 'infocyph/dblayer:^6.0'
+    composer require 'infocyph/runwire:^3.0'
+    composer require 'infocyph/dblayer:^6.1.3'
 
 The second package is only needed for the native database bridge; ordinary
 validation needs neither package.
@@ -131,9 +131,10 @@ errors retain ReqShield's sanitized ``DatabaseValidationException`` boundary.
 Compatibility and Boundaries
 ----------------------------
 
-* DBLayer **6.0** is the minimum supported native integration.
-  DBLayer 5.x and ArrayKit versions below 5.3 are unsupported, blocked by
-  Composer, and have no compatibility fallback.
+* DBLayer **6.0** is the minimum supported native API; current reference tests
+  use **6.1.3 or later**. DBLayer 5.x is blocked by Composer and has no
+  compatibility fallback. DBLayer owns its ArrayKit requirement; ReqShield
+  imposes no independent ArrayKit conflict.
 * A mismatched PID, completed or mismatched request, closed scope and
   cancellation reject execution.
 * Missing coroutine capability or scope uses synchronous validation. Passing

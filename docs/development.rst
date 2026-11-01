@@ -57,14 +57,14 @@ Hooks are also installed automatically on ``post-autoload-dump``.
 Database Reference Tests
 ------------------------
 
-DBLayer 6.0 is installed only as a development dependency and backs the reference
+DBLayer 6.1.3 or later is installed only as a development dependency and backs the reference
 ``DatabaseProvider`` integration tests. Those tests exercise driver-aware
 physical batching, constrained ``security.max_params`` configurations, unique
 ignore bindings, soft deletes, scalar edge cases, wildcard batches, and DBLayer
 runtime reset between tests. ReqShield's production API remains independent of
 DBLayer.
 
-Runwire is pinned to **2.1.1** for development integration tests and remains
+Runwire **^3.0** is used for development integration tests and remains
 optional for consumers. The Runwire regressions cover callback cancellation,
 deadline expiry, resolver/query cancellation, temporary binding restoration,
 automatic yielding with and without advertised coroutine support, and
@@ -74,6 +74,10 @@ rule delimiters and decoded unknown fields in both nested traversal modes.
 Run the suite on native PHP 8.4 and 8.5 with ``E_ALL``, including slug behavior
 under glibc/libiconv and optional Intl availability. Recheck production-only
 validation without DBLayer or Runwire installed.
+
+PHPBench currently brings in the abandoned ``doctrine/annotations`` package
+through PHPForge's development tooling. It is not a production dependency;
+removing it requires an upstream PHPBench/PHPForge tooling update.
 
 The reusable CI workflow invokes ``benchmark:representative`` as a Composer
 script; it runs the same PHPForge aggregate benchmark task as

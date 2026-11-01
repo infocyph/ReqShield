@@ -66,7 +66,8 @@ Native DBLayer 6 Integration
 ----------------------------
 
 ReqShield remains database-library agnostic. DBLayer is an optional suggested
-dependency, not a normal runtime requirement. When DBLayer 6.0 is installed,
+dependency, not a normal runtime requirement. Reference tests use DBLayer 6.1.3
+or later; the native API floor remains 6.0. When DBLayer is installed,
 ReqShield provides the native bridge
 ``Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider``.
 
