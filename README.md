@@ -483,7 +483,7 @@ when it is absent. The contract contains only `batchExists()` and `batchUnique()
 ReqShield owns logical validation batching, while providers own query construction
 and driver-safe physical chunking. ReqShield is database-library agnostic: a
 provider may use PDO, DBLayer, Laravel, Doctrine, or another database layer.
-DBLayer **6.0** is the minimum supported native integration and remains optional for consumers. **DBLayer 5.x and ArrayKit versions below 5.3 are unsupported**; Composer rejects those versions if present. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
+DBLayer **6.0** is the minimum supported native integration and remains optional for consumers. Development and reference tests use **6.1.3 or later**, which requires ArrayKit **5.3.2 or later**. ReqShield rejects DBLayer 5.x and leaves ArrayKit constraints to DBLayer. When DBLayer is installed, ReqShield ships a native resolver-first bridge:
 
 ```php
 use Infocyph\ReqShield\Bridge\DBLayerDatabaseProvider;
@@ -506,10 +506,10 @@ The resolver is invoked once per logical database operation. DBLayer 6 owns phys
 - **Update support** - `Rule::unique('users', 'email')->ignore(5)` ignores ID 5
 - **Explicit object syntax** - `Rule::unique('users', 'email')->ignore($id)->withoutTrashed()`
 
-### Optional Runwire 2.1.1 integration
+### Optional Runwire 3.0 integration
 
-DBLayer **6.0** is the intended optional database bridge, and Runwire
-**2.1.1** supplies opt-in host-owned cancellation/deadline integration.
+DBLayer **6.1.3 or later** is the reference optional database bridge, and Runwire
+**3.0** supplies opt-in host-owned cancellation/deadline integration.
 Neither package is required for ordinary ReqShield validation.
 
 ```php

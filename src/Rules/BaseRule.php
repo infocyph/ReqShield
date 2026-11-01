@@ -17,7 +17,8 @@ abstract class BaseRule implements Rule
 
     protected function detectMimeTypeFromPath(string $path): ?string
     {
-        if (!is_file($path)) {
+        if ($path === '' || str_contains($path, "\0")
+            || str_contains($path, '://') || !is_file($path)) {
             return null;
         }
 

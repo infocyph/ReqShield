@@ -82,6 +82,12 @@ including fields introduced by JSON decoding. Wildcard member keys cannot
 contain dots, commas or pipes, which would make dependency paths ambiguous
 or change the textual rule grammar.
 
+MIME content detection rejects empty, NUL-containing and stream-wrapper upload
+paths before filesystem access. This prevents upload metadata from opening an
+unexpected wrapper; local path authorization remains the application's
+responsibility. Explicit ``compatible()`` mode can still fall back to the
+client-provided MIME type.
+
 Image/dimension rules reject remote URL paths, stream wrappers, invalid
 upload status, malformed temporary paths and oversized streamed images.
 Seekable uploaded streams use bounded reads and restore their cursor.

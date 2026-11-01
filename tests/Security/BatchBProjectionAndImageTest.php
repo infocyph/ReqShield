@@ -68,6 +68,47 @@ test('image and dimensions reject every unsafe upload path', function (mixed $pa
     'upload error' => [__FILE__, UPLOAD_ERR_PARTIAL],
 ]);
 
+test('MIME rules reject unsafe paths before invoking stream wrappers', function (string $rule) {
+    $wrapper = new class {
+        public mixed $context;
+
+        public function url_stat(string $path, int $flags): array
+        {
+            throw new RuntimeException(sprintf('MIME validation must not stat %s (flags %d).', $path, $flags));
+        }
+    };
+
+    expect(stream_wrapper_register('reqshieldmimeaudit', $wrapper::class))->toBeTrue();
+
+    try {
+        foreach (['reqshieldmimeaudit://payload', 'php://memory', '', "invalid\0path"] as $path) {
+            $result = Validator::make(['upload' => $rule])->validate([
+                'upload' => ['tmp_name' => $path, 'error' => UPLOAD_ERR_OK],
+            ]);
+            expect($result->fails())->toBeTrue();
+        }
+    } finally {
+        stream_wrapper_unregister('reqshieldmimeaudit');
+    }
+})->with(['mimes:txt', 'mimetypes:text/plain']);
+
+test('MIME rules still detect local upload content', function (string $rule) {
+    $path = tempnam(sys_get_temp_dir(), 'reqshield-mime-');
+    if ($path === false) {
+        throw new RuntimeException('Cannot create MIME fixture.');
+    }
+    file_put_contents($path, "A plain text upload fixture.\n");
+
+    try {
+        $result = Validator::make(['upload' => $rule])->validate([
+            'upload' => ['tmp_name' => $path, 'error' => UPLOAD_ERR_OK],
+        ]);
+        expect($result->passes())->toBeTrue();
+    } finally {
+        unlink($path);
+    }
+})->with(['mimes:txt', 'mimetypes:text/plain']);
+
 test('local uploaded image still passes image and dimension validation', function () {
     $path = tempnam(sys_get_temp_dir(), 'reqshield-image-');
     if ($path === false) {
