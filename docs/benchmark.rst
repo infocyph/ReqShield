@@ -95,3 +95,30 @@ allocation and zero retained active tasks or database bindings. It covers
 interleaved tenant validations and pre-cancelled requests. Callback/deadline
 cancellation and cooperative yielding are covered separately by regressions.
 Consult the current revision's GitHub checks for new acceptance evidence.
+
+3.3.1 Candidate Verification
+----------------------------
+
+Candidate ``ba920939d94ac3822aaf3f51b8e05d455fbccf5c`` passed all six
+`PR #21 workflows <https://github.com/infocyph/ReqShield/pull/21/checks>`_.
+GitHub checked out merge commit
+``6f0714a3091c785d4e9bbca0b83d51f345efe840``, whose files match that candidate.
+PHP 8.4/8.5 stable/lowest QA, static/security analysis, strict release guard,
+production installation, Sphinx and all six SQL parity lanes passed.
+The release guard ran 387 tests with 4,046 assertions and found no advisories.
+
+The `3.3.1 HTTP comparison
+<https://github.com/infocyph/ReqShield/actions/runs/41282040324>`_ measured
+stable median successful RPM changes of +0.01%, +0.82% and +0.07% versus
+the exact 3.2 tag at concurrency 1, 4 and 8. All cases passed the unchanged
+2% regression and 5% sample-variation limits for the same nested/wildcard
+fixture described above.
+
+The `300-second Runwire 3.0 / DBLayer 6.1.3 soak
+<https://github.com/infocyph/ReqShield/actions/runs/41282040326>`_ completed
+28,936 cycles and 1,523 cancellations with 10 MiB peak PHP allocation and
+zero retained tasks or database bindings. The local Composer archive contained
+199 entries, including all 193 tracked runtime files. Production consumers
+passed without optional integrations and with the supported integration chain.
+This record describes that candidate; subsequent cleanup or release commits
+require their own final-revision checks.
